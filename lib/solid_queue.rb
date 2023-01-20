@@ -1,8 +1,10 @@
+require "active_job"
+require "active_job/queue_adapters"
+
 require "solid_queue/version"
 require "solid_queue/engine"
 
-module ActiveJob
-  module SolidQueue
-    # Your code goes here...
-  end
+require "active_job/queue_adapters/solid_queue_adapter"
+
+module SolidQueue
 end
