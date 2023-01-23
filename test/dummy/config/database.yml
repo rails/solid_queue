@@ -10,7 +10,7 @@ default: &default
   username: root
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   host: "127.0.0.1"
-  port: 3306
+  port: 33060
 
 development:
   <<: *default

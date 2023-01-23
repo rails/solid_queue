@@ -1,0 +1,13 @@
+version: "3.8"
+
+volumes:
+  db: {}
+
+services:
+  mysql:
+    image: mysql:8.0.31
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - db:/var/lib/mysql
+    ports: [ "127.0.0.1:33060:3306" ]

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -eu
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+docker-compose up -d --remove-orphans
+docker-compose ps
+
+bundle
+
+echo "Creating databases..."
+
+rails db:setup
