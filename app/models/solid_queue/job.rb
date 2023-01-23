@@ -7,6 +7,12 @@ class SolidQueue::Job < ActiveRecord::Base
 
   before_save :set_default_priority
 
+  class << self
+    def enqueue(queue_name:, priority: 0, arguments: {})
+      create!(queue_name: queue_name, priority: priority, arguments: arguments)
+    end
+  end
+
   def perform
     ActiveJob::Base.execute(arguments)
   end
