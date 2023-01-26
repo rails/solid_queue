@@ -18,4 +18,4 @@ development:
 
 test:
   <<: *default
-  database: solid_queue_development
+  database: solid_queue_test

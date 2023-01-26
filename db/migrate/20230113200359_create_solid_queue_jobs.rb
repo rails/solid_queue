@@ -9,8 +9,9 @@ class CreateSolidQueueJobs < ActiveRecord::Migration[7.0]
 
       t.datetime :claimed_at
       t.datetime :enqueued_at
+      t.datetime :finished_at
 
-      t.index [ :queue_name, :priority, :claimed_at ], name: :index_solid_queue_jobs_for_claims
+      t.index [ :queue_name, :priority, :claimed_at, :finished_at ], name: :index_solid_queue_jobs_for_claims
       t.index :claimed_by
     end
   end
