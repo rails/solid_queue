@@ -1,26 +1,38 @@
 class SolidQueue::Job < ActiveRecord::Base
   serialize :arguments, JSON
 
-  scope :pending, -> { where(claimed_at: nil) }
-  scope :in_queue, ->(queue) { where(queue_name: queue) }
+  scope :pending, -> { where(claimed_at: nil, finished_at: nil) }
+  scope :in_queue, ->(queues) { where(queue_name: queues) }
   scope :by_priority, -> { order(priority: :asc) }
 
-  before_save :set_default_priority
+  scope :ready, ->(queues) { pending.in_queue(queues).by_priority }
 
   class << self
-    def enqueue(queue_name:, priority: 0, arguments: {})
-      create!(queue_name: queue_name, priority: priority, arguments: arguments)
+    def enqueue(queue_name:, priority: 0, enqueued_at: Time.current, arguments: {})
+      create!(queue_name: queue_name || "default", priority: priority || 0, arguments: arguments, enqueued_at: enqueued_at || Time.current)
     end
   end
 
   def perform
-    ActiveJob::Base.execute(arguments)
+    execute
+    finished
+  rescue Exception => e
+    failed_with(e)
   end
 
   private
-    DEFAULT_PRIORITY = 0
+    def execute
+      ActiveJob::Base.execute(arguments)
+    end
 
-    def set_default_priority
-      self.priority ||= DEFAULT_PRIORITY
+    def finished
+      update!(finished_at: Time.current)
+    end
+
+    def failed_with(error)
+      transaction do
+        SolidQueue::FailedJob.create_from(self, error)
+        destroy!
+      end
     end
 end

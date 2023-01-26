@@ -9,7 +9,7 @@ module ActiveJob
     #   Rails.application.config.active_job.queue_adapter = :solid_queue
     class SolidQueueAdapter
       def enqueue(active_job) # :nodoc:
-        SolidQueue::Job.enqueue(queue_name: job.queue_name, priority: job.priority, arguments: job.serialize).tap do |job|
+        SolidQueue::Job.enqueue(queue_name: active_job.queue_name, priority: active_job.priority, arguments: active_job.serialize).tap do |job|
           active_job.provider_job_id = job.id
         end
       end
