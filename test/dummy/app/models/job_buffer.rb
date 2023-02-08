@@ -8,11 +8,19 @@ module JobBuffer
     values.clear
   end
 
+  def size
+    values.size
+  end
+
   def add(value)
     values << value
   end
 
   def last_value
     values.last
+  end
+
+  def include?(value)
+    values.include?(value)
   end
 end

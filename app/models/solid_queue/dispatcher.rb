@@ -23,7 +23,6 @@ class SolidQueue::Dispatcher
 
       if jobs.size > 0
         jobs.each do |job|
-          puts "Posting #{job.id} to workers pool"
           workers_pool.post { job.perform; count.increment }
         end
       else
