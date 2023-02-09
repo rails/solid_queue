@@ -28,7 +28,8 @@ class QueuingTest < ActiveSupport::TestCase
 
     assert_equal 3, JobBuffer.size
     assert_equal "Successfully completed job", JobBuffer.last_value
-    assert_equal 0, SolidQueue::FailedJob.count
+
+    assert_equal 0, SolidQueue::FailedExecution.count
 
     JobBuffer.clear
     RaisingJob.perform_later "DefaultsError", 10
@@ -37,8 +38,8 @@ class QueuingTest < ActiveSupport::TestCase
 
     assert_equal 5, JobBuffer.size
     assert_not_includes JobBuffer, "Successfully completed job"
-    assert_equal 1, SolidQueue::FailedJob.count
-    assert_equal "RaisingJob", SolidQueue::FailedJob.last.arguments["job_class"]
+    assert_equal 1, SolidQueue::FailedExecution.count
+    assert_equal "RaisingJob", SolidQueue::FailedExecution.last.job.arguments["job_class"]
   end
 
   private
