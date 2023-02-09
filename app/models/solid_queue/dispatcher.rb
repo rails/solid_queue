@@ -3,7 +3,7 @@ class SolidQueue::Dispatcher
 
   def initialize(**options)
     @queues = Array(options[:queues]).presence || [ "default" ]
-    @worker_count = options[:worker_count] || 10
+    @worker_count = options[:worker_count] || 5
     @workers_pool = Concurrent::FixedThreadPool.new(@worker_count)
   end
 
@@ -14,16 +14,14 @@ class SolidQueue::Dispatcher
   end
 
   def dispatch
-    count = Concurrent::AtomicFixnum.new(0)
-
     loop do
       break if stopping?
 
-      jobs = claim_jobs
+      jobs = SolidQueue::ReadyExecution.claim(queues, worker_count)
 
       if jobs.size > 0
         jobs.each do |job|
-          workers_pool.post { job.perform; count.increment }
+          workers_pool.post { job.perform }
         end
       else
         sleep(1)
@@ -47,38 +45,10 @@ class SolidQueue::Dispatcher
       @thread&.join
     end
 
-    def claim_jobs
-      candidate_ids = []
-
-      transaction do
-        candidate_ids = query_candidates
-        lock candidate_ids
-      end
-
-      claimed_jobs_among candidate_ids
-    end
-
-    def claimed_jobs_among(job_ids)
-      SolidQueue::Job.where(id: job_ids, claimed_by: identifier).limit(worker_count)
-    end
-
-    def lock(job_ids)
-      SolidQueue::Job.ready(queues).where(id: job_ids).update_all(claimed_by: identifier, claimed_at: Time.current)
-    end
-
     def clear_locks
-      SolidQueue::Job.where(claimed_by: identifier).update_all(claimed_by: nil, claimed_at: nil)
-    end
-
-    def query_candidates
-      SolidQueue::Job.ready(queues).limit(worker_count).lock("FOR UPDATE SKIP LOCKED").select(:id).to_a
     end
 
     def identifier
       Process.pid
-    end
-
-    def transaction(&block)
-      SolidQueue::Job.transaction(&block)
     end
 end

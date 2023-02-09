@@ -1,4 +1,4 @@
-class SolidQueue::FailedJob < ActiveRecord::Base
+class SolidQueue::FailedExecution < SolidQueue::Execution
   serialize :arguments, JSON
 
   def self.create_from(job, error)
@@ -12,7 +12,7 @@ class SolidQueue::FailedJob < ActiveRecord::Base
 
   def retry
     transaction do
-      SolidQueue::Job.enqueue(queue_name: queue_name, priority: priority, arguments: arguments, enqueued_at: enqueued_at)
+      job.prepare_for_execution
       destroy!
     end
   end
