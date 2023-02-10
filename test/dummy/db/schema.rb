@@ -33,7 +33,6 @@ ActiveRecord::Schema[7.0].define(version: 2023_02_07_182223) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["finished_at", "scheduled_at"], name: "index_solid_queue_jobs_on_finished_at_and_scheduled_at"
   end
 
   create_table "solid_queue_ready_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -42,7 +41,17 @@ ActiveRecord::Schema[7.0].define(version: 2023_02_07_182223) do
     t.integer "priority", default: 0, null: false
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_ready_executions_on_job_id", unique: true
-    t.index ["queue_name", "priority"], name: "index_solid_queue_ready_executions_on_queue_name_and_priority"
+    t.index ["queue_name", "priority"], name: "index_solid_queue_ready_executions"
+  end
+
+  create_table "solid_queue_scheduled_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "job_id"
+    t.string "queue_name", null: false
+    t.integer "priority", default: 0, null: false
+    t.datetime "scheduled_at", null: false
+    t.datetime "created_at", null: false
+    t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
+    t.index ["scheduled_at", "priority"], name: "index_solid_queue_scheduled_executions"
   end
 
 end

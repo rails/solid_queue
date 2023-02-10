@@ -30,10 +30,4 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
         SolidQueue::ClaimedExecution.where(job_id: job_ids)
       end
   end
-
-  private
-    def assume_attributes_from_job
-      self.queue_name ||= job&.queue_name
-      self.priority ||= job&.priority
-    end
 end
