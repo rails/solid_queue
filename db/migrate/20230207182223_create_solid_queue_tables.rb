@@ -10,8 +10,17 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
       t.datetime :finished_at
 
       t.timestamps
+    end
 
-      t.index [ :finished_at, :scheduled_at ]
+    create_table :solid_queue_scheduled_executions do |t|
+      t.references :job, index: { unique: true }
+      t.string :queue_name, null: false
+      t.integer :priority, default: 0, null: false
+      t.datetime :scheduled_at, null: false
+
+      t.datetime :created_at, null: false
+
+      t.index [ :scheduled_at, :priority ], name: "index_solid_queue_scheduled_executions"
     end
 
     create_table :solid_queue_ready_executions do |t|
@@ -21,7 +30,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
 
       t.datetime :created_at, null: false
 
-      t.index [ :queue_name, :priority ]
+      t.index [ :queue_name, :priority ], name: "index_solid_queue_ready_executions"
     end
 
     create_table :solid_queue_claimed_executions do |t|

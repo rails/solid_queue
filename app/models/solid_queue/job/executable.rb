@@ -6,11 +6,17 @@ module SolidQueue::Job::Executable
     has_one :claimed_execution
     has_one :failed_execution
 
-    after_save :prepare_for_execution, if: :due?
+    has_one :scheduled_execution
+
+    after_save :prepare_for_execution
   end
 
   def prepare_for_execution
-    create_ready_execution!(queue_name: queue_name, priority: priority)
+    if due?
+      create_ready_execution!
+    else
+      create_scheduled_execution!
+    end
   end
 
   def finished
@@ -23,6 +29,6 @@ module SolidQueue::Job::Executable
 
   private
     def due?
-      scheduled_at <= Time.current
+      scheduled_at.nil? || scheduled_at <= Time.current
     end
 end
