@@ -1,14 +1,7 @@
 class SolidQueue::FailedExecution < SolidQueue::Execution
-  serialize :arguments, JSON
+  before_create :expand_error_details_from_exception
 
-  def self.create_from(job, error)
-    create! \
-      queue_name: job.queue_name,
-      arguments: job.arguments,
-      priority: job.priority,
-      enqueued_at: job.enqueued_at,
-      error: "#{error.message}\n#{error.backtrace.join("\n")}"
-  end
+  attr_accessor :exception
 
   def retry
     transaction do
@@ -16,4 +9,11 @@ class SolidQueue::FailedExecution < SolidQueue::Execution
       destroy!
     end
   end
+
+  private
+    def expand_error_details_from_exception
+      if exception
+        self.error = ([ exception.class.name, exception.message ] + exception.backtrace).join("\n")
+      end
+    end
 end
