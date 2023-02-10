@@ -10,10 +10,10 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
 
       transaction do
         candidate_job_ids = query_candidates(queues, limit)
-        lock candidate_job_ids
+        lock(candidate_job_ids)
       end
 
-      claimed_executions_for candidate_job_ids
+      claimed_executions_for(candidate_job_ids)
     end
 
     private
@@ -22,11 +22,15 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
       end
 
       def lock(job_ids)
+        return nil if job_ids.none?
+
         SolidQueue::ClaimedExecution.claim_batch(job_ids)
         where(job_id: job_ids).delete_all
       end
 
       def claimed_executions_for(job_ids)
+        return [] if job_ids.none?
+
         SolidQueue::ClaimedExecution.where(job_id: job_ids)
       end
   end
