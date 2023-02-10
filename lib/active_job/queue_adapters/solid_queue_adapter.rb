@@ -15,7 +15,7 @@ module ActiveJob
       end
 
       def enqueue_at(active_job, timestamp) # :nodoc:
-        SolidQueue::Job.enqueue_active_job(active_job, Timestamp.at(timestamp)).tap do |job|
+        SolidQueue::Job.enqueue_active_job(active_job, scheduled_at: Time.at(timestamp)).tap do |job|
           active_job.provider_job_id = job.id
         end
       end
