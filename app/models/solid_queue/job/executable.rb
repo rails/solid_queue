@@ -17,6 +17,10 @@ module SolidQueue::Job::Executable
     touch(:finished_at)
   end
 
+  def failed_with(exception)
+    create_failed_execution!(exception: exception)
+  end
+
   private
     def due?
       scheduled_at <= Time.current

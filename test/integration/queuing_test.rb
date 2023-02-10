@@ -39,7 +39,9 @@ class QueuingTest < ActiveSupport::TestCase
     assert_equal 5, JobBuffer.size
     assert_not_includes JobBuffer, "Successfully completed job"
     assert_equal 1, SolidQueue::FailedExecution.count
-    assert_equal "RaisingJob", SolidQueue::FailedExecution.last.job.arguments["job_class"]
+    failed_execution = SolidQueue::FailedExecution.last
+    assert_match /\ADefaultsError\s+This is a DefaultsError exception/, failed_execution.error
+    assert_equal "RaisingJob", failed_execution.job.arguments["job_class"]
   end
 
   private

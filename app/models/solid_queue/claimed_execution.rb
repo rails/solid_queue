@@ -25,7 +25,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
     def failed_with(error)
       transaction do
-        SolidQueue::FailedExecution.create!(job_id: job_id, error: error)
+        job.failed_with(error)
         destroy!
       end
     end
