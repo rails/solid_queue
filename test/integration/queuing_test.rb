@@ -5,10 +5,15 @@ class QueuingTest < ActiveSupport::TestCase
   setup do
     @dispatcher = SolidQueue::Dispatcher.new(queues: [ "default", "background" ], worker_count: 3)
     @dispatcher.start
+
+    @scheduler = SolidQueue::Scheduler.new(batch_size: 10)
+    @scheduler.start
   end
 
   teardown do
     @dispatcher.stop
+    @scheduler.stop
+
     JobBuffer.clear
   end
 
@@ -21,27 +26,25 @@ class QueuingTest < ActiveSupport::TestCase
     assert_equal [ "hey", "ho" ], JobBuffer.values.sort
   end
 
-  test "enqueue and handle retries" do
-    RaisingJob.perform_later "DefaultsError", 3
+  test "schedule and run jobs" do
+    AddToBufferJob.set(wait: 1.day).perform_later("I'm scheduled")
+    AddToBufferJob.set(wait: 3.days).perform_later("I'm scheduled later")
+
+    assert_equal 2, SolidQueue::ScheduledExecution.count
+
+    travel_to 2.days.from_now
 
     wait_for_jobs_to_finish_for(5.seconds)
 
-    assert_equal 3, JobBuffer.size
-    assert_equal "Successfully completed job", JobBuffer.last_value
+    assert_equal 1, JobBuffer.size
+    assert_equal "I'm scheduled", JobBuffer.last_value
 
-    assert_equal 0, SolidQueue::FailedExecution.count
+    travel_to 5.days.from_now
 
-    JobBuffer.clear
-    RaisingJob.perform_later "DefaultsError", 10
+    wait_for_jobs_to_finish_for(5.seconds)
 
-    wait_for_jobs_to_finish_for(10.seconds)
-
-    assert_equal 5, JobBuffer.size
-    assert_not_includes JobBuffer, "Successfully completed job"
-    assert_equal 1, SolidQueue::FailedExecution.count
-    failed_execution = SolidQueue::FailedExecution.last
-    assert_match /\ADefaultsError\s+This is a DefaultsError exception/, failed_execution.error
-    assert_equal "RaisingJob", failed_execution.job.arguments["job_class"]
+    assert_equal 2, JobBuffer.size
+    assert_equal "I'm scheduled later", JobBuffer.last_value
   end
 
   private
