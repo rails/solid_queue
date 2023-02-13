@@ -30,7 +30,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
 
       t.datetime :created_at, null: false
 
-      t.index [ :queue_name, :priority ], name: "index_solid_queue_ready_executions"
+      t.index [ :priority, :queue_name ], name: "index_solid_queue_ready_executions"
     end
 
     create_table :solid_queue_claimed_executions do |t|
