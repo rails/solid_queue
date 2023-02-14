@@ -1,4 +1,8 @@
+# frozen_string_literal: true
+
 class SolidQueue::Dispatcher
+  include SolidQueue::Runnable
+
   attr_accessor :queues, :worker_count, :workers_pool
 
   def initialize(**options)
@@ -7,48 +11,35 @@ class SolidQueue::Dispatcher
     @workers_pool = Concurrent::FixedThreadPool.new(@worker_count)
   end
 
-  def start
-    @stopping = false
-
-    @thread = Thread.new { dispatch }
-  end
-
-  def dispatch
-    loop do
-      break if stopping?
-
-      jobs = SolidQueue::ReadyExecution.claim(queues, worker_count)
-
-      if jobs.size > 0
-        jobs.each do |job|
-          workers_pool.post { job.perform }
-        end
-      else
-        sleep(1)
-      end
-    end
-  end
-
   def stop
-    @stopping = true
     workers_pool.shutdown
     clear_locks
-    wait
-  end
-
-  def stopping?
-    @stopping
+    super
   end
 
   private
-    def wait
-      @thread&.join
+    def run
+      loop do
+        break if stopping?
+
+        jobs = SolidQueue::ReadyExecution.claim(queues, worker_count)
+
+        if jobs.size > 0
+          jobs.each do |job|
+            workers_pool.post { job.perform }
+          end
+        else
+          sleep(1)
+        end
+      end
     end
 
     def clear_locks
     end
 
     def identifier
-      Process.pid
+      "host:#{Socket.gethostname} pid:#{Process.pid}"
+    rescue StandardError
+      "pid:#{Process.pid}"
     end
 end
