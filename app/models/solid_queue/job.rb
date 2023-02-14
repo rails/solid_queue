@@ -17,11 +17,8 @@ class SolidQueue::Job < ActiveRecord::Base
     end
 
     private
-      DEFAULT_PRIORITY = 0
-      DEFAULT_QUEUE_NAME = "default"
-
       def defaults
-        { queue_name: DEFAULT_QUEUE_NAME, priority: DEFAULT_PRIORITY }
+        SolidQueue::Configuration::QUEUE_DEFAULTS.slice(:queue_name, :priority)
       end
   end
 end
