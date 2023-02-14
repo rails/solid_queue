@@ -3,11 +3,15 @@
 class SolidQueue::Dispatcher
   include SolidQueue::Runnable
 
-  attr_accessor :queues, :worker_count, :workers_pool
+  attr_accessor :queue, :worker_count, :polling_interval, :workers_pool
 
   def initialize(**options)
-    @queues = Array(options[:queues]).presence || [ "default" ]
-    @worker_count = options[:worker_count] || 5
+    options = options.dup.with_defaults(SolidQueue::Configuration::QUEUE_DEFAULTS)
+
+    @queue = options[:queue_name].to_s
+    @worker_count = options[:worker_count]
+    @polling_interval = options[:polling_interval]
+
     @workers_pool = Concurrent::FixedThreadPool.new(@worker_count)
   end
 
@@ -22,14 +26,14 @@ class SolidQueue::Dispatcher
       loop do
         break if stopping?
 
-        jobs = SolidQueue::ReadyExecution.claim(queues, worker_count)
+        jobs = SolidQueue::ReadyExecution.claim(queue, worker_count)
 
         if jobs.size > 0
           jobs.each do |job|
             workers_pool.post { job.perform }
           end
         else
-          sleep(1)
+          sleep(polling_interval)
         end
       end
     end

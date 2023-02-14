@@ -1,10 +1,13 @@
 class SolidQueue::Scheduler
   include SolidQueue::Runnable
 
-  attr_accessor :batch_size
+  attr_accessor :batch_size, :polling_interval
 
   def initialize(**options)
-    @batch_size = options[:batch_size] || 500
+    options = options.dup.with_defaults(SolidQueue::Configuration::SCHEDULER_DEFAULTS)
+
+    @batch_size = options[:batch_size]
+    @polling_interval = options[:polling_interval]
   end
 
   private
@@ -17,7 +20,7 @@ class SolidQueue::Scheduler
         if batch.size > 0
           SolidQueue::ScheduledExecution.prepare_batch(batch)
         else
-          sleep(1)
+          sleep(polling_interval)
         end
       end
     end

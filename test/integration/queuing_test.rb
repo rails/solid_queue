@@ -3,10 +3,10 @@ require "test_helper"
 
 class QueuingTest < ActiveSupport::TestCase
   setup do
-    @dispatcher = SolidQueue::Dispatcher.new(queues: [ "default", "background" ], worker_count: 3)
+    @dispatcher = SolidQueue::Dispatcher.new(queue_name: "background", worker_count: 3, polling_interval: 1)
     @dispatcher.start
 
-    @scheduler = SolidQueue::Scheduler.new(batch_size: 10)
+    @scheduler = SolidQueue::Scheduler.new(batch_size: 10, polling_interval: 1)
     @scheduler.start
   end
 
