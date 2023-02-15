@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SolidQueue::Scheduler
   include SolidQueue::Runnable
 

@@ -29,10 +29,6 @@ class SolidQueue::Configuration
     raw_config.dig(:scheduler, :disabled)
   end
 
-  def each_queue(&block)
-    queues.each(&block)
-  end
-
   def scheduler_options
     (raw_config[:scheduler] || {}).with_defaults(SCHEDULER_DEFAULTS)
   end

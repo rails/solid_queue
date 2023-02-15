@@ -1,6 +1,6 @@
 require "test_helper"
 
-class SolidQueue::ConfigurationTest < ActiveSupport::TestCase
+class ConfigurationTest < ActiveSupport::TestCase
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
     assert 2, configuration.queues.count
