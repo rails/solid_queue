@@ -7,6 +7,7 @@ class SolidQueue::Job < ActiveRecord::Base
     def enqueue_active_job(active_job, scheduled_at: Time.current)
       enqueue \
         queue_name: active_job.queue_name,
+        active_job_id: active_job.job_id,
         priority: active_job.priority,
         scheduled_at: scheduled_at,
         arguments: active_job.serialize
