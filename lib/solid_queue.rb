@@ -7,7 +7,8 @@ require "solid_queue/configuration"
 require "solid_queue/runnable"
 require "solid_queue/dispatcher"
 require "solid_queue/scheduler"
-require "solid_queue/manager"
+require "solid_queue/supervisor"
 
 module SolidQueue
+  mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
 end

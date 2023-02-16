@@ -3,8 +3,8 @@ require_relative "lib/solid_queue/version"
 Gem::Specification.new do |spec|
   spec.name        = "solid_queue"
   spec.version     = SolidQueue::VERSION
-  spec.authors     = ["Rosa Gutierrez"]
-  spec.email       = ["rosa@37signals.com"]
+  spec.authors     = [ "Rosa Gutierrez" ]
+  spec.email       = [ "rosa@37signals.com" ]
   spec.homepage    = "http://github.com/basecamp/solid_queue"
   spec.summary     = "Database-backed Active Job backend."
   spec.description = "Database-backed Active Job backend."

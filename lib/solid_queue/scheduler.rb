@@ -12,6 +12,11 @@ class SolidQueue::Scheduler
     @polling_interval = options[:polling_interval]
   end
 
+  def inspect
+    "Scheduler(batch_size=#{batch_size}, polling_interval=#{polling_interval})"
+  end
+  alias to_s inspect
+
   private
     def run
       loop do
@@ -22,7 +27,7 @@ class SolidQueue::Scheduler
         if batch.size > 0
           SolidQueue::ScheduledExecution.prepare_batch(batch)
         else
-          sleep(polling_interval)
+          interruptable_sleep(polling_interval)
         end
       end
     end

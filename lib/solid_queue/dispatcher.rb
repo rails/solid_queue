@@ -21,6 +21,11 @@ class SolidQueue::Dispatcher
     super
   end
 
+  def inspect
+    "Dispatcher(queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
+  end
+  alias to_s inspect
+
   private
     def run
       loop do
@@ -33,7 +38,7 @@ class SolidQueue::Dispatcher
             workers_pool.post { job.perform }
           end
         else
-          sleep(polling_interval)
+          interruptable_sleep(polling_interval)
         end
       end
     end
