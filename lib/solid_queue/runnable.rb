@@ -2,9 +2,10 @@
 
 module SolidQueue::Runnable
   def start
-    trap_signals
     @stopping = false
     @thread = Thread.new { run }
+
+    log "Started #{self}"
   end
 
   def stop
@@ -28,5 +29,16 @@ module SolidQueue::Runnable
 
     def wait
       @thread&.join
+    end
+
+    def interruptable_sleep(seconds)
+      while !stopping? && seconds > 0
+        Kernel.sleep 0.1
+        seconds -= 0.1
+      end
+    end
+
+    def log(message)
+      SolidQueue.logger.info("[SolidQueue] #{message}")
     end
 end

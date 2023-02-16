@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-class SolidQueue::Manager
+class SolidQueue::Supervisor
   include SolidQueue::Runnable
 
   attr_accessor :dispatchers, :scheduler
 
   def self.start
     configuration = SolidQueue::Configuration.new
-    dispatchers = configuration.queues.map { |queue| SolidQueue::Dispatcher.new(queue) }
+    dispatchers = configuration.queues.values.map { |queue_options| SolidQueue::Dispatcher.new(**queue_options) }
     scheduler = unless configuration.scheduler_disabled?
-      SolidQueue::Scheduler.new(configuration.scheduler_options)
+      SolidQueue::Scheduler.new(**configuration.scheduler_options)
     end
 
     new(dispatchers, scheduler).start
@@ -22,7 +22,6 @@ class SolidQueue::Manager
 
   def start
     trap_signals
-
     dispatchers.each(&:start)
     scheduler&.start
 

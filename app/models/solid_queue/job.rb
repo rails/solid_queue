@@ -14,7 +14,9 @@ class SolidQueue::Job < ActiveRecord::Base
     end
 
     def enqueue(**kwargs)
-      create!(**kwargs.compact.with_defaults(defaults))
+      create!(**kwargs.compact.with_defaults(defaults)).tap do
+        SolidQueue.logger.info "[SolidQueue] Enqueued job #{kwargs}"
+      end
     end
 
     private
