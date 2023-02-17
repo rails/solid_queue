@@ -19,6 +19,8 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
           where(id: batch.map(&:id)).delete_all
         end
       end
+
+      SolidQueue.logger.info("[SolidQueue] Prepared scheduled batch with #{rows.size} jobs at #{prepared_at}")
     end
   end
 
