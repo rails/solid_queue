@@ -15,13 +15,6 @@ class SolidQueue::Dispatcher
     @workers_pool = Concurrent::FixedThreadPool.new(@worker_count)
   end
 
-  def stop
-    workers_pool.shutdown
-    workers_pool.wait_for_termination
-    release_claims
-    super
-  end
-
   def inspect
     "Dispatcher(queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
   end
@@ -42,6 +35,13 @@ class SolidQueue::Dispatcher
           interruptable_sleep(polling_interval)
         end
       end
+    end
+
+    def wait
+      workers_pool.shutdown
+      workers_pool.wait_for_termination
+      release_claims
+      super
     end
 
     def release_claims
