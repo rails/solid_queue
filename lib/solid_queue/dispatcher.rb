@@ -17,7 +17,8 @@ class SolidQueue::Dispatcher
 
   def stop
     workers_pool.shutdown
-    clear_locks
+    workers_pool.wait_for_termination
+    release_claims
     super
   end
 
@@ -43,7 +44,7 @@ class SolidQueue::Dispatcher
       end
     end
 
-    def clear_locks
+    def release_claims
     end
 
     def identifier
