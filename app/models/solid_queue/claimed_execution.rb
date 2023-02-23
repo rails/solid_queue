@@ -1,10 +1,16 @@
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
-  def self.claim_batch(job_ids)
-    claimed_at = Time.current
-    rows = job_ids.map { |id| { job_id: id, created_at: claimed_at } }
-    insert_all(rows) if rows.any?
+  class << self
+    def claim_batch(job_ids)
+      claimed_at = Time.current
+      rows = Array(job_ids).map { |id| { job_id: id, created_at: claimed_at } }
+      insert_all(rows) if rows.any?
 
-    SolidQueue.logger.info("[SolidQueue] Claimed #{rows.size} jobs at #{claimed_at}")
+      SolidQueue.logger.info("[SolidQueue] Claimed #{rows.size} jobs at #{claimed_at}")
+    end
+
+    def release_all_from(holder)
+      where(claimed_by: holder).includes(:job).each(&:release)
+    end
   end
 
   def perform
@@ -12,6 +18,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     finished
   rescue Exception => e
     failed_with(e)
+  end
+
+  def release
+    transaction do
+      job.prepare_for_execution
+      destroy!
+    end
   end
 
   private

@@ -16,7 +16,7 @@ class SolidQueue::Dispatcher
   end
 
   def inspect
-    "Dispatcher(queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
+    "Dispatcher(identifier=#{identifier}, queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
   end
   alias to_s inspect
 
@@ -25,11 +25,11 @@ class SolidQueue::Dispatcher
       loop do
         break if stopping?
 
-        jobs = SolidQueue::ReadyExecution.claim(queue, worker_count)
+        executions = SolidQueue::ReadyExecution.claim(queue, worker_count)
 
-        if jobs.size > 0
-          jobs.each do |job|
-            workers_pool.post { job.perform }
+        if executions.size > 0
+          executions.each do |execution|
+            workers_pool.post { execution.perform }
           end
         else
           interruptable_sleep(polling_interval)
@@ -44,12 +44,15 @@ class SolidQueue::Dispatcher
       super
     end
 
+    def clean_up
+      release_claims
+    end
+
     def release_claims
+      SolidQueue::ClaimedExecution.release_all_from(identifier)
     end
 
     def identifier
-      "host:#{Socket.gethostname} pid:#{Process.pid}"
-    rescue StandardError
-      "pid:#{Process.pid}"
+      @identifier ||= "#{hostname}:#{pid}:#{queue}"
     end
 end
