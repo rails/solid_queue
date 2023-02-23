@@ -32,7 +32,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       claimed_execution.perform
     end
 
-    assert job.reload.finished_at.present?
+    assert job.reload.finished?
   end
 
   test "perform job that fails" do
@@ -43,8 +43,8 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       claimed_execution.perform
     end
 
-    assert_nil job.reload.finished_at
-    assert job.failed_execution.present?
+    assert_not job.reload.finished?
+    assert job.failed?
   end
 
   test "release" do
@@ -55,7 +55,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       claimed_execution.release
     end
 
-    assert job.reload.ready_execution.present?
+    assert job.reload.ready?
   end
 
   private

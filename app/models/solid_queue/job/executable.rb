@@ -11,6 +11,12 @@ module SolidQueue::Job::Executable
     after_save :prepare_for_execution
   end
 
+  STATUSES = %w[ ready claimed failed scheduled ]
+
+  STATUSES.each do |status|
+    define_method("#{status}?") { public_send("#{status}_execution").present? }
+  end
+
   def prepare_for_execution
     if due?
       create_ready_execution!
@@ -21,6 +27,10 @@ module SolidQueue::Job::Executable
 
   def finished
     touch(:finished_at)
+  end
+
+  def finished?
+    finished_at.present?
   end
 
   def failed_with(exception)
