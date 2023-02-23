@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 require "test_helper"
 
-class QueuingTest < ActiveSupport::TestCase
+class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
     @dispatcher = SolidQueue::Dispatcher.new(queue_name: "background", worker_count: 3, polling_interval: 1)
     @dispatcher.start

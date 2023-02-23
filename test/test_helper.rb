@@ -17,4 +17,14 @@ class ActiveSupport::TestCase
   teardown do
     JobBuffer.clear
   end
+
+  private
+    def wait_for_jobs_to_finish_for(timeout = 10.seconds)
+      Timeout.timeout(timeout) do
+        while SolidQueue::Job.where(finished_at: nil).any? do
+          sleep 0.25
+        end
+      end
+    rescue Timeout::Error
+    end
 end
