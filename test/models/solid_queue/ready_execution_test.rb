@@ -12,8 +12,8 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
 
     @jobs.each do |job|
-      assert_nil job.reload.ready_execution
-      assert job.claimed_execution.present?
+      assert_not job.reload.ready?
+      assert job.claimed?
     end
   end
 
@@ -29,13 +29,13 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
 
     @jobs.first(2).each do |job|
-      assert_nil job.reload.ready_execution
-      assert job.claimed_execution.present?
+      assert_not job.reload.ready?
+      assert job.claimed?
     end
 
     @jobs[2..-1].each do |job|
-      assert job.reload.ready_execution.present?
-      assert_nil job.claimed_execution
+      assert job.reload.ready?
+      assert_not job.claimed?
     end
   end
 
@@ -47,7 +47,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       job.ready_execution.claim
     end
 
-    assert_nil job.reload.ready_execution
-    assert job.claimed_execution.present?
+    assert_not job.reload.ready?
+    assert job.claimed?
   end
 end
