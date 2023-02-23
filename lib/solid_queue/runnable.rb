@@ -3,7 +3,7 @@
 module SolidQueue::Runnable
   def start
     @stopping = false
-    @thread = Thread.new { run }
+    @thread = Thread.new { start_loop }
 
     log "Started #{self}"
   end
@@ -11,15 +11,16 @@ module SolidQueue::Runnable
   def stop
     @stopping = true
     wait
-  ensure
-    clean_up
   end
 
   private
-    def trap_signals
-      %w[ INT TERM ].each do |signal|
-        trap(signal) { stop }
+    def start_loop
+      loop do
+        break if stopping?
+        run
       end
+    ensure
+      clean_up
     end
 
     def run

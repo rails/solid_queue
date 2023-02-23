@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
 class SolidQueue::Supervisor
-  include SolidQueue::Runnable
-
   attr_accessor :dispatchers, :scheduler
 
   def self.start
@@ -33,4 +31,11 @@ class SolidQueue::Supervisor
     dispatchers.each(&:stop)
     scheduler&.stop
   end
+
+  private
+    def trap_signals
+      %w[ INT TERM ].each do |signal|
+        trap(signal) { stop }
+      end
+    end
 end
