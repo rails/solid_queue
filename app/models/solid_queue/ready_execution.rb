@@ -34,4 +34,11 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
         SolidQueue::ClaimedExecution.where(job_id: job_ids)
       end
   end
+
+  def claim
+    transaction do
+      SolidQueue::ClaimedExecution.claim_batch(job_id)
+      delete
+    end
+  end
 end

@@ -1,0 +1,20 @@
+add_to_buffer_job:
+  queue_name: background
+  active_job_id: b55784ad-ff9c-4c02-8d6c-016089bb3e09
+  arguments: "{\"job_class\":\"AddToBufferJob\", \"job_id\":\"b55784ad-ff9c-4c02-8d6c-016089bb3e09\", \"provider_job_id\":null, \"queue_name\":\"background\", \"priority\":0, \"arguments\":[42], \"executions\":0, \"exception_executions\":{}, \"locale\":\"en\", \"timezone\":\"UTC\", \"enqueued_at\":\"2023-02-23T09:54:28Z\"}"
+  priority: 0
+
+raising_job:
+  queue_name: background
+  active_job_id: 60c93269-c3d0-44b1-958e-826cd145c456
+  arguments: "{\"job_class\":\"RaisingJob\",\"job_id\":\"60c93269-c3d0-44b1-958e-826cd145c456\",\"provider_job_id\":null,\"queue_name\":\"background\",\"priority\":0,\"arguments\":[{\"_aj_serialized\":\"ActiveJob::Serializers::ModuleSerializer\", \"value\":\"RuntimeError\"}, 2],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2023-02-23T09:36:04Z\"}"
+  priority: 0
+
+<% 5.times do |i| %>
+<% active_job_id = SecureRandom.uuid %>
+job_<%= i %>:
+  queue_name: fixtures
+  active_job_id: <%= active_job_id %>
+  arguments: "{\"job_class\":\"AddToBufferJob\",\"job_id\":<%= active_job_id %>,\"queue_name\":\"fixtures\",\"priority\":<%= i %>,\"arguments\":[],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2023-02-20T10:33:02Z\"}"
+  priority: <%= i %>
+<% end %>
