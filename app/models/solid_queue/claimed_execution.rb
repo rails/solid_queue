@@ -13,7 +13,9 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
   end
 
-  def perform
+  def perform(by)
+    set_claimant(by)
+
     execute
     finished
   rescue Exception => e
@@ -28,6 +30,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   private
+    def set_claimant(identifier)
+      update!(claimed_by: identifier)
+    end
+
     def execute
       SolidQueue.logger.info("[SolidQueue] Performing job #{job.id} - #{job.active_job_id}")
 
