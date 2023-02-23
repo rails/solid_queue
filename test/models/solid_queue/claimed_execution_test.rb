@@ -29,7 +29,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count }, -1 do
-      claimed_execution.perform
+      claimed_execution.perform("test-dispatcher")
     end
 
     assert job.reload.finished?
@@ -40,11 +40,13 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      claimed_execution.perform
+      claimed_execution.perform("test-dispatcher")
     end
 
     assert_not job.reload.finished?
     assert job.failed?
+
+    assert_equal "test-dispatcher", claimed_execution.claimed_by
   end
 
   test "release" do

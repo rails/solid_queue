@@ -26,7 +26,7 @@ class SolidQueue::Dispatcher
 
       if executions.size > 0
         executions.each do |execution|
-          workers_pool.post { execution.perform }
+          workers_pool.post { execution.perform(identifier) }
         end
       else
         interruptable_sleep(polling_interval)
