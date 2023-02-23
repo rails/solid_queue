@@ -22,18 +22,14 @@ class SolidQueue::Dispatcher
 
   private
     def run
-      loop do
-        break if stopping?
+      executions = SolidQueue::ReadyExecution.claim(queue, worker_count)
 
-        executions = SolidQueue::ReadyExecution.claim(queue, worker_count)
-
-        if executions.size > 0
-          executions.each do |execution|
-            workers_pool.post { execution.perform }
-          end
-        else
-          interruptable_sleep(polling_interval)
+      if executions.size > 0
+        executions.each do |execution|
+          workers_pool.post { execution.perform }
         end
+      else
+        interruptable_sleep(polling_interval)
       end
     end
 
