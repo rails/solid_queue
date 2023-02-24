@@ -38,4 +38,12 @@ class SolidQueue::Supervisor
         trap(signal) { stop }
       end
     end
+
+    def stop
+      @stopping = true
+    end
+
+    def stopping?
+      @stopping
+    end
 end
