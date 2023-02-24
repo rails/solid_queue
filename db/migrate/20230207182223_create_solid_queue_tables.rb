@@ -14,6 +14,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
       t.timestamps
 
       t.index :active_job_id, name: "index_solid_queue_jobs_on_job_id"
+      t.index [ :queue_name, :scheduled_at, :finished_at ], name: "index_solid_queue_jobs_for_alerting"
     end
 
     create_table :solid_queue_scheduled_executions do |t|
