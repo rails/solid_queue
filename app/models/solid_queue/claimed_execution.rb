@@ -30,8 +30,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   private
-    def set_claimant(identifier)
-      update!(claimed_by: identifier)
+    def set_claimant(name)
+      update!(claimed_by: name)
     end
 
     def execute

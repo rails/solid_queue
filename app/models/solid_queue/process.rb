@@ -14,11 +14,22 @@ class SolidQueue::Process < ActiveRecord::Base
     end
 
     def deregister(name)
-      find_by(name: name)&.destroy!
+      find_by(name: name)&.deregister
+    end
+
+    def prune
+      prunable.each do |process|
+        SolidQueue.logger.info("[SolidQueue] Prunning dead process #{process.id} - #{process.name}")
+        process.deregister
+      end
     end
   end
 
   def heartbeat
     touch(:last_heartbeat_at)
+  end
+
+  def deregister
+    destroy!
   end
 end

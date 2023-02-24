@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Dispatcher
-  include SolidQueue::Runnable
+  include SolidQueue::Processes, SolidQueue::Runnable
 
   attr_accessor :queue, :worker_count, :polling_interval, :workers_pool
 
@@ -16,7 +16,7 @@ class SolidQueue::Dispatcher
   end
 
   def inspect
-    "Dispatcher(identifier=#{identifier}, queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
+    "Dispatcher(name=#{name}, queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
   end
   alias to_s inspect
 
@@ -26,7 +26,7 @@ class SolidQueue::Dispatcher
 
       if executions.size > 0
         executions.each do |execution|
-          workers_pool.post { execution.perform(identifier) }
+          workers_pool.post { execution.perform(name) }
         end
       else
         interruptable_sleep(polling_interval)
@@ -36,19 +36,10 @@ class SolidQueue::Dispatcher
     def wait
       workers_pool.shutdown
       workers_pool.wait_for_termination
-      release_claims
       super
     end
 
-    def clean_up
-      release_claims
-    end
-
-    def release_claims
-      SolidQueue::ClaimedExecution.release_all_from(identifier)
-    end
-
-    def identifier
-      @identifier ||= "#{hostname}:#{pid}:#{queue}"
+    def name
+      @name ||= "#{hostname}:#{pid}:#{queue}"
     end
 end
