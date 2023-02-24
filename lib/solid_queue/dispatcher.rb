@@ -40,6 +40,6 @@ class SolidQueue::Dispatcher
     end
 
     def name
-      @name ||= "#{hostname}:#{pid}:#{queue}"
+      @name ||= "#{hostname}:#{pid}:#{queue}:#{SecureRandom.hex(4)}"
     end
 end
