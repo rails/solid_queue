@@ -51,5 +51,12 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
 
       t.datetime :created_at, null: false
     end
+
+    create_table :solid_queue_processes do |t|
+      t.string :name, null: false, index: { unique: true }
+
+      t.datetime :created_at, null: false
+      t.datetime :last_heartbeat_at, null: false, index: true
+    end
   end
 end
