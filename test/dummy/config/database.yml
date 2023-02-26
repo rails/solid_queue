@@ -18,4 +18,5 @@ development:
 
 test:
   <<: *default
+  pool: 20
   database: solid_queue_test

@@ -1,8 +1,5 @@
 default: &default
   queues:
-    default:
-      worker_count: 3
-      polling_interval: 5
     background:
       worker_count: 3
   scheduler:

@@ -3,8 +3,7 @@
 class SolidQueue::Supervisor
   attr_accessor :dispatchers, :scheduler
 
-  def self.start
-    configuration = SolidQueue::Configuration.new
+  def self.start(configuration: SolidQueue::Configuration.new)
     dispatchers = configuration.queues.values.map { |queue_options| SolidQueue::Dispatcher.new(**queue_options) }
     scheduler = unless configuration.scheduler_disabled?
       SolidQueue::Scheduler.new(**configuration.scheduler_options)
@@ -32,15 +31,15 @@ class SolidQueue::Supervisor
     scheduler&.stop
   end
 
+  def stop
+    @stopping = true
+  end
+
   private
     def trap_signals
       %w[ INT TERM ].each do |signal|
         trap(signal) { stop }
       end
-    end
-
-    def stop
-      @stopping = true
     end
 
     def stopping?

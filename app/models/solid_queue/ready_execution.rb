@@ -23,7 +23,6 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
 
       def lock(job_ids)
         return nil if job_ids.none?
-
         SolidQueue::ClaimedExecution.claim_batch(job_ids)
         where(job_id: job_ids).delete_all
       end
