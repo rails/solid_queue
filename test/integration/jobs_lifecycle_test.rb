@@ -46,14 +46,4 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal 2, JobBuffer.size
     assert_equal "I'm scheduled later", JobBuffer.last_value
   end
-
-  private
-    def wait_for_jobs_to_finish_for(timeout = 10.seconds)
-      Timeout.timeout(timeout) do
-        while SolidQueue::Job.where(finished_at: nil).any? do
-          sleep 0.25
-        end
-      end
-    rescue Timeout::Error
-    end
 end
