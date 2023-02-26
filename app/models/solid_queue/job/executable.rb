@@ -8,7 +8,7 @@ module SolidQueue::Job::Executable
 
     has_one :scheduled_execution
 
-    after_save :prepare_for_execution
+    after_create :prepare_for_execution
   end
 
   STATUSES = %w[ ready claimed failed scheduled ]
