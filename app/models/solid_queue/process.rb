@@ -1,8 +1,8 @@
 class SolidQueue::Process < ActiveRecord::Base
   HEARTBEAT_INTERVAL = 60.seconds
-  ALIVE_THRESHOLD = (HEARTBEAT_INTERVAL * 5).ago
+  ALIVE_THRESHOLD = HEARTBEAT_INTERVAL * 5
 
-  scope :prunable, -> { where("last_heartbeat_at <= ?", ALIVE_THRESHOLD) }
+  scope :prunable, -> { where("last_heartbeat_at <= ?", ALIVE_THRESHOLD.ago) }
 
   class << self
     def register(name)
