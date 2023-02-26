@@ -15,11 +15,14 @@ class SolidQueue::Process < ActiveRecord::Base
 
     def deregister(name)
       find_by(name: name)&.deregister
+    rescue Exception
+      SolidQueue.logger.error("[SolidQueue] Error deregistering process #{process.id} - #{process.name}")
+      raise
     end
 
     def prune
       prunable.each do |process|
-        SolidQueue.logger.info("[SolidQueue] Prunning dead process #{process.id} - #{process.name}")
+        SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.name}")
         process.deregister
       end
     end
