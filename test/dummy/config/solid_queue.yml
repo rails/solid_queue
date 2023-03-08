@@ -2,6 +2,8 @@ default: &default
   queues:
     background:
       worker_count: 3
+    default:
+      worker_count: 5
   scheduler:
     polling_interval: 300
     batch_size: 500

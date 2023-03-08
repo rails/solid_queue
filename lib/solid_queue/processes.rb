@@ -14,29 +14,22 @@ module SolidQueue::Processes
   end
 
   private
+    attr_accessor :process
+
     def run
       stop unless registered?
     end
 
     def clean_up
-      deregister
+      process.deregister
     end
 
     def register
-      @process = SolidQueue::Process.register(name)
+      @process = SolidQueue::Process.register(metadata)
     end
 
     def registered?
-      SolidQueue::Process.registered?(name)
-    end
-
-    def deregister
-      SolidQueue::Process.deregister(name)
-      SolidQueue::ClaimedExecution.release_all_from(name)
-    end
-
-    def process
-      @process ||= SolidQueue::Process.find_by(name: name)
+      process.persisted?
     end
 
     def start_heartbeat
@@ -54,5 +47,9 @@ module SolidQueue::Processes
 
     def prune_dead_processes
       SolidQueue::Process.prune
+    end
+
+    def metadata
+      { hostname: hostname, pid: pid, queue: queue }
     end
 end

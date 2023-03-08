@@ -2,27 +2,21 @@ class SolidQueue::Process < ActiveRecord::Base
   HEARTBEAT_INTERVAL = 60.seconds
   ALIVE_THRESHOLD = HEARTBEAT_INTERVAL * 5
 
+  serialize :metadata, JSON
+
   scope :prunable, -> { where("last_heartbeat_at <= ?", ALIVE_THRESHOLD.ago) }
+  has_many :claimed_executions
+
+  after_destroy -> { claimed_executions.release_all }
 
   class << self
-    def register(name)
-      create!(name: name, last_heartbeat_at: Time.current)
-    end
-
-    def registered?(name)
-      exists?(name: name)
-    end
-
-    def deregister(name)
-      find_by(name: name)&.deregister
-    rescue Exception
-      SolidQueue.logger.error("[SolidQueue] Error deregistering process #{process.id} - #{process.name}")
-      raise
+    def register(metadata)
+      create!(metadata: metadata, last_heartbeat_at: Time.current)
     end
 
     def prune
       prunable.each do |process|
-        SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.name}")
+        SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.metadata}")
         process.deregister
       end
     end
@@ -34,5 +28,8 @@ class SolidQueue::Process < ActiveRecord::Base
 
   def deregister
     destroy!
+  rescue Exception
+    SolidQueue.logger.error("[SolidQueue] Error deregistering process #{process.id} - #{process.metadata}")
+    raise
   end
 end

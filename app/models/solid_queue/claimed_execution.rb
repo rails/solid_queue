@@ -1,4 +1,6 @@
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
+  belongs_to :process
+
   class << self
     def claim_batch(job_ids)
       claimed_at = Time.current
@@ -8,13 +10,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       SolidQueue.logger.info("[SolidQueue] Claimed #{rows.size} jobs at #{claimed_at}")
     end
 
-    def release_all_from(holder)
-      where(claimed_by: holder).includes(:job).each(&:release)
+    def release_all
+      includes(:job).each(&:release)
     end
   end
 
-  def perform(by)
-    set_claimant(by)
+  def perform(process)
+    claimed_by(process)
 
     execute
     finished
@@ -30,8 +32,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   private
-    def set_claimant(name)
-      update!(claimed_by: name)
+    def claimed_by(process)
+      update!(process: process)
     end
 
     def execute

@@ -6,7 +6,7 @@ class SolidQueue::Dispatcher
   attr_accessor :queue, :worker_count, :polling_interval, :workers_pool
 
   def initialize(**options)
-    options = options.dup.with_defaults(SolidQueue::Configuration::QUEUE_DEFAULTS)
+    options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
 
     @queue = options[:queue_name].to_s
     @worker_count = options[:worker_count]
@@ -26,7 +26,7 @@ class SolidQueue::Dispatcher
 
       if executions.size > 0
         executions.each do |execution|
-          workers_pool.post { execution.perform(name) }
+          workers_pool.post { execution.perform(process) }
         end
       else
         interruptable_sleep(polling_interval)
