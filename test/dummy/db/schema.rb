@@ -21,9 +21,10 @@ ActiveRecord::Schema[7.0].define(version: 2023_02_24_193733) do
 
   create_table "solid_queue_claimed_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "job_id"
-    t.string "claimed_by"
+    t.bigint "process_id"
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
+    t.index ["process_id"], name: "index_solid_queue_claimed_executions_on_process_id"
   end
 
   create_table "solid_queue_failed_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -47,11 +48,10 @@ ActiveRecord::Schema[7.0].define(version: 2023_02_24_193733) do
   end
 
   create_table "solid_queue_processes", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.string "name", null: false
+    t.text "metadata"
     t.datetime "created_at", null: false
     t.datetime "last_heartbeat_at", null: false
     t.index ["last_heartbeat_at"], name: "index_solid_queue_processes_on_last_heartbeat_at"
-    t.index ["name"], name: "index_solid_queue_processes_on_name", unique: true
   end
 
   create_table "solid_queue_ready_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

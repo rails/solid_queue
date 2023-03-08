@@ -3,7 +3,7 @@
 class SolidQueue::Configuration
   DISPATCHER_DEFAULTS = {
     worker_count: 5,
-    polling_interval: 0.1,
+    polling_interval: 0.1
   }
 
   SCHEDULER_DEFAULTS = {
@@ -19,7 +19,7 @@ class SolidQueue::Configuration
     @queues ||= (raw_config[:queues] || {}).each_with_object({}) do |(queue_name, options), hsh|
       hsh[queue_name] = options.merge(queue_name: queue_name.to_s).with_defaults(DISPATCHER_DEFAULTS)
     end.tap do |queues|
-      queues[SolidQueue::Job::DEFAULT_QUEUE_NAME] ||= DISPATCHER_DEFAULTS
+      queues[SolidQueue::Job::DEFAULT_QUEUE_NAME] ||= DISPATCHER_DEFAULTS.merge(queue_name: SolidQueue::Job::DEFAULT_QUEUE_NAME)
     end.deep_symbolize_keys
   end
 

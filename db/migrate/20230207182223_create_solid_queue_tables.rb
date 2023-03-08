@@ -40,7 +40,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
 
     create_table :solid_queue_claimed_executions do |t|
       t.references :job, index: { unique: true }
-      t.string :claimed_by
+      t.references :process, index: true
 
       t.datetime :created_at, null: false
     end
@@ -53,8 +53,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
     end
 
     create_table :solid_queue_processes do |t|
-      t.string :name, null: false, index: { unique: true }
-
+      t.text :metadata
       t.datetime :created_at, null: false
       t.datetime :last_heartbeat_at, null: false, index: true
     end

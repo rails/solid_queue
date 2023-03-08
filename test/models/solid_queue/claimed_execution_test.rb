@@ -4,6 +4,8 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   setup do
     @jobs = SolidQueue::Job.where(queue_name: "fixtures")
     @jobs.each(&:prepare_for_execution)
+
+    @process = SolidQueue::Process.register({ queue: "fixtures" })
   end
 
   test "claim all jobs for existing queue" do
@@ -29,7 +31,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count }, -1 do
-      claimed_execution.perform("test-dispatcher")
+      claimed_execution.perform(@process)
     end
 
     assert job.reload.finished?
@@ -40,13 +42,13 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      claimed_execution.perform("test-dispatcher")
+      claimed_execution.perform(@process)
     end
 
     assert_not job.reload.finished?
     assert job.failed?
 
-    assert_equal "test-dispatcher", claimed_execution.claimed_by
+    assert_equal @process, claimed_execution.process
   end
 
   test "release" do

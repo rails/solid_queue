@@ -9,7 +9,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     @pid = run_supervisor_as_fork
 
     wait_for_registered_processes_for(1.second)
-    assert_registered_processes(:background, :default)
+    assert_registered_processes_for(:background, :default)
   end
 
   teardown do
@@ -44,19 +44,18 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # Processes couldn't clean up after being killed
-    assert_registered_processes(:background, :default)
+    assert_registered_processes_for(:background, :default)
 
     travel_to 10.minutes.from_now
     @pid = run_supervisor_as_fork
 
     wait_for_jobs_to_finish_for(5.seconds)
 
-    # TODO: pending to link the process in the DB with the dispatcher
-    # assert_completed_job_results("pause")
-    # assert_job_status(pause, :finished)
+    assert_completed_job_results("pause")
+    assert_job_status(pause, :finished)
 
-    # terminate_supervisor
-    # assert_clean_termination
+    terminate_supervisor
+    assert_clean_termination
   end
 
   test "quit supervisor while there are jobs in-flight" do
@@ -73,19 +72,18 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # Processes couldn't clean up after being killed
-    assert_registered_processes(:background, :default)
+    assert_registered_processes_for(:background, :default)
 
     travel_to 10.minutes.from_now
     @pid = run_supervisor_as_fork
 
     wait_for_jobs_to_finish_for(5.seconds)
 
-    # TODO: pending to link the process in the DB with the dispatcher
-    # assert_completed_job_results("pause")
-    # assert_job_status(pause, :finished)
+    assert_completed_job_results("pause")
+    assert_job_status(pause, :finished)
 
-    # terminate_supervisor
-    # assert_clean_termination
+    terminate_supervisor
+    assert_clean_termination
   end
 
   test "term supervisor while there are jobs in-flight" do
@@ -146,23 +144,31 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   test "process a job that exits" do
     enqueue_store_result_job("no exit", :background, 2)
     enqueue_store_result_job("no exit", :default, 2)
-    exit1 = enqueue_store_result_job("exit", :background, 1, exit: true)
-    exit2 = enqueue_store_result_job("exit", :background, 1, exit: true, pause: 0.5)
+    paused = enqueue_store_result_job("paused no exit", :default, 1, pause: 0.5)
+    exit1 = enqueue_store_result_job("exit", :background, 1, exit: true, pause: 0.2)
+    exit2 = enqueue_store_result_job("exit", :background, 1, exit: true, pause: 0.3)
     enqueue_store_result_job("no exit", :background, 2)
 
     wait_for_jobs_to_finish_for(5.seconds)
 
-    # TODO: relaunch dispatchers if they died
-    # assert_completed_job_results("no exit", :background, 4)
-    # assert_completed_job_results("no exit", :default, 2)
+    assert_completed_job_results("no exit", :default, 2)
+    [ paused, exit1, exit2 ].each do |job|
+      assert_job_status(job, :claimed)
+    end
 
-    # assert_failures 3
-    # [ error1, error2, error3 ].each do |job|
-    #   assert_job_status(job, :failed)
-    # end
+    travel_to 10.minutes.from_now
+    @pid = run_supervisor_as_fork
 
-    # terminate_supervisor
-    # assert_clean_termination
+    wait_for_jobs_to_finish_for(5.seconds)
+
+    # Paused job can't finish because the other will call exit before it gets a chance
+    # to be run
+    [ paused, exit1, exit2 ].each do |job|
+      assert_job_status(job, :claimed)
+    end
+
+    assert_not process_exists?(@pid)
+    assert_registered_processes_for(:default, :background)
   end
 
   private
@@ -215,12 +221,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     rescue Timeout::Error
     end
 
-    def assert_registered_processes(*name_parts)
-      assert_equal name_parts.count, SolidQueue::Process.count
+    def assert_registered_processes_for(*queues)
+      registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }
 
-      name_parts.each do |name_part|
-        assert SolidQueue::Process.where("name LIKE '%#{name_part}%'").any?
-      end
+      assert_equal queues.map(&:to_s).sort, registered_queues.sort
     end
 
     def assert_no_registered_processes
