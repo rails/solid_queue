@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Configuration
-  QUEUE_DEFAULTS = {
-    priority: 0,
-    queue_name: "default",
+  DISPATCHER_DEFAULTS = {
     worker_count: 5,
     polling_interval: 0.1,
   }
@@ -19,10 +17,10 @@ class SolidQueue::Configuration
 
   def queues
     @queues ||= (raw_config[:queues] || {}).each_with_object({}) do |(queue_name, options), hsh|
-      hsh[queue_name] = options.merge(queue_name: queue_name.to_s).with_defaults(QUEUE_DEFAULTS)
+      hsh[queue_name] = options.merge(queue_name: queue_name.to_s).with_defaults(DISPATCHER_DEFAULTS)
     end.tap do |queues|
-      queues[:default] ||= QUEUE_DEFAULTS
-    end
+      queues[SolidQueue::Job::DEFAULT_QUEUE_NAME] ||= DISPATCHER_DEFAULTS
+    end.deep_symbolize_keys
   end
 
   def scheduler_disabled?
