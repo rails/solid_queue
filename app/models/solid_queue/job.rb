@@ -3,6 +3,9 @@ class SolidQueue::Job < ActiveRecord::Base
 
   serialize :arguments, JSON
 
+  DEFAULT_PRIORITY = 0
+  DEFAULT_QUEUE_NAME = "default"
+
   class << self
     def enqueue_active_job(active_job, scheduled_at: Time.current)
       enqueue \
@@ -21,7 +24,7 @@ class SolidQueue::Job < ActiveRecord::Base
 
     private
       def defaults
-        SolidQueue::Configuration::QUEUE_DEFAULTS.slice(:queue_name, :priority)
+        { queue_name: DEFAULT_QUEUE_NAME, priority: DEFAULT_PRIORITY }
       end
   end
 end

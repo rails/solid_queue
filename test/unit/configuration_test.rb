@@ -12,6 +12,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(queues: { background: { polling_interval: 10 } })
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS, configuration.scheduler_options
     assert configuration.queues[:background][:worker_count] > 0
-    assert_equal SolidQueue::Configuration::QUEUE_DEFAULTS, configuration.queues[:default]
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS, configuration.queues[:default]
   end
 end
