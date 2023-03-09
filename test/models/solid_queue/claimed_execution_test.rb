@@ -51,6 +51,20 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert_equal @process, claimed_execution.process
   end
 
+  test "job failures are reported via Rails error subscriber" do
+    subscriber = ErrorBuffer.new
+
+    with_error_subscriber(subscriber) do
+      job = solid_queue_jobs(:raising_job)
+      claimed_execution = prepare_and_claim_job(job)
+
+      claimed_execution.perform(@process)
+    end
+
+    assert_equal 1, subscriber.errors.count
+    assert_equal "This is a RuntimeError exception", subscriber.messages.first
+  end
+
   test "release" do
     job = solid_queue_jobs(:add_to_buffer_job)
     claimed_execution = prepare_and_claim_job(job)
@@ -67,5 +81,12 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       job.prepare_for_execution
       job.reload.ready_execution.claim
       job.reload.claimed_execution
+    end
+
+    def with_error_subscriber(subscriber)
+      Rails.error.subscribe(subscriber)
+      yield
+    ensure
+      Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
     end
 end

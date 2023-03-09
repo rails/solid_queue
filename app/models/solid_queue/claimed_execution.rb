@@ -1,6 +1,12 @@
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
   belongs_to :process
 
+  class Result < Struct.new(:success, :error)
+    def success?
+      success
+    end
+  end
+
   class << self
     def claim_batch(job_ids)
       claimed_at = Time.current
@@ -18,10 +24,12 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   def perform(process)
     claimed_by(process)
 
-    execute
-    finished
-  rescue Exception => e
-    failed_with(e)
+    result = execute
+    if result.success?
+      finished
+    else
+      failed_with(result.error)
+    end
   end
 
   def release
@@ -34,12 +42,14 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   private
     def claimed_by(process)
       update!(process: process)
+      SolidQueue.logger.info("[SolidQueue] Performing job #{job.id} - #{job.active_job_id}")
     end
 
     def execute
-      SolidQueue.logger.info("[SolidQueue] Performing job #{job.id} - #{job.active_job_id}")
-
       ActiveJob::Base.execute(job.arguments)
+      Result.new(true, nil)
+    rescue Exception => e
+      Result.new(false, e)
     end
 
     def finished
