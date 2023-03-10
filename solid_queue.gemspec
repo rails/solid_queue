@@ -18,4 +18,6 @@ Gem::Specification.new do |spec|
   end
 
   spec.add_dependency "rails", ">= 7.0.3.1"
+  spec.add_development_dependency "debug"
+  spec.add_development_dependency "mocha"
 end

@@ -29,7 +29,7 @@ class SolidQueue::Process < ActiveRecord::Base
   def deregister
     destroy!
   rescue Exception
-    SolidQueue.logger.error("[SolidQueue] Error deregistering process #{process.id} - #{process.metadata}")
+    SolidQueue.logger.error("[SolidQueue] Error deregistering process #{id} - #{metadata}")
     raise
   end
 end

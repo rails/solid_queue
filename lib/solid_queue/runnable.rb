@@ -13,6 +13,10 @@ module SolidQueue::Runnable
     wait
   end
 
+  def running?
+    !stopping?
+  end
+
   private
     def start_loop
       loop do
@@ -35,6 +39,14 @@ module SolidQueue::Runnable
     end
 
     def clean_up
+    end
+
+    def wrap_in_app_executor(&block)
+      if SolidQueue.app_executor
+        SolidQueue.app_executor.wrap(&block)
+      else
+        yield
+      end
     end
 
     def interruptable_sleep(seconds)
