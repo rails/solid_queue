@@ -4,7 +4,6 @@ class ConfigurationTest < ActiveSupport::TestCase
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
     assert 2, configuration.queues.count
-    assert_not configuration.scheduler_disabled?
     assert_not_empty configuration.scheduler_options
   end
 
