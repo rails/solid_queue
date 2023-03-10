@@ -23,10 +23,6 @@ class SolidQueue::Configuration
     end.deep_symbolize_keys
   end
 
-  def scheduler_disabled?
-    raw_config.dig(:scheduler, :disabled)
-  end
-
   def scheduler_options
     (raw_config[:scheduler] || {}).with_defaults(SCHEDULER_DEFAULTS)
   end

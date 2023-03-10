@@ -1,34 +1,43 @@
 # frozen_string_literal: true
 
 class SolidQueue::Supervisor
-  attr_accessor :dispatchers, :scheduler
+  class << self
+    def start(mode: :all, configuration: SolidQueue::Configuration.new)
+      runners = case mode
+      when :schedule then scheduler(configuration)
+      when :work     then dispatchers(configuration)
+      when :all      then [ scheduler(configuration) ] + dispatchers(configuration)
+      else           raise "Invalid mode #{mode}"
+      end
 
-  def self.start(configuration: SolidQueue::Configuration.new)
-    dispatchers = configuration.queues.values.map { |queue_options| SolidQueue::Dispatcher.new(**queue_options) }
-    scheduler = unless configuration.scheduler_disabled?
-      SolidQueue::Scheduler.new(**configuration.scheduler_options)
+      new(runners).start
     end
 
-    new(dispatchers, scheduler).start
+    def dispatchers(configuration)
+      configuration.queues.values.map { |queue_options| SolidQueue::Dispatcher.new(**queue_options) }
+    end
+
+    def scheduler(configuration)
+      SolidQueue::Scheduler.new(**configuration.scheduler_options)
+    end
   end
 
-  def initialize(dispatchers, scheduler = nil)
-    @dispatchers = dispatchers
-    @scheduler = scheduler
+  attr_accessor :runners
+
+  def initialize(runners)
+    @runners = Array(runners)
   end
 
   def start
     trap_signals
-    dispatchers.each(&:start)
-    scheduler&.start
+    runners.each(&:start)
 
     Kernel.loop do
       sleep 0.1
       break if stopping?
     end
 
-    dispatchers.each(&:stop)
-    scheduler&.stop
+    runners.each(&:stop)
   end
 
   def stop
