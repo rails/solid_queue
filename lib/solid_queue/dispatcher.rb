@@ -16,7 +16,7 @@ class SolidQueue::Dispatcher
   end
 
   def inspect
-    "Dispatcher(name=#{name}, queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
+    "Dispatcher(queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
   end
   alias to_s inspect
 
@@ -26,7 +26,11 @@ class SolidQueue::Dispatcher
 
       if executions.size > 0
         executions.each do |execution|
-          workers_pool.post { execution.perform(process) }
+          workers_pool.post do
+            wrap_in_app_executor do
+              execution.perform(process)
+            end
+          end
         end
       else
         interruptable_sleep(polling_interval)
@@ -37,9 +41,5 @@ class SolidQueue::Dispatcher
       workers_pool.shutdown
       workers_pool.wait_for_termination
       super
-    end
-
-    def name
-      @name ||= "#{hostname}:#{pid}:#{queue}:#{SecureRandom.hex(4)}"
     end
 end

@@ -100,6 +100,8 @@ GEM
     mini_mime (1.1.2)
     mini_portile2 (2.8.1)
     minitest (5.17.0)
+    mocha (2.0.2)
+      ruby2_keywords (>= 0.0.5)
     mysql2 (0.5.4)
     net-imap (0.3.4)
       date
@@ -146,6 +148,7 @@ GEM
     rake (13.0.6)
     reline (0.3.2)
       io-console (~> 0.5)
+    ruby2_keywords (0.0.5)
     sqlite3 (1.5.4)
       mini_portile2 (~> 2.8.0)
     thor (1.2.1)
@@ -161,7 +164,8 @@ PLATFORMS
   arm64-darwin-22
 
 DEPENDENCIES
-  debug (>= 1.0.0)
+  debug
+  mocha
   mysql2
   solid_queue!
   sqlite3

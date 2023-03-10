@@ -12,4 +12,5 @@ require "solid_queue/supervisor"
 
 module SolidQueue
   mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
+  mattr_accessor :app_executor
 end
