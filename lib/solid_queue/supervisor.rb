@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Supervisor
-  include SolidQueue::AppExecutor
+  include SolidQueue::AppExecutor, SolidQueue::Runner
 
   class << self
     def start(mode: :all, configuration: SolidQueue::Configuration.new)
@@ -34,14 +34,14 @@ class SolidQueue::Supervisor
     trap_signals
     start_process_prune
 
-    runners.each(&:start)
+    start_runners
 
     loop do
       sleep 0.1
       break if stopping?
     end
 
-    runners.each(&:stop)
+    stop_runners
     stop_process_prune
   end
 
@@ -52,12 +52,21 @@ class SolidQueue::Supervisor
       end
     end
 
-    def stop
-      @stopping = true
+    def start_runners
+      runners.each do |runner|
+        runner.supervisor_pid = pid
+
+        fork do
+          Process.setpgrp
+          runner.start
+        end
+
+        log "Started #{runner}"
+      end
     end
 
-    def stopping?
-      @stopping
+    def stop_runners
+      runners.each(&:stop)
     end
 
     def start_process_prune
