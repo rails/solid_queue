@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Scheduler
-  include SolidQueue::Runnable
+  include SolidQueue::Runner
 
   attr_accessor :batch_size, :polling_interval
 
