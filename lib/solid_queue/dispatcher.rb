@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Dispatcher
-  include SolidQueue::Processes, SolidQueue::Runnable
+  include SolidQueue::Processes, SolidQueue::Runner
 
   attr_accessor :queue, :worker_count, :polling_interval, :workers_pool
 
