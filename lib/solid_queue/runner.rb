@@ -9,13 +9,15 @@ module SolidQueue::Runner
 
     include SolidQueue::AppExecutor
     include ProcessRegistration
+
+    attr_accessor :supervisor_pid
   end
 
   def start
     @stopping = false
 
     run_callbacks(:start) do
-      @thread = Thread.new { start_loop }
+      start_loop
     end
 
     SolidQueue.logger.info("[SolidQueue] Started #{self}")
@@ -50,10 +52,6 @@ module SolidQueue::Runner
 
     def stopping?
       @stopping
-    end
-
-    def wait
-      @thread&.join
     end
 
     def clean_up

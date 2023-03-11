@@ -45,6 +45,6 @@ module SolidQueue::Runner::ProcessRegistration
     end
 
     def metadata
-      { kind: self.class.name.demodulize, hostname: hostname, pid: pid }
+      { kind: self.class.name.demodulize, hostname: hostname, pid: pid, supervisor_pid: supervisor_pid }
     end
 end
