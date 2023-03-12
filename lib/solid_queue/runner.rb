@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 module SolidQueue::Runner
+  include SolidQueue::AppExecutor
+
   def start
     @stopping = false
     @thread = Thread.new { start_loop }

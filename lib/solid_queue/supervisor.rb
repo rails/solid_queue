@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SolidQueue::Supervisor
+  include SolidQueue::AppExecutor
+
   class << self
     def start(mode: :all, configuration: SolidQueue::Configuration.new)
       runners = case mode
@@ -30,7 +32,8 @@ class SolidQueue::Supervisor
 
   def start
     trap_signals
-    prune_dead_processes
+    start_process_prune
+
     runners.each(&:start)
 
     Kernel.loop do
@@ -39,10 +42,7 @@ class SolidQueue::Supervisor
     end
 
     runners.each(&:stop)
-  end
-
-  def stop
-    @stopping = true
+    stop_process_prune
   end
 
   private
@@ -52,11 +52,26 @@ class SolidQueue::Supervisor
       end
     end
 
-    def prune_dead_processes
-      SolidQueue::Process.prune
+    def stop
+      @stopping = true
     end
 
     def stopping?
       @stopping
+    end
+
+    def start_process_prune
+      @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue::Process::ALIVE_THRESHOLD) { prune_dead_processes }
+      @prune_task.execute
+    end
+
+    def stop_process_prune
+      @prune_task.shutdown
+    end
+
+    def prune_dead_processes
+      wrap_in_app_executor do
+        SolidQueue::Process.prune
+      end
     end
 end
