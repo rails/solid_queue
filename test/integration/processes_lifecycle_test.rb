@@ -155,6 +155,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     [ paused, exit1, exit2 ].each do |job|
       assert_job_status(job, :claimed)
     end
+    assert_not process_exists?(@pid)
 
     travel_to 10.minutes.from_now
     @pid = run_supervisor_as_fork
