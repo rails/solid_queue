@@ -4,7 +4,6 @@ module SolidQueue::Processes
   def start
     register
     start_heartbeat
-    prune_dead_processes
     super
   end
 
@@ -43,10 +42,6 @@ module SolidQueue::Processes
 
     def stop_heartbeat
       @heartbeat_task.shutdown
-    end
-
-    def prune_dead_processes
-      SolidQueue::Process.prune
     end
 
     def metadata

@@ -30,6 +30,7 @@ class SolidQueue::Supervisor
 
   def start
     trap_signals
+    prune_dead_processes
     runners.each(&:start)
 
     Kernel.loop do
@@ -49,6 +50,10 @@ class SolidQueue::Supervisor
       %w[ INT TERM ].each do |signal|
         trap(signal) { stop }
       end
+    end
+
+    def prune_dead_processes
+      SolidQueue::Process.prune
     end
 
     def stopping?
