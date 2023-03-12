@@ -15,9 +15,11 @@ class SolidQueue::Process < ActiveRecord::Base
     end
 
     def prune
-      prunable.each do |process|
-        SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.metadata}")
-        process.deregister
+      prunable.lock("FOR UPDATE SKIP LOCKED").find_in_batches(batch_size: 50) do |batch|
+        batch.each do |process|
+          SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.metadata}")
+          process.deregister
+        end
       end
     end
   end
