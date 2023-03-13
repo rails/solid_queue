@@ -2,7 +2,7 @@ module SolidQueue::Process::Prunable
   extend ActiveSupport::Concern
 
   included do
-    scope :prunable, -> { where("last_heartbeat_at <= ?", SolidQueue::Process::ALIVE_THRESHOLD.ago) }
+    scope :prunable, -> { where("last_heartbeat_at <= ?", SolidQueue.process_alive_threshold.ago) }
   end
 
   class_methods do

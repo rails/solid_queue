@@ -32,7 +32,7 @@ module SolidQueue::Runner::ProcessRegistration
     end
 
     def start_heartbeat
-      @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue::Process::HEARTBEAT_INTERVAL) { heartbeat }
+      @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) { heartbeat }
       @heartbeat_task.execute
     end
 
