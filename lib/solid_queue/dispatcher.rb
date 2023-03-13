@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Dispatcher
-  include SolidQueue::Processes, SolidQueue::Runner
+  include SolidQueue::Runner
 
   attr_accessor :queue, :worker_count, :polling_interval, :workers_pool
 
@@ -41,5 +41,9 @@ class SolidQueue::Dispatcher
       workers_pool.shutdown
       workers_pool.wait_for_termination
       super
+    end
+
+    def metadata
+      super.merge(queue: queue)
     end
 end
