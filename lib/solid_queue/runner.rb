@@ -1,18 +1,32 @@
 # frozen_string_literal: true
 
 module SolidQueue::Runner
-  include SolidQueue::AppExecutor
+  extend ActiveSupport::Concern
+
+  included do
+    include ActiveSupport::Callbacks
+    define_callbacks :start, :stop, :run
+
+    include SolidQueue::AppExecutor
+    include ProcessRegistration
+  end
 
   def start
     @stopping = false
-    @thread = Thread.new { start_loop }
 
-    log "Started #{self}"
+    run_callbacks(:start) do
+      @thread = Thread.new { start_loop }
+    end
+
+    SolidQueue.logger.info("[SolidQueue] Started #{self}")
   end
 
   def stop
     @stopping = true
-    wait
+
+    run_callbacks(:stop) do
+      wait
+    end
   end
 
   def running?
@@ -23,7 +37,9 @@ module SolidQueue::Runner
     def start_loop
       loop do
         break if stopping?
-        run
+        run_callbacks :run do
+          run
+        end
       end
     ensure
       clean_up
@@ -56,9 +72,5 @@ module SolidQueue::Runner
 
     def pid
       @pid ||= Process.pid
-    end
-
-    def log(message)
-      SolidQueue.logger.info("[SolidQueue] #{message}")
     end
 end

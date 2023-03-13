@@ -36,7 +36,7 @@ class SolidQueue::Supervisor
 
     runners.each(&:start)
 
-    Kernel.loop do
+    loop do
       sleep 0.1
       break if stopping?
     end

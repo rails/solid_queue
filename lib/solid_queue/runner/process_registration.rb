@@ -1,30 +1,30 @@
 # frozen_string_literal: true
 
-module SolidQueue::Processes
-  def start
-    register
-    start_heartbeat
-    super
-  end
+module SolidQueue::Runner::ProcessRegistration
+  extend ActiveSupport::Concern
 
-  def stop
-    stop_heartbeat
-    super
+  included do
+    set_callback :start, :before, :register
+    set_callback :start, :before, :start_heartbeat
+
+    set_callback :run, :after, -> { stop unless registered? }
+
+    set_callback :stop, :before, :stop_heartbeat
   end
 
   private
     attr_accessor :process
 
-    def run
-      stop unless registered?
-    end
-
     def clean_up
-      process.deregister
+      deregister
     end
 
     def register
       @process = SolidQueue::Process.register(metadata)
+    end
+
+    def deregister
+      process.deregister
     end
 
     def registered?
@@ -36,15 +36,15 @@ module SolidQueue::Processes
       @heartbeat_task.execute
     end
 
-    def heartbeat
-      process.heartbeat
-    end
-
     def stop_heartbeat
       @heartbeat_task.shutdown
     end
 
+    def heartbeat
+      process.heartbeat
+    end
+
     def metadata
-      { hostname: hostname, pid: pid, queue: queue }
+      { kind: self.class.name.demodulize, hostname: hostname, pid: pid }
     end
 end

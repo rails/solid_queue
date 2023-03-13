@@ -8,7 +8,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   setup do
     @pid = run_supervisor_as_fork
 
-    wait_for_registered_processes_for(1.second)
+    wait_for_registered_processes(3, 1.second)
     assert_registered_processes_for(:background, :default)
   end
 
@@ -169,7 +169,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     assert_not process_exists?(@pid)
-    assert_registered_processes_for(:default, :background)
+    assert_registered_processes_for(:background, :default)
   end
 
   private
@@ -213,9 +213,9 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       false
     end
 
-    def wait_for_registered_processes_for(timeout = 10.seconds)
+    def wait_for_registered_processes(count, timeout = 10.seconds)
       Timeout.timeout(timeout) do
-        while SolidQueue::Process.none? do
+        while SolidQueue::Process.count < count do
           sleep 0.25
         end
       end
@@ -223,9 +223,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_processes_for(*queues)
-      registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }
-
+      registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }.compact
       assert_equal queues.map(&:to_s).sort, registered_queues.sort
+
+      SolidQueue::Process.exists? { |process| process.metadata["kind"] == "Scheduler" }
     end
 
     def assert_no_registered_processes
