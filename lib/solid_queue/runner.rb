@@ -43,14 +43,6 @@ module SolidQueue::Runner
     def clean_up
     end
 
-    def wrap_in_app_executor(&block)
-      if SolidQueue.app_executor
-        SolidQueue.app_executor.wrap(&block)
-      else
-        yield
-      end
-    end
-
     def interruptable_sleep(seconds)
       while !stopping? && seconds > 0
         Kernel.sleep 0.1
