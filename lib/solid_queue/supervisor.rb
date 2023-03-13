@@ -61,7 +61,7 @@ class SolidQueue::Supervisor
     end
 
     def start_process_prune
-      @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue::Process::ALIVE_THRESHOLD) { prune_dead_processes }
+      @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
       @prune_task.execute
     end
 

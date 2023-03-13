@@ -8,7 +8,14 @@ module SolidQueue
 
     config.solid_queue = ActiveSupport::OrderedOptions.new
 
-    initializer "solid_queue.config", before: :run_prepare_callbacks do |app|
+    initializer "solid_queue.config" do
+      config.after_initialize do |app|
+        SolidQueue.process_heartbeat_interval = app.config.solid_queue.process_heartbeat_interval || 60.seconds
+        SolidQueue.process_alive_threshold    = app.config.solid_queue.process_alive_threshold || 5.minutes
+      end
+    end
+
+    initializer "solid_queue.app_executor", before: :run_prepare_callbacks do |app|
       config.solid_queue.app_executor ||= app.executor
 
       SolidQueue.app_executor = config.solid_queue.app_executor

@@ -1,9 +1,6 @@
 class SolidQueue::Process < ActiveRecord::Base
   include Prunable
 
-  HEARTBEAT_INTERVAL = 60.seconds
-  ALIVE_THRESHOLD = HEARTBEAT_INTERVAL * 5
-
   serialize :metadata, JSON
 
   has_many :claimed_executions
