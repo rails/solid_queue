@@ -9,12 +9,21 @@ module SolidQueue::Job::Executable
     has_one :scheduled_execution
 
     after_create :prepare_for_execution
+
+    scope :finished, -> { where.not(finished_at: nil) }
+    scope :in_queue, ->(queue) { where(queue_name: queue) }
   end
 
-  STATUSES = %w[ ready claimed failed scheduled ]
-
-  STATUSES.each do |status|
+  %w[ ready claimed failed scheduled ].each do |status|
     define_method("#{status}?") { public_send("#{status}_execution").present? }
+  end
+
+  def finished?
+    finished_at.present?
+  end
+
+  def finished
+    touch(:finished_at)
   end
 
   def prepare_for_execution
@@ -23,14 +32,6 @@ module SolidQueue::Job::Executable
     else
       create_scheduled_execution!
     end
-  end
-
-  def finished
-    touch(:finished_at)
-  end
-
-  def finished?
-    finished_at.present?
   end
 
   def failed_with(exception)

@@ -230,7 +230,9 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_no_registered_processes
-      assert SolidQueue::Process.none?
+      SolidQueue::Process.connection.uncached do
+        assert SolidQueue::Process.none?
+      end
     end
 
     def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)
@@ -260,7 +262,9 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_no_claimed_jobs
-      assert SolidQueue::ClaimedExecution.none?
+      SolidQueue::ClaimedExecution.connection.uncached do
+        assert SolidQueue::ClaimedExecution.none?
+      end
     end
 
     def assert_failures(count)

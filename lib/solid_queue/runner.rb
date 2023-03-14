@@ -53,7 +53,7 @@ module SolidQueue::Runner
     end
 
     def wait
-      @thread&.join
+      Thread.new { @thread&.join }.tap(&:join)
     end
 
     def clean_up
@@ -61,7 +61,7 @@ module SolidQueue::Runner
 
     def interruptable_sleep(seconds)
       while !stopping? && seconds > 0
-        Kernel.sleep 0.1
+        sleep 0.1
         seconds -= 0.1
       end
     end
