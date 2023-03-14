@@ -44,7 +44,8 @@ ActiveRecord::Schema[7.0].define(version: 2023_02_24_193733) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["active_job_id"], name: "index_solid_queue_jobs_on_job_id"
-    t.index ["queue_name", "scheduled_at", "finished_at"], name: "index_solid_queue_jobs_for_alerting"
+    t.index ["finished_at", "queue_name", "scheduled_at"], name: "index_solid_queue_jobs_for_alerting"
+    t.index ["queue_name"], name: "index_solid_queue_jobs_on_queue_name"
   end
 
   create_table "solid_queue_processes", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
