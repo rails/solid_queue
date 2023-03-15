@@ -12,7 +12,7 @@ module SolidQueue
       config.after_initialize do |app|
         SolidQueue.process_heartbeat_interval       = app.config.solid_queue.process_heartbeat_interval || 60.seconds
         SolidQueue.process_alive_threshold          = app.config.solid_queue.process_alive_threshold || 5.minutes
-        SolidQueue.execution_limit_per_dispatch_run = app.config.solid_queue.execution_limit_per_dispatch_run || -1
+        SolidQueue.execution_limit_per_dispatch_run = app.config.solid_queue.execution_limit_per_dispatch_run || 0
       end
     end
 

@@ -53,7 +53,7 @@ class SolidQueue::Dispatcher
     end
 
     def executions_per_run_limited?
-      SolidQueue.execution_limit_per_dispatch_run >= 0
+      SolidQueue.execution_limit_per_dispatch_run > 0
     end
 
     def post_to_pool(execution)
