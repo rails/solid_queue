@@ -21,7 +21,7 @@ class DispatcherTest < ActiveSupport::TestCase
 
     AddToBufferJob.perform_later "hey!"
 
-    @dispatcher.start
+    @dispatcher.start(mode: :async)
 
     wait_for_jobs_to_finish_for(0.5.second)
 
