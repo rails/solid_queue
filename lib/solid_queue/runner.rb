@@ -5,7 +5,7 @@ module SolidQueue::Runner
 
   included do
     include ActiveSupport::Callbacks
-    define_callbacks :start, :stop, :run
+    define_callbacks :start, :run, :shutdown
 
     include SolidQueue::AppExecutor
     include ProcessRegistration
@@ -13,22 +13,24 @@ module SolidQueue::Runner
     attr_accessor :supervisor_pid
   end
 
-  def start
+  def start(mode: :sync)
     @stopping = false
+    trap_signals
+
+    SolidQueue.logger.info("[SolidQueue] Starting #{self}")
 
     run_callbacks(:start) do
-      start_loop
+      if mode == :async
+        @thread = Thread.new { start_loop }
+      else
+        start_loop
+      end
     end
-
-    SolidQueue.logger.info("[SolidQueue] Started #{self}")
   end
 
   def stop
     @stopping = true
-
-    run_callbacks(:stop) do
-      wait
-    end
+    @thread.join if running_in_async_mode?
   end
 
   def running?
@@ -36,30 +38,38 @@ module SolidQueue::Runner
   end
 
   private
+    def trap_signals
+      %w[ INT TERM ].each do |signal|
+        trap(signal) { stop }
+      end
+    end
+
     def start_loop
       loop do
         break if stopping?
-        run_callbacks :run do
-          run
-        end
+        run_callbacks(:run) { run }
       end
     ensure
-      clean_up
+      run_callbacks(:shutdown) { shutdown }
     end
 
     def run
+    end
+
+    def shutdown
     end
 
     def stopping?
       @stopping
     end
 
-    def clean_up
+    def running_in_async_mode?
+      @thread.present?
     end
 
     def interruptable_sleep(seconds)
       while !stopping? && seconds > 0
-        Kernel.sleep 0.1
+        sleep 0.1
         seconds -= 0.1
       end
     end
@@ -68,7 +78,7 @@ module SolidQueue::Runner
       @hostname ||= Socket.gethostname
     end
 
-    def pid
+    def process_pid
       @pid ||= Process.pid
     end
 end

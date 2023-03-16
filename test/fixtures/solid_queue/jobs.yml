@@ -15,6 +15,6 @@ raising_job:
 job_<%= i %>:
   queue_name: fixtures
   active_job_id: <%= active_job_id %>
-  arguments: "{\"job_class\":\"AddToBufferJob\",\"job_id\":<%= active_job_id %>,\"queue_name\":\"fixtures\",\"priority\":<%= i %>,\"arguments\":[],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2023-02-20T10:33:02Z\"}"
+  arguments: "{\"job_class\":\"AddToBufferJob\",\"job_id\":\"<%= active_job_id %>\",\"queue_name\":\"fixtures\",\"priority\":<%= i %>,\"arguments\":[],\"executions\":0,\"exception_executions\":{},\"locale\":\"en\",\"timezone\":\"UTC\",\"enqueued_at\":\"2023-02-20T10:33:02Z\"}"
   priority: <%= i %>
 <% end %>
