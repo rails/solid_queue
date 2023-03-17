@@ -12,11 +12,6 @@ class SolidQueue::Scheduler
     @polling_interval = options[:polling_interval]
   end
 
-  def inspect
-    "Scheduler(batch_size=#{batch_size}, polling_interval=#{polling_interval})"
-  end
-  alias to_s inspect
-
   private
     def run
       batch = SolidQueue::ScheduledExecution.next_batch(batch_size)
@@ -26,5 +21,9 @@ class SolidQueue::Scheduler
       else
         interruptable_sleep(polling_interval)
       end
+    end
+
+    def metadata
+      super.merge(batch_size: batch_size, polling_interval: polling_interval)
     end
 end

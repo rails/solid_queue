@@ -15,11 +15,6 @@ class SolidQueue::Dispatcher
     @workers_pool = Concurrent::FixedThreadPool.new(@worker_count)
   end
 
-  def inspect
-    "Dispatcher(queue=#{queue}, worker_count=#{worker_count}, polling_interval=#{polling_interval})"
-  end
-  alias to_s inspect
-
   private
     def run
       executions = SolidQueue::ReadyExecution.claim(queue, worker_count)
@@ -44,6 +39,6 @@ class SolidQueue::Dispatcher
     end
 
     def metadata
-      super.merge(queue: queue)
+      super.merge(queue: queue, worker_count: worker_count, polling_interval: polling_interval)
     end
 end

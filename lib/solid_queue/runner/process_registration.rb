@@ -12,6 +12,11 @@ module SolidQueue::Runner::ProcessRegistration
     set_callback :stop, :before, :stop_heartbeat
   end
 
+  def inspect
+    metadata.inspect
+  end
+  alias to_s inspect
+
   private
     attr_accessor :process
 
@@ -45,6 +50,6 @@ module SolidQueue::Runner::ProcessRegistration
     end
 
     def metadata
-      { kind: self.class.name.demodulize, hostname: hostname, pid: pid, supervisor_pid: supervisor_pid }
+      { kind: self.class.name.demodulize, hostname: hostname, pid: process_pid, supervisor_pid: supervisor_pid }
     end
 end
