@@ -46,7 +46,7 @@ module SolidQueue::Runner
 
     def start_loop
       loop do
-        break if stopping?
+        break if shutdown?
         run_callbacks(:run) { run }
       end
     ensure
@@ -59,8 +59,20 @@ module SolidQueue::Runner
     def shutdown
     end
 
+    def shutdown?
+      stopping? || supervisor_went_away?
+    end
+
     def stopping?
       @stopping
+    end
+
+    def supervisor_went_away?
+      if running_in_async_mode?
+        false
+      else
+        supervisor_pid != Process.ppid
+      end
     end
 
     def running_in_async_mode?

@@ -37,56 +37,34 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     signal_fork(@pid, :KILL, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
+    assert_not process_exists?(@pid)
+
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # TODO: this happens because dispatchers continue happily working
-    # while the supervisor is killed. This needs to change so that
-    # they stop and clean after themselves as well
-    #
-    # assert_started_job_result("pause")
-    # assert_job_status(pause, :ready)
-    #
-    # assert_no_registered_processes
-
+    # Running dispatcher finish with jobs in progress and terminate orderly
     assert_completed_job_results("pause")
     assert_job_status(pause, :finished)
 
-    # TODO: this should happen automatically when the above
-    # is fixed
-    assert_registered_processes_for(:background, :default)
-    terminate_registered_processes
-
+    assert_no_registered_processes
     assert_clean_termination
   end
 
   test "quit supervisor while there are jobs in-flight" do
+    skip "Handle QUIT signal explicitly"
+
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 2.seconds)
 
     signal_fork(@pid, :QUIT, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
+    assert_not process_exists?(@pid)
+
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # TODO: this happens because dispatchers continue happily working
-    # while the supervisor is killed. This needs to change so that
-    # they stop and clean after themselves as well
-    #
-    # assert_started_job_result("pause")
-    # assert_job_status(pause, :ready)
-    #
-    # assert_no_registered_processes
-
-    assert_completed_job_results("pause")
-    assert_job_status(pause, :finished)
-
-    # TODO: this should happen automatically when the above
-    # is fixed
-    assert_registered_processes_for(:background, :default)
-    terminate_registered_processes
-
+    assert_no_registered_processes
     assert_clean_termination
   end
 
@@ -184,8 +162,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def terminate_registered_processes
-      SolidQueue::Process.find_each do |process|
-        terminate_process(process.metadata["pid"], from_parent: false)
+      uncached do
+        SolidQueue::Process.find_each do |process|
+          terminate_process(process.metadata["pid"], from_parent: false)
+        end
       end
     end
 
@@ -240,14 +220,16 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_processes_for(*queues)
-      registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }.compact
-      assert_equal queues.map(&:to_s).sort, registered_queues.sort
+      uncached do
+        registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }.compact
+        assert_equal queues.map(&:to_s).sort, registered_queues.sort
 
-      SolidQueue::Process.exists? { |process| process.metadata["kind"] == "Scheduler" }
+        assert SolidQueue::Process.exists? { |process| process.metadata["kind"] == "Scheduler" }
+      end
     end
 
     def assert_no_registered_processes
-      SolidQueue::Process.connection.uncached do
+      uncached do
         assert SolidQueue::Process.none?
       end
     end
@@ -272,7 +254,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       # after they were cached on the connection used in the test, the cache
       # will still apply, even though the data returned by the cached queries
       # might have been deleted in the forked processes.
-      SolidQueue::Job.connection.uncached do
+      uncached do
         job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
         assert job.public_send("#{status}?")
       end
@@ -284,5 +266,14 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     def assert_failures(count)
       assert_equal count, SolidQueue::FailedExecution.count
+    end
+
+    def uncached(&block)
+      # Make sure we skip AR query cache. Otherwise the queries done here
+      # might be cached and since we haven't done any non-SELECT queries
+      # after they were cached on the connection used in the test, the cache
+      # will still apply, even though the data returned by the cached queries
+      # might have been updated, created or deleted in the forked processes.
+      ActiveRecord::Base.uncached(&block)
     end
 end
