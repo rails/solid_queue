@@ -4,10 +4,10 @@ class SolidQueue::Supervisor
   include SolidQueue::AppExecutor, SolidQueue::Runner
 
   class << self
-    def start(mode: :all, configuration: SolidQueue::Configuration.new)
+    def start(mode: :dispatch, configuration: SolidQueue::Configuration.new)
       runners = case mode
       when :schedule then scheduler(configuration)
-      when :work     then dispatchers(configuration)
+      when :dispatch then dispatchers(configuration)
       when :all      then [ scheduler(configuration) ] + dispatchers(configuration)
       else           raise "Invalid mode #{mode}"
       end
@@ -24,10 +24,11 @@ class SolidQueue::Supervisor
     end
   end
 
-  attr_accessor :runners
+  attr_accessor :runners, :forks
 
   def initialize(runners)
-    @runners = Array(runners)
+    @runners = runners
+    @forks = {}
   end
 
   def start
@@ -36,37 +37,23 @@ class SolidQueue::Supervisor
 
     start_runners
 
-    loop do
-      sleep 0.1
-      break if stopping?
-    end
+    supervise
 
     stop_runners
     stop_process_prune
   end
 
+  def stop
+    @stopping = true
+  end
+
   private
-    def trap_signals
-      %w[ INT TERM ].each do |signal|
-        trap(signal) { stop }
-      end
-    end
-
     def start_runners
-      runners.each do |runner|
-        runner.supervisor_pid = pid
-
-        fork do
-          Process.setpgrp
-          runner.start
-        end
-
-        log "Started #{runner}"
-      end
+      runners.each { |runner| start_runner(runner) }
     end
 
     def stop_runners
-      runners.each(&:stop)
+      signal_runners("TERM")
     end
 
     def start_process_prune
@@ -81,6 +68,50 @@ class SolidQueue::Supervisor
     def prune_dead_processes
       wrap_in_app_executor do
         SolidQueue::Process.prune
+      end
+    end
+
+    def start_runner(runner)
+      runner.supervisor_pid = process_pid
+
+      pid = fork do
+        Process.setpgrp
+        runner.start
+      end
+
+      forks[pid] = runner
+    end
+
+    def signal_runners(signal)
+      forks.keys.each do |pid|
+        Process.kill signal, pid
+      end
+    end
+
+    def supervise
+      loop do
+        break if stopping?
+        detect_and_replace_terminated_runners
+
+        sleep 0.1
+      end
+    end
+
+    def detect_and_replace_terminated_runners
+      loop do
+        pid, status = Process.waitpid2(-1, Process::WNOHANG)
+        break unless pid
+
+        replace_runner(pid, status)
+      end
+    end
+
+    def replace_runner(pid, status)
+      if runner = forks.delete(pid)
+        SolidQueue.logger.info "[SolidQueue] Restarting resque worker[#{status.pid}] (status: #{status.exitstatus}) #{runner.inspect}"
+        start_runner(runner)
+      else
+        SolidQueue.logger.info "[SolidQueue] Tried to replace #{runner.inspect} (status: #{status.exitstatus}, runner[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
       end
     end
 end
