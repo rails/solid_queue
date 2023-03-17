@@ -4,19 +4,19 @@ class SolidQueue::Supervisor
   include SolidQueue::AppExecutor, SolidQueue::Runner
 
   class << self
-    def start(mode: :dispatch, configuration: SolidQueue::Configuration.new)
+    def start(mode: :work, configuration: SolidQueue::Configuration.new)
       runners = case mode
       when :schedule then scheduler(configuration)
-      when :dispatch then dispatchers(configuration)
-      when :all      then [ scheduler(configuration) ] + dispatchers(configuration)
+      when :work     then workers(configuration)
+      when :all      then [ scheduler(configuration) ] + workers(configuration)
       else           raise "Invalid mode #{mode}"
       end
 
       new(runners).start
     end
 
-    def dispatchers(configuration)
-      configuration.queues.values.map { |queue_options| SolidQueue::Dispatcher.new(**queue_options) }
+    def workers(configuration)
+      configuration.queues.values.map { |queue_options| SolidQueue::Worker.new(**queue_options) }
     end
 
     def scheduler(configuration)

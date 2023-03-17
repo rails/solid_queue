@@ -2,7 +2,7 @@
 
 class SolidQueue::Configuration
   DISPATCHER_DEFAULTS = {
-    worker_count: 5,
+    pool_size: 5,
     polling_interval: 0.1
   }
 

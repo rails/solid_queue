@@ -10,7 +10,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   test "provide configuration as a hash and fill defaults" do
     configuration = SolidQueue::Configuration.new(queues: { background: { polling_interval: 10 } })
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS, configuration.scheduler_options
-    assert configuration.queues[:background][:worker_count] > 0
+    assert configuration.queues[:background][:pool_size] > 0
     assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS.merge(queue_name: "default"), configuration.queues[:default]
   end
 end
