@@ -32,10 +32,9 @@ class SolidQueue::Dispatcher
       end
     end
 
-    def wait
+    def shutdown
       workers_pool.shutdown
       workers_pool.wait_for_termination
-      super
     end
 
     def metadata

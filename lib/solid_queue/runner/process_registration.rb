@@ -9,7 +9,8 @@ module SolidQueue::Runner::ProcessRegistration
 
     set_callback :run, :after, -> { stop unless registered? }
 
-    set_callback :stop, :before, :stop_heartbeat
+    set_callback :shutdown, :before, :stop_heartbeat
+    set_callback :shutdown, :after, :deregister
   end
 
   def inspect
@@ -19,10 +20,6 @@ module SolidQueue::Runner::ProcessRegistration
 
   private
     attr_accessor :process
-
-    def clean_up
-      deregister
-    end
 
     def register
       @process = SolidQueue::Process.register(metadata)
