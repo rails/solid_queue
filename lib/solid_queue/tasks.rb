@@ -1,7 +1,7 @@
 namespace :solid_queue do
   desc "start solid_queue supervisor to process jobs"
-  task work: :environment do
-    SolidQueue::Supervisor.start(mode: :work)
+  task dispatch: :environment do
+    SolidQueue::Supervisor.start(mode: :dispatch)
   end
 
   desc "start solid_queue scheduler to enqueue scheduled jobs"
