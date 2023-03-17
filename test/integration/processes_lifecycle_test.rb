@@ -42,7 +42,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # Running dispatcher finish with jobs in progress and terminate orderly
+    # Running worker finish with jobs in progress and terminate orderly
     assert_completed_job_results("pause")
     assert_job_status(pause, :finished)
 
@@ -137,7 +137,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no exit", :background, 4)
     assert_completed_job_results("paused no exit", :default, 1)
 
-    # The background dispatcher exits because of the exit job,
+    # The background worker exits because of the exit job,
     # leaving the pause job claimed
     [ exit_job, pause_job ].each do |job|
       assert_job_status(job, :claimed)
