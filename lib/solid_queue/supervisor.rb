@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::Supervisor
-  include SolidQueue::AppExecutor, SolidQueue::Runner
+  include SolidQueue::AppExecutor
 
   class << self
     def start(mode: :work, configuration: SolidQueue::Configuration.new)
@@ -24,15 +24,18 @@ class SolidQueue::Supervisor
     end
   end
 
-  attr_accessor :runners, :forks
-
   def initialize(runners)
     @runners = runners
     @forks = {}
+
+    @signal_queue = []
+
+    # Self-pipe for deferred signal-handling (http://cr.yp.to/docs/selfpipe.html)
+    @self_pipe = create_self_pipe
   end
 
   def start
-    trap_signals
+    register_signal_handlers
     start_process_prune
 
     start_runners
@@ -48,6 +51,32 @@ class SolidQueue::Supervisor
   end
 
   private
+    attr_reader :runners, :forks, :signal_queue
+
+    SIGNALS = %i[ QUIT INT TERM ]
+
+    def register_signal_handlers
+      SIGNALS.each do |signal|
+        trap(signal) do
+          signal_queue << signal
+          interrupt
+        end
+      end
+    end
+
+    def create_self_pipe
+      reader, writer = IO.pipe
+      { reader: reader, writer: writer }
+    end
+
+    def interrupt
+      @self_pipe[:writer].write_nonblock( "." )
+    rescue Errno::EAGAIN, Errno::EINTR
+      # Ignore writes that would block and
+      # retry if another signal arrived while writing
+      retry
+    end
+
     def start_runners
       runners.each { |runner| start_runner(runner) }
     end
@@ -72,7 +101,7 @@ class SolidQueue::Supervisor
     end
 
     def start_runner(runner)
-      runner.supervisor_pid = process_pid
+      runner.supervisor_pid = Process.pid
 
       pid = fork do
         Process.setpgrp
@@ -90,11 +119,47 @@ class SolidQueue::Supervisor
 
     def supervise
       loop do
+        process_signal_queue
         break if stopping?
+
         detect_and_replace_terminated_runners
 
-        sleep 0.1
+        interruptable_sleep(1.second)
       end
+    end
+
+    def process_signal_queue
+      while signal = signal_queue.shift
+        handle_signal(signal)
+      end
+    end
+
+    def handle_signal(signal)
+      case signal
+      when :TERM, :INT
+        stop
+      when :QUIT
+        quit
+      else
+        SolidQueue.logger.warn "Received unhandled signal #{signal}"
+      end
+    end
+
+    def quit
+      exit
+    end
+
+    CHUNK_SIZE = 11
+
+    def interruptable_sleep(time)
+      if @self_pipe[:reader].wait_readable(time)
+        loop { @self_pipe[:reader].read_nonblock(CHUNK_SIZE) }
+      end
+    rescue Errno::EAGAIN, Errno::EINTR
+    end
+
+    def stopping?
+      @stopping
     end
 
     def detect_and_replace_terminated_runners
