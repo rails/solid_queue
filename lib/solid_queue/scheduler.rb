@@ -19,7 +19,7 @@ class SolidQueue::Scheduler
       if batch.size > 0
         SolidQueue::ScheduledExecution.prepare_batch(batch)
       else
-        interruptable_sleep(polling_interval)
+        interruptible_sleep(polling_interval)
       end
     end
 
