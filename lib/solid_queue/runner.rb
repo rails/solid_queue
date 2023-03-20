@@ -79,7 +79,7 @@ module SolidQueue::Runner
       @thread.present?
     end
 
-    def interruptable_sleep(seconds)
+    def interruptible_sleep(seconds)
       while !stopping? && seconds > 0
         sleep 0.1
         seconds -= 0.1

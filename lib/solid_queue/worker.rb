@@ -28,7 +28,7 @@ class SolidQueue::Worker
           end
         end
       else
-        interruptable_sleep(polling_interval)
+        interruptible_sleep(polling_interval)
       end
     end
 
