@@ -4,6 +4,8 @@ require "solid_queue/engine"
 require "active_job/queue_adapters/solid_queue_adapter"
 
 require "solid_queue/app_executor"
+require "solid_queue/interruptible"
+require "solid_queue/signals"
 require "solid_queue/configuration"
 require "solid_queue/runner"
 require "solid_queue/runner/process_registration"

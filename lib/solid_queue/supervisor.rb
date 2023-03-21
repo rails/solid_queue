@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "solid_queue/signals"
-
 module SolidQueue
   class Supervisor
     include AppExecutor, Signals
@@ -39,8 +37,11 @@ module SolidQueue
       start_runners
 
       supervise
-
-      stop_runners
+    rescue GracefulShutdownRequested
+      graceful_shutdown
+    rescue ImmediateShutdownRequested
+      immediate_shutdown
+    ensure
       stop_process_prune
       restore_default_signal_handlers
     end
@@ -68,8 +69,20 @@ module SolidQueue
         end
       end
 
-      def stop_runners
+      def graceful_shutdown
+        term_runners
+      end
+
+      def immediate_shutdown
+        quit_runners
+      end
+
+      def term_runners
         signal_processes(forks.keys, :TERM)
+      end
+
+      def quit_runners
+        signal_processes(forks.keys, :QUIT)
       end
 
       def stop_process_prune
