@@ -63,7 +63,7 @@ module SolidQueue
           process_signal_queue
           break if stopping?
 
-          detect_and_replace_terminated_runners
+          reap_and_replace_terminated_runners
 
           interruptible_sleep(1.second)
         end
@@ -71,6 +71,12 @@ module SolidQueue
 
       def graceful_shutdown
         term_runners
+
+        wait_until(SolidQueue.shutdown_timeout, -> { all_runners_terminated? }) do
+          reap_terminated_runners
+        end
+
+        immediate_shutdown unless all_runners_terminated?
       end
 
       def immediate_shutdown
@@ -114,13 +120,24 @@ module SolidQueue
         @stopping
       end
 
-      def detect_and_replace_terminated_runners
+      def reap_and_replace_terminated_runners
         loop do
           pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
           break unless pid
 
           replace_runner(pid, status)
         end
+      end
+
+      def reap_terminated_runners
+        loop do
+          pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
+          break unless pid
+
+          forks.delete(pid)
+        end
+      rescue SystemCallError
+        # All children already reaped
       end
 
       def replace_runner(pid, status)
@@ -130,6 +147,31 @@ module SolidQueue
         else
           SolidQueue.logger.info "[SolidQueue] Tried to replace #{runner.inspect} (status: #{status.exitstatus}, runner[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
         end
+      end
+
+      def all_runners_terminated?
+        forks.empty?
+      end
+
+      def wait_until(timeout, condition, &block)
+        if timeout > 0
+          now = monotonic_time_now
+          deadline = now + timeout
+          while now < deadline && !condition.call
+            sleep 0.1
+            block.call
+            now = monotonic_time_now
+          end
+        else
+          while !condition.call
+            sleep 0.5
+            block.call
+          end
+        end
+      end
+
+      def monotonic_time_now
+        ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
       end
   end
 end

@@ -19,4 +19,6 @@ module SolidQueue
 
   mattr_accessor :process_heartbeat_interval, default: 60.seconds
   mattr_accessor :process_alive_threshold, default: 5.minutes
+
+  mattr_accessor :shutdown_timeout, default: 5.seconds
 end

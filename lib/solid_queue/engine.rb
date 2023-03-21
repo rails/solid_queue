@@ -12,6 +12,7 @@ module SolidQueue
       config.after_initialize do |app|
         SolidQueue.process_heartbeat_interval = app.config.solid_queue.process_heartbeat_interval || 60.seconds
         SolidQueue.process_alive_threshold    = app.config.solid_queue.process_alive_threshold || 5.minutes
+        SolidQueue.shutdown_timeout           = app.config.solid_queue.shutdown_timeout || 5.seconds
       end
     end
 
