@@ -34,7 +34,11 @@ class SolidQueue::Worker
 
     def shutdown
       pool.shutdown
-      pool.wait_for_termination
+      pool.wait_for_termination(SolidQueue.shutdown_timeout)
+    end
+
+    def shutdown_completed?
+      pool.shutdown?
     end
 
     def metadata

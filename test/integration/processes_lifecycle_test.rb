@@ -102,6 +102,25 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_clean_termination
   end
 
+  test "term supervisor exceeding timeout while there are jobs in-flight" do
+    no_pause = enqueue_store_result_job("no pause")
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 1.second)
+
+    signal_fork(@pid, :TERM, wait: 1.second)
+    wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 1.second)
+
+    assert_completed_job_results("no pause")
+    assert_job_status(no_pause, :finished)
+
+    # This job was left claimed as the worker was shutdown without
+    # a chance to terminate orderly
+    assert_started_job_result("pause")
+    assert_job_status(pause, :claimed)
+
+    # The process running the long job couldn't deregister, the other did
+    assert_registered_processes_for(:background)
+  end
+
   test "process some jobs that raise errors" do
     enqueue_store_result_job("no error", :background, 2)
     enqueue_store_result_job("no error", :default, 2)
