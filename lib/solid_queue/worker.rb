@@ -6,7 +6,7 @@ class SolidQueue::Worker
   attr_accessor :queue, :pool_size, :polling_interval, :pool
 
   def initialize(**options)
-    options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
+    options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
     @queue = options[:queue_name].to_s
     @pool_size = options[:pool_size]
