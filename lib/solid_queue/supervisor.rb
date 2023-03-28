@@ -5,23 +5,10 @@ module SolidQueue
     include AppExecutor, Signals
 
     class << self
-      def start(mode: :work, configuration: SolidQueue::Configuration.new)
-        runners = case mode
-        when :schedule then scheduler(configuration)
-        when :work     then workers(configuration)
-        when :all      then [ scheduler(configuration) ] + workers(configuration)
-        else           raise "Invalid mode #{mode}"
-        end
+      def start(mode: :work, load_configuration_from: nil)
+        configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
 
-        new(runners).start
-      end
-
-      def workers(configuration)
-        configuration.queues.values.map { |queue_options| SolidQueue::Worker.new(**queue_options) }
-      end
-
-      def scheduler(configuration)
-        SolidQueue::Scheduler.new(**configuration.scheduler_options)
+        new(configuration.runners).start
       end
     end
 
@@ -61,10 +48,7 @@ module SolidQueue
       def supervise
         loop do
           process_signal_queue
-          break if stopping?
-
           reap_and_replace_terminated_runners
-
           interruptible_sleep(1.second)
         end
       end
@@ -95,10 +79,6 @@ module SolidQueue
         @prune_task.shutdown
       end
 
-      def stop
-        @stopping = true
-      end
-
       def prune_dead_processes
         wrap_in_app_executor do
           SolidQueue::Process.prune
@@ -109,15 +89,10 @@ module SolidQueue
         runner.supervisor_pid = ::Process.pid
 
         pid = fork do
-          ::Process.setpgrp
           runner.start
         end
 
         forks[pid] = runner
-      end
-
-      def stopping?
-        @stopping
       end
 
       def reap_and_replace_terminated_runners
@@ -142,10 +117,10 @@ module SolidQueue
 
       def replace_runner(pid, status)
         if runner = forks.delete(pid)
-          SolidQueue.logger.info "[SolidQueue] Restarting resque worker[#{status.pid}] (status: #{status.exitstatus}) #{runner.inspect}"
+          SolidQueue.logger.info "[SolidQueue] Restarting worker[#{status.pid}] (status: #{status.exitstatus})"
           start_runner(runner)
         else
-          SolidQueue.logger.info "[SolidQueue] Tried to replace #{runner.inspect} (status: #{status.exitstatus}, runner[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
+          SolidQueue.logger.info "[SolidQueue] Tried to replace worker[#{pid}] (status: #{status.exitstatus}, runner[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
         end
       end
 
@@ -155,12 +130,10 @@ module SolidQueue
 
       def wait_until(timeout, condition, &block)
         if timeout > 0
-          now = monotonic_time_now
-          deadline = now + timeout
-          while now < deadline && !condition.call
+          deadline = monotonic_time_now + timeout
+          while monotonic_time_now < deadline && !condition.call
             sleep 0.1
             block.call
-            now = monotonic_time_now
           end
         else
           while !condition.call

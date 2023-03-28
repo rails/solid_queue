@@ -34,7 +34,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 2.seconds)
 
-    signal_fork(@pid, :KILL, wait: 1.second)
+    signal_process(@pid, :KILL, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
     assert_not process_exists?(@pid)
@@ -49,11 +49,20 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_clean_termination
   end
 
+  test "term supervisor multiple times" do
+    5.times do
+      signal_process(@pid, :TERM, wait: 0.1.second)
+    end
+
+    sleep(0.5.seconds)
+    assert_clean_termination
+  end
+
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 2.seconds)
 
-    signal_fork(@pid, :QUIT, wait: 1.second)
+    signal_process(@pid, :QUIT, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
     assert_not process_exists?(@pid)
@@ -74,7 +83,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 2.seconds)
 
-    signal_fork(@pid, :TERM, wait: 1.second)
+    signal_process(@pid, :TERM, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
     assert_completed_job_results("no pause")
@@ -90,7 +99,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 2.seconds)
 
-    signal_fork(@pid, :INT, wait: 1.second)
+    signal_process(@pid, :INT, wait: 1.second)
     wait_for_jobs_to_finish_for(5.seconds)
 
     assert_completed_job_results("no pause")
@@ -106,7 +115,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 1.second)
 
-    signal_fork(@pid, :TERM, wait: 1.second)
+    signal_process(@pid, :TERM, wait: 1.second)
     wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 1.second)
 
     assert_completed_job_results("no pause")
@@ -196,11 +205,11 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def terminate_process(pid, from_parent: true)
-      signal_fork(pid, :TERM)
+      signal_process(pid, :TERM)
       wait_for_process_with_timeout(pid, from_parent: from_parent)
     end
 
-    def signal_fork(pid, signal, wait: nil)
+    def signal_process(pid, signal, wait: nil)
       Thread.new do
         sleep(wait) if wait
         Process.kill(signal, pid)

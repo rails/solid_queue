@@ -2,15 +2,18 @@ require "test_helper"
 
 class ConfigurationTest < ActiveSupport::TestCase
   test "read configuration from default file" do
-    configuration = SolidQueue::Configuration.new
-    assert 2, configuration.queues.count
-    assert_not_empty configuration.scheduler_options
+    configuration = SolidQueue::Configuration.new(mode: :all)
+    assert 3, configuration.runners.count
+    assert_equal 2, configuration.workers.count
+    assert configuration.scheduler.present?
   end
 
   test "provide configuration as a hash and fill defaults" do
-    configuration = SolidQueue::Configuration.new(queues: { background: { polling_interval: 10 } })
-    assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS, configuration.scheduler_options
-    assert configuration.queues[:background][:pool_size] > 0
-    assert_equal SolidQueue::Configuration::WORKER_DEFAULTS.merge(queue_name: "default"), configuration.queues[:default]
+    config_as_hash = { queues: { background: { polling_interval: 10 } } }
+    configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
+
+    assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
+    assert configuration.workers.detect { |w| w.queue == "background" }.pool_size > 0
+    assert configuration.workers.any? { |w| w.queue == "default" }
   end
 end
