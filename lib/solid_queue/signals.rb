@@ -56,8 +56,14 @@ module SolidQueue
 
       def signal_processes(pids, signal)
         pids.each do |pid|
-          ::Process.kill signal, pid
+          signal_process pid, signal
         end
+      end
+
+      def signal_process(pid, signal)
+        ::Process.kill signal, pid
+      rescue Errno::ESRCH
+        # Ignore, process died before
       end
 
       def signal_queue
