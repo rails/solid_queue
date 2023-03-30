@@ -18,6 +18,7 @@ module SolidQueue
     end
 
     def start
+      setup_pidfile
       register_signal_handlers
       start_process_prune
 
@@ -31,10 +32,17 @@ module SolidQueue
     ensure
       stop_process_prune
       restore_default_signal_handlers
+      delete_pidfile
     end
 
     private
       attr_reader :runners, :forks
+
+      def setup_pidfile
+        @pidfile = if SolidQueue.supervisor_pidfile
+          Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
+        end
+      end
 
       def start_process_prune
         @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
@@ -76,7 +84,11 @@ module SolidQueue
       end
 
       def stop_process_prune
-        @prune_task.shutdown
+        @prune_task&.shutdown
+      end
+
+      def delete_pidfile
+        @pidfile&.delete
       end
 
       def prune_dead_processes

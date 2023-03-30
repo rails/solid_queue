@@ -5,6 +5,7 @@ require "active_job/queue_adapters/solid_queue_adapter"
 
 require "solid_queue/app_executor"
 require "solid_queue/interruptible"
+require "solid_queue/pidfile"
 require "solid_queue/signals"
 require "solid_queue/configuration"
 require "solid_queue/runner"
@@ -21,4 +22,6 @@ module SolidQueue
   mattr_accessor :process_alive_threshold, default: 5.minutes
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
+
+  mattr_accessor :supervisor_pidfile
 end
