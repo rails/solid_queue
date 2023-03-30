@@ -181,12 +181,6 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   private
-    def run_supervisor_as_fork
-      fork do
-        SolidQueue::Supervisor.start
-      end
-    end
-
     def terminate_supervisor
       terminate_process(@pid)
     end
@@ -202,51 +196,6 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     def assert_clean_termination
       assert_no_registered_processes
       assert_no_claimed_jobs
-    end
-
-    def terminate_process(pid, from_parent: true)
-      signal_process(pid, :TERM)
-      wait_for_process_with_timeout(pid, from_parent: from_parent)
-    end
-
-    def signal_process(pid, signal, wait: nil)
-      Thread.new do
-        sleep(wait) if wait
-        Process.kill(signal, pid)
-      end
-    end
-
-    def wait_for_process_with_timeout(pid, timeout: 10, from_parent: true)
-      Timeout.timeout(timeout) do
-        if from_parent
-          Process.waitpid(pid)
-          assert 0, $?.exitstatus
-        else
-          loop do
-            break unless process_exists?(pid)
-            sleep(0.1)
-          end
-        end
-      end
-    rescue Timeout::Error
-      Process.kill(:KILL, pid)
-      raise
-    end
-
-    def process_exists?(pid)
-      Process.getpgid(pid)
-      true
-    rescue Errno::ESRCH
-      false
-    end
-
-    def wait_for_registered_processes(count, timeout: 10.seconds)
-      Timeout.timeout(timeout) do
-        while SolidQueue::Process.count < count do
-          sleep 0.25
-        end
-      end
-    rescue Timeout::Error
     end
 
     def assert_registered_processes_for(*queues)
