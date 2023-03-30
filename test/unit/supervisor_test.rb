@@ -58,35 +58,4 @@ class SupervisorTest < ActiveSupport::TestCase
 
     terminate_process(pid)
   end
-
-  private
-    def run_supervisor_as_fork(**options)
-      fork do
-        SolidQueue::Supervisor.start(**options)
-      end
-    end
-
-    def wait_for_registered_processes(count, timeout: 10.seconds)
-      Timeout.timeout(timeout) do
-        while SolidQueue::Process.count < count do
-          sleep 0.25
-        end
-      end
-    rescue Timeout::Error
-    end
-
-    def terminate_process(pid, timeout: 10, signal: :TERM)
-      Process.kill(signal, pid)
-      wait_for_process_termination_with_timeout(pid, timeout: timeout)
-    end
-
-    def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0)
-      Timeout.timeout(timeout) do
-        Process.waitpid(pid)
-        assert exitstatus, $?.exitstatus
-      end
-    rescue Timeout::Error
-      Process.kill(:KILL, pid)
-      raise
-    end
 end
