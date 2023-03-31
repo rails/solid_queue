@@ -26,6 +26,8 @@ module SolidQueue
           existing_pid > 0 && ::Process.kill(0, existing_pid)
 
           already_running!
+        else
+          FileUtils.mkdir_p File.dirname(path)
         end
       rescue Errno::ESRCH => e
         # Process is dead, ignore, just delete the file

@@ -4,9 +4,8 @@ class SupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    FileUtils.mkdir_p Rails.application.root.join("tmp")
     @previous_pidfile = SolidQueue.supervisor_pidfile
-    @pidfile = Rails.application.root.join("tmp/pidfile_#{SecureRandom.hex}.pid")
+    @pidfile = Rails.application.root.join("tmp/pids/pidfile_#{SecureRandom.hex}.pid")
     SolidQueue.supervisor_pidfile = @pidfile
   end
 
