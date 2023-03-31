@@ -186,7 +186,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def terminate_registered_processes
-      uncached do
+      skip_active_record_query_cache do
         SolidQueue::Process.find_each do |process|
           terminate_process(process.metadata["pid"], from_parent: false)
         end
@@ -199,15 +199,9 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_processes_for(*queues)
-      uncached do
+      skip_active_record_query_cache do
         registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }.compact
         assert_equal queues.map(&:to_s).sort, registered_queues.sort
-      end
-    end
-
-    def assert_no_registered_processes
-      uncached do
-        assert SolidQueue::Process.none?
       end
     end
 
@@ -231,7 +225,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       # after they were cached on the connection used in the test, the cache
       # will still apply, even though the data returned by the cached queries
       # might have been deleted in the forked processes.
-      uncached do
+      skip_active_record_query_cache do
         job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
         assert job.public_send("#{status}?")
       end
@@ -243,14 +237,5 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     def assert_failures(count)
       assert_equal count, SolidQueue::FailedExecution.count
-    end
-
-    def uncached(&block)
-      # Make sure we skip AR query cache. Otherwise the queries done here
-      # might be cached and since we haven't done any non-SELECT queries
-      # after they were cached on the connection used in the test, the cache
-      # will still apply, even though the data returned by the cached queries
-      # might have been updated, created or deleted in the forked processes.
-      ActiveRecord::Base.uncached(&block)
     end
 end

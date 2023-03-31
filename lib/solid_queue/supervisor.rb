@@ -13,7 +13,7 @@ module SolidQueue
     end
 
     def initialize(runners)
-      @runners = runners
+      @runners = Array(runners)
       @forks = {}
     end
 

@@ -14,6 +14,24 @@ class SupervisorTest < ActiveSupport::TestCase
     File.delete(@pidfile) if File.exist?(@pidfile)
   end
 
+  test "start in work mode (default)" do
+    pid = run_supervisor_as_fork
+    wait_for_registered_processes(2)
+
+    terminate_process(pid)
+
+    assert_no_registered_processes
+  end
+
+  test "start in schedule mode" do
+    pid = run_supervisor_as_fork(mode: :schedule)
+    wait_for_registered_processes(1)
+
+    terminate_process(pid)
+
+    assert_no_registered_processes
+  end
+
   test "create and delete pidfile" do
     assert_not File.exist?(@pidfile)
 
