@@ -18,7 +18,7 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
 
     private
       def query_candidates(queues, limit)
-        queued_as(queues).limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
+        queued_as(queues).limit(limit).lock("FOR UPDATE").pluck(:job_id)
       end
 
       def lock(job_ids)
