@@ -17,13 +17,18 @@ class SolidQueue::Scheduler
       batch = SolidQueue::ScheduledExecution.next_batch(batch_size)
 
       if batch.size > 0
+        procline "preparing #{batch.size} jobs for execution"
+
         SolidQueue::ScheduledExecution.prepare_batch(batch)
       else
+        procline "waiting"
         interruptible_sleep(polling_interval)
       end
     end
 
     def shutdown
+      super
+
       @shutdown_completed = true
     end
 

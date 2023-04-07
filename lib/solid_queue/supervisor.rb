@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor
-    include AppExecutor, Signals
+    include AppExecutor, Signals, Procline
 
     class << self
       def start(mode: :work, load_configuration_from: nil)
@@ -18,11 +18,15 @@ module SolidQueue
     end
 
     def start
+      procline "starting"
+
       setup_pidfile
       register_signal_handlers
       start_process_prune
 
       start_runners
+
+      procline "started"
 
       supervise
     rescue GracefulShutdownRequested
@@ -55,6 +59,8 @@ module SolidQueue
 
       def supervise
         loop do
+          procline "supervising #{forks.keys.join(", ")}"
+
           process_signal_queue
           reap_and_replace_terminated_runners
           interruptible_sleep(1.second)
@@ -62,6 +68,8 @@ module SolidQueue
       end
 
       def graceful_shutdown
+        procline "shutting down gracefully"
+
         term_runners
 
         wait_until(SolidQueue.shutdown_timeout, -> { all_runners_terminated? }) do
@@ -72,6 +80,8 @@ module SolidQueue
       end
 
       def immediate_shutdown
+        procline "shutting down immediately"
+
         quit_runners
       end
 
