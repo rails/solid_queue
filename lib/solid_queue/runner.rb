@@ -8,13 +8,15 @@ module SolidQueue
       include ActiveSupport::Callbacks
       define_callbacks :start, :run, :shutdown
 
-      include SolidQueue::AppExecutor
+      include AppExecutor, Procline
       include ProcessRegistration, Interruptible
 
       attr_accessor :supervisor_pid
     end
 
     def start(mode: :sync)
+      procline "starting in mode #{mode}"
+
       @stopping = false
       register_signal_handlers
 
@@ -53,6 +55,8 @@ module SolidQueue
       end
 
       def start_loop
+        procline "started"
+
         loop do
           break if shutting_down?
 
@@ -70,6 +74,7 @@ module SolidQueue
       end
 
       def shutdown
+        procline "shutting down"
       end
 
       def stopping?

@@ -20,6 +20,8 @@ class SolidQueue::Worker
       executions = SolidQueue::ReadyExecution.claim(queue, pool_size)
 
       if executions.size > 0
+        procline "performing #{executions.count} jobs in #{queue}"
+
         executions.each do |execution|
           pool.post do
             wrap_in_app_executor do
@@ -28,11 +30,14 @@ class SolidQueue::Worker
           end
         end
       else
+        procline "waiting for jobs in #{queue}"
         interruptible_sleep(polling_interval)
       end
     end
 
     def shutdown
+      super
+
       pool.shutdown
       pool.wait_for_termination(SolidQueue.shutdown_timeout)
     end
