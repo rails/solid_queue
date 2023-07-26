@@ -20,6 +20,7 @@ module SolidQueue
     def start
       procline "starting"
 
+      sync_std_streams
       setup_pidfile
       register_signal_handlers
       start_process_prune
@@ -41,6 +42,10 @@ module SolidQueue
 
     private
       attr_reader :runners, :forks
+
+      def sync_std_streams
+        STDOUT.sync = STDERR.sync = true
+      end
 
       def setup_pidfile
         @pidfile = if SolidQueue.supervisor_pidfile
