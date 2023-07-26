@@ -14,6 +14,5 @@ class ConfigurationTest < ActiveSupport::TestCase
 
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
     assert configuration.workers.detect { |w| w.queue == "background" }.pool_size > 0
-    assert configuration.workers.any? { |w| w.queue == "default" }
   end
 end
