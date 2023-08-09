@@ -15,4 +15,9 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
     assert configuration.workers.detect { |w| w.queue == "background" }.pool_size > 0
   end
+
+  test "max number of threads" do
+    configuration = SolidQueue::Configuration.new(mode: :all)
+    assert 7, configuration.max_number_of_threads
+  end
 end

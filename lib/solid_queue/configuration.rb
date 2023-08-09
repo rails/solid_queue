@@ -40,6 +40,11 @@ module SolidQueue
       end
     end
 
+    def max_number_of_threads
+      # At most pool_size thread in each worker + 1 thread for the worker + 1 thread for the heartbeat task
+      queues.values.map { |queue| queue[:pool_size] }.max + 2
+    end
+
     private
       attr_reader :raw_config, :mode
 
