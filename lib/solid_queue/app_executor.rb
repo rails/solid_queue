@@ -9,5 +9,11 @@ module SolidQueue
         yield
       end
     end
+
+    def handle_thread_error(error)
+      if SolidQueue.on_thread_error
+        SolidQueue.on_thread_error.call(error)
+      end
+    end
   end
 end
