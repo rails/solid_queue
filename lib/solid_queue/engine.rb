@@ -18,9 +18,11 @@ module SolidQueue
     end
 
     initializer "solid_queue.app_executor", before: :run_prepare_callbacks do |app|
-      config.solid_queue.app_executor ||= app.executor
+      config.solid_queue.app_executor    ||= app.executor
+      config.solid_queue.on_thread_error ||= -> (exception) { Rails.error.report(exception) }
 
       SolidQueue.app_executor = config.solid_queue.app_executor
+      SolidQueue.on_thread_error = config.solid_queue.on_thread_error
     end
 
     initializer "solid_queue.logger" do |app|
