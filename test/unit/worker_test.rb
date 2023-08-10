@@ -13,7 +13,9 @@ class WorkerTest < ActiveSupport::TestCase
     JobBuffer.clear
   end
 
-  test "errors on claiming executions are reported via Rails error subscriber" do
+  test "errors on claiming executions are reported via Rails error subscriber regardless of on_thread_error setting" do
+    original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, nil
+
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
@@ -29,5 +31,6 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal "everything is broken", subscriber.messages.first
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
+    SolidQueue.on_thread_error = original_on_thread_error
   end
 end
