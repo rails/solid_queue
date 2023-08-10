@@ -6,6 +6,8 @@ class SolidQueue::ReadyExecution < SolidQueue::Execution
 
   class << self
     def claim(queues, limit)
+      return [] unless limit > 0
+
       candidate_job_ids = []
 
       transaction do
