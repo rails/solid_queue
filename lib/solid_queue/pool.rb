@@ -4,21 +4,26 @@ module SolidQueue
   class Pool
     include AppExecutor
 
+    attr_reader :size
+
     delegate :shutdown, :shutdown?, :wait_for_termination, to: :executor
 
-    def initialize(size)
+    def initialize(size, on_idle: nil)
       @size = size
-      @idle_threads = Concurrent::AtomicFixnum.new(size)
+      @on_idle = on_idle
+      @available_threads = Concurrent::AtomicFixnum.new(size)
+      @mutex = Mutex.new
     end
 
     def post(execution, process)
-      idle_threads.decrement
+      available_threads.decrement
 
       future = Concurrent::Future.new(args: [ execution, process ], executor: executor) do |thread_execution, thread_process|
         wrap_in_app_executor do
           thread_execution.perform(thread_process)
         ensure
-          idle_threads.increment
+          available_threads.increment
+          mutex.synchronize { on_idle.try(:call) if idle? }
         end
       end
 
@@ -29,12 +34,16 @@ module SolidQueue
       future.execute
     end
 
-    def available_threads
-      idle_threads.value
+    def idle_threads
+      available_threads.value
+    end
+
+    def idle?
+      idle_threads > 0
     end
 
     private
-      attr_accessor :size, :idle_threads
+      attr_reader :available_threads, :on_idle, :mutex
 
       DEFAULT_OPTIONS = {
         min_threads: 0,
