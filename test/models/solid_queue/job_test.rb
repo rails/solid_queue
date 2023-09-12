@@ -11,6 +11,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     solid_queue_job = SolidQueue::Job.last
     assert_equal 8, solid_queue_job.priority
     assert_equal "test", solid_queue_job.queue_name
+    assert_equal "AddToBufferJob", solid_queue_job.class_name
     assert Time.now >= solid_queue_job.scheduled_at
     assert_equal [ 1 ], solid_queue_job.arguments["arguments"]
 
@@ -30,6 +31,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     solid_queue_job = SolidQueue::Job.last
     assert_equal 8, solid_queue_job.priority
     assert_equal "test", solid_queue_job.queue_name
+    assert_equal "AddToBufferJob", solid_queue_job.class_name
     assert Time.now < solid_queue_job.scheduled_at
     assert_equal [ 1 ], solid_queue_job.arguments["arguments"]
 
