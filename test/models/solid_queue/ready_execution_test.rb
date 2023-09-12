@@ -28,12 +28,12 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       SolidQueue::ReadyExecution.claim("fixtures", 2)
     end
 
-    @jobs.first(2).each do |job|
+    @jobs.order(:priority).first(2).each do |job|
       assert_not job.reload.ready?
       assert job.claimed?
     end
 
-    @jobs[2..-1].each do |job|
+    @jobs.order(:priority)[2..-1].each do |job|
       assert job.reload.ready?
       assert_not job.claimed?
     end
