@@ -1,4 +1,6 @@
 class SolidQueue::FailedExecution < SolidQueue::Execution
+  serialize :error, JSON
+
   before_create :expand_error_details_from_exception
 
   attr_accessor :exception
@@ -10,10 +12,14 @@ class SolidQueue::FailedExecution < SolidQueue::Execution
     end
   end
 
+  %i[ exception_class message backtrace ].each do |attribute|
+    define_method(attribute) { error.with_indifferent_access[attribute] }
+  end
+
   private
     def expand_error_details_from_exception
       if exception
-        self.error = ([ exception.class.name, exception.message ] + exception.backtrace).join("\n")
+        self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace }
       end
     end
 end
