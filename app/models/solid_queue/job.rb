@@ -13,6 +13,7 @@ class SolidQueue::Job < ActiveRecord::Base
         active_job_id: active_job.job_id,
         priority: active_job.priority,
         scheduled_at: scheduled_at,
+        class_name: active_job.class.name,
         arguments: active_job.serialize
     end
 
