@@ -2,11 +2,11 @@ module SolidQueue::Job::Executable
   extend ActiveSupport::Concern
 
   included do
-    has_one :ready_execution
-    has_one :claimed_execution
-    has_one :failed_execution
+    has_one :ready_execution, dependent: :destroy
+    has_one :claimed_execution, dependent: :destroy
+    has_one :failed_execution, dependent: :destroy
 
-    has_one :scheduled_execution
+    has_one :scheduled_execution, dependent: :destroy
 
     after_create :prepare_for_execution
   end
@@ -35,6 +35,14 @@ module SolidQueue::Job::Executable
 
   def failed_with(exception)
     create_failed_execution!(exception: exception)
+  end
+
+  def discard
+    destroy unless claimed?
+  end
+
+  def retry
+    failed_execution&.retry
   end
 
   private

@@ -3,6 +3,8 @@ class SolidQueue::Execution < ActiveRecord::Base
 
   belongs_to :job
 
+  alias_method :discard, :destroy
+
   private
     def assume_attributes_from_job
       self.queue_name ||= job&.queue_name
