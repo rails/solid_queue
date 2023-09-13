@@ -1,5 +1,5 @@
 default: &default
-  queues:
+  workers:
     background:
       pool_size: 3
     default:

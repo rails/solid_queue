@@ -28,7 +28,7 @@ module SolidQueue
 
     def workers
       if mode.in? %i[ work all]
-        queues.values.map { |queue_options| SolidQueue::Worker.new(**queue_options) }
+        workers_options.values.map { |worker_options| SolidQueue::Worker.new(**worker_options) }
       else
         []
       end
@@ -42,7 +42,7 @@ module SolidQueue
 
     def max_number_of_threads
       # At most pool_size thread in each worker + 1 thread for the worker + 1 thread for the heartbeat task
-      queues.values.map { |queue| queue[:pool_size] }.max + 2
+      workers_options.values.map { |options| options[:pool_size] }.max + 2
     end
 
     private
@@ -53,9 +53,9 @@ module SolidQueue
         config[env.to_sym] ? config[env.to_sym] : config
       end
 
-      def queues
-        @queues ||= (raw_config[:queues] || {}).each_with_object({}) do |(queue_name, options), hsh|
-          hsh[queue_name] = options.merge(queue_name: queue_name.to_s).with_defaults(WORKER_DEFAULTS)
+      def workers_options
+        @workers_options ||= (raw_config[:workers] || {}).each_with_object({}) do |(queue_string, options), hsh|
+          hsh[queue_string] = options.merge(queues: queue_string.to_s).with_defaults(WORKER_DEFAULTS)
         end.deep_symbolize_keys
       end
 
