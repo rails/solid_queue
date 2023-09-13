@@ -9,11 +9,11 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "provide configuration as a hash and fill defaults" do
-    config_as_hash = { queues: { background: { polling_interval: 10 } } }
+    config_as_hash = { workers: { background: { polling_interval: 10 } } }
     configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
 
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
-    assert configuration.workers.detect { |w| w.queue == "background" }.pool.size > 0
+    assert configuration.workers.detect { |w| w.queues == "background" }.pool.size > 0
   end
 
   test "max number of threads" do

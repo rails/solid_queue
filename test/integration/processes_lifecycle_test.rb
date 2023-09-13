@@ -200,7 +200,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     def assert_registered_processes_for(*queues)
       skip_active_record_query_cache do
-        registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queue"] }.compact
+        registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queues"] }.compact
         assert_equal queues.map(&:to_s).sort, registered_queues.sort
       end
     end
