@@ -33,7 +33,7 @@ module SolidQueue
     end
 
     def size
-      @size ||= ReadyExecution.where(queue_name: name).count
+      @size ||= ReadyExecution.queued_as(name).count
     end
 
     def ==(queue)

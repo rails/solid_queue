@@ -7,7 +7,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
   end
 
   test "claim all jobs for existing queue" do
-    assert_difference -> { SolidQueue::ReadyExecution.count } => -@jobs.count, -> { SolidQueue::ClaimedExecution.count } => @jobs.count do
+    assert_claimed_jobs(@jobs.count) do
       SolidQueue::ReadyExecution.claim("fixtures", @jobs.count + 1)
     end
 
@@ -24,7 +24,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
   end
 
   test "claim some jobs for existing queue" do
-    assert_difference -> { SolidQueue::ReadyExecution.count } => -2, -> { SolidQueue::ClaimedExecution.count } => 2 do
+    assert_claimed_jobs(2) do
       SolidQueue::ReadyExecution.claim("fixtures", 2)
     end
 
@@ -43,11 +43,53 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     job = solid_queue_jobs(:add_to_buffer_job)
     job.prepare_for_execution
 
-    assert_difference -> { SolidQueue::ReadyExecution.count } => -1, -> { SolidQueue::ClaimedExecution.count } => 1 do
+    assert_claimed_jobs(1) do
       job.ready_execution.claim
     end
 
     assert_not job.reload.ready?
     assert job.claimed?
   end
+
+  test "claim jobs using a list of queues" do
+    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+
+    assert_claimed_jobs(SolidQueue::Job.count) do
+      SolidQueue::ReadyExecution.claim("fixtures,background", SolidQueue::Job.count + 1)
+    end
+  end
+
+  test "claim jobs using a wildcard" do
+    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+
+    assert_claimed_jobs(SolidQueue::Job.count) do
+      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1)
+    end
+  end
+
+  test "claim jobs using queue prefixes" do
+    assert_claimed_jobs(2) do
+      SolidQueue::ReadyExecution.claim("fix*", 2)
+    end
+
+    @jobs.order(:priority).first(2).each do |job|
+      assert_not job.reload.ready?
+      assert job.claimed?
+    end
+  end
+
+  test "claim jobs using both exact names and prefixes" do
+    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+
+    assert_claimed_jobs(SolidQueue::Job.count) do
+      SolidQueue::ReadyExecution.claim("fix*,background", SolidQueue::Job.count + 1)
+    end
+  end
+
+  private
+    def assert_claimed_jobs(count, &block)
+      assert_difference -> { SolidQueue::ReadyExecution.count } => -count, -> { SolidQueue::ClaimedExecution.count } => +count do
+        block.call
+      end
+    end
 end

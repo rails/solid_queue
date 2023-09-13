@@ -8,24 +8,6 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     @process = SolidQueue::Process.register({ queue: "fixtures" })
   end
 
-  test "claim all jobs for existing queue" do
-    assert_difference -> { SolidQueue::ReadyExecution.count } => -@jobs.count, -> { SolidQueue::ClaimedExecution.count } => @jobs.count do
-      SolidQueue::ReadyExecution.claim("fixtures", @jobs.count + 1)
-    end
-  end
-
-  test "claim jobs for queue without jobs at the moment" do
-    assert_no_difference [ -> { SolidQueue::ReadyExecution.count }, -> { SolidQueue::ClaimedExecution.count } ] do
-      SolidQueue::ReadyExecution.claim("some_non_existing_queue", 10)
-    end
-  end
-
-  test "claim some jobs for existing queue" do
-    assert_difference -> { SolidQueue::ReadyExecution.count } => -2, -> { SolidQueue::ClaimedExecution.count } => 2 do
-      SolidQueue::ReadyExecution.claim("fixtures", 2)
-    end
-  end
-
   test "perform job successfully" do
     job = solid_queue_jobs(:add_to_buffer_job)
     claimed_execution = prepare_and_claim_job(job)
