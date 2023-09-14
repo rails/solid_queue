@@ -2,6 +2,8 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
   def change
     create_table :solid_queue_jobs do |t|
       t.string :queue_name, null: false
+      t.string :class_name, null: false, index: true
+
       t.text :arguments
 
       t.string :active_job_id
@@ -31,11 +33,11 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.0]
     create_table :solid_queue_ready_executions do |t|
       t.references :job, index: { unique: true }
       t.string :queue_name, null: false
-      t.integer :priority, default: 0, null: false
+      t.integer :priority, default: 0, null: false, index: true
 
       t.datetime :created_at, null: false
 
-      t.index [ :priority, :queue_name ], name: "index_solid_queue_ready_executions"
+      t.index [ :queue_name, :priority ], name: "index_solid_queue_ready_executions"
     end
 
     create_table :solid_queue_claimed_executions do |t|
