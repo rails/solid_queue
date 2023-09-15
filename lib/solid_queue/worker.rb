@@ -37,8 +37,8 @@ module SolidQueue
         pool.wait_for_termination(SolidQueue.shutdown_timeout)
       end
 
-      def shutdown_completed?
-        pool.shutdown?
+      def all_work_completed?
+        SolidQueue::ReadyExecution.queued_as(queues).empty?
       end
 
       def metadata

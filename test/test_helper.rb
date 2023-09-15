@@ -16,6 +16,10 @@ if ActiveSupport::TestCase.respond_to?(:fixture_path=)
 end
 
 class ActiveSupport::TestCase
+  setup do
+    SolidQueue.logger = ActiveSupport::Logger.new(nil)
+  end
+
   teardown do
     JobBuffer.clear
     File.delete(SolidQueue.supervisor_pidfile) if File.exist?(SolidQueue.supervisor_pidfile)

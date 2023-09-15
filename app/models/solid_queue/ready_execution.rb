@@ -1,6 +1,5 @@
 module SolidQueue
   class ReadyExecution < Execution
-    scope :queued_as, ->(queues) { where(queue_name: queues) }
     scope :ordered, -> { order(priority: :asc) }
 
     before_create :assume_attributes_from_job
@@ -19,9 +18,13 @@ module SolidQueue
         claimed_executions_for(candidate_job_ids)
       end
 
+      def queued_as(queues)
+        QueueParser.new(queues, self).scoped_relation
+      end
+
       private
         def query_candidates(queues, limit)
-          queue_scope(queues).ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
+          queued_as(queues).ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
         end
 
         def lock(job_ids)
@@ -34,10 +37,6 @@ module SolidQueue
           return [] if job_ids.none?
 
           SolidQueue::ClaimedExecution.where(job_id: job_ids)
-        end
-
-        def queue_scope(queues)
-          QueueParser.new(queues, self).scoped_relation
         end
     end
 

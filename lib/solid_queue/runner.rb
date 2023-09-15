@@ -14,13 +14,8 @@ module SolidQueue
       attr_accessor :supervisor_pid
     end
 
-    def start(mode: :sync)
-      procline "starting in mode #{mode}"
-
-      @stopping = false
-      register_signal_handlers
-
-      SolidQueue.logger.info("[SolidQueue] Starting #{self}")
+    def start(mode: :supervised)
+      boot_in mode
 
       run_callbacks(:start) do
         if mode == :async
@@ -33,7 +28,7 @@ module SolidQueue
 
     def stop
       @stopping = true
-      @thread.join if running_in_async_mode?
+      @thread&.join
     end
 
     def running?
@@ -41,6 +36,19 @@ module SolidQueue
     end
 
     private
+      attr_reader :mode
+
+      def boot_in(mode)
+        @mode = mode.to_s.inquiry
+        @stopping = false
+
+        procline "starting in mode #{mode}"
+
+        register_signal_handlers
+
+        SolidQueue.logger.info("[SolidQueue] Starting #{self}")
+      end
+
       def register_signal_handlers
         %w[ INT TERM ].each do |signal|
           trap(signal) do
@@ -67,10 +75,11 @@ module SolidQueue
       end
 
       def shutting_down?
-        stopping? || supervisor_went_away?
+        stopping? || supervisor_went_away? || finished?
       end
 
       def run
+        raise NotImplementedError
       end
 
       def shutdown
@@ -81,19 +90,24 @@ module SolidQueue
         @stopping
       end
 
-      def shutdown_completed?
+      def finished?
+        running_inline? && all_work_completed?
       end
 
       def supervisor_went_away?
-        if running_in_async_mode?
-          false
-        else
-          supervisor_pid != ::Process.ppid
-        end
+        supervised? && supervisor_pid != ::Process.ppid
       end
 
-      def running_in_async_mode?
-        @thread.present?
+      def supervised?
+        mode.supervised?
+      end
+
+      def all_work_completed?
+        false
+      end
+
+      def running_inline?
+        mode.inline?
       end
 
       def hostname

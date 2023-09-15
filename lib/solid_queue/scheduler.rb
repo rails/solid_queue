@@ -26,16 +26,6 @@ class SolidQueue::Scheduler
       end
     end
 
-    def shutdown
-      super
-
-      @shutdown_completed = true
-    end
-
-    def shutdown_completed?
-      @shutdown_completed
-    end
-
     def metadata
       super.merge(batch_size: batch_size, polling_interval: polling_interval)
     end
