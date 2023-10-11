@@ -86,10 +86,16 @@ class ActiveSupport::TestCase
     end
 
     def process_exists?(pid)
+      reap_processes
       Process.getpgid(pid)
       true
     rescue Errno::ESRCH
       false
+    end
+
+    def reap_processes
+      Process.waitpid(-1, Process::WNOHANG)
+    rescue Errno::ECHILD
     end
 
     # Allow skipping AR query cache, necessary when running test code in multiple
