@@ -1,5 +1,9 @@
 class SolidQueue::FailedExecution < SolidQueue::Execution
-  serialize :error, JSON
+  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
+    serialize :error, coder: JSON
+  else
+    serialize :error, JSON
+  end
 
   before_create :expand_error_details_from_exception
 
