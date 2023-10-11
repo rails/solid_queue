@@ -8,7 +8,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   setup do
     @pid = run_supervisor_as_fork
 
-    wait_for_registered_processes(3, timeout: 1.second)
+    wait_for_registered_processes(3, timeout: 0.1.second)
     assert_registered_processes_for(:background, :default)
   end
 
@@ -20,7 +20,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     6.times.map { |i| enqueue_store_result_job("job_#{i}") }
     6.times.map { |i| enqueue_store_result_job("job_#{i}", :default) }
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_equal 12, JobResult.count
     6.times { |i| assert_completed_job_results("job_#{i}", :background) }
@@ -32,10 +32,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "kill supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :KILL, wait: 1.second)
-    wait_for_jobs_to_finish_for(5.seconds)
+    signal_process(@pid, :KILL, wait: 0.1.second)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_not process_exists?(@pid)
 
@@ -60,10 +60,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 1.seconds)
 
-    signal_process(@pid, :QUIT, wait: 1.second)
-    wait_for_jobs_to_finish_for(5.seconds)
+    signal_process(@pid, :QUIT, wait: 0.5.second)
+    wait_for_jobs_to_finish_for(2.5.seconds)
 
     assert_not process_exists?(@pid)
 
@@ -81,10 +81,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :TERM, wait: 1.second)
-    wait_for_jobs_to_finish_for(5.seconds)
+    signal_process(@pid, :TERM, wait: 0.1.second)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_completed_job_results("no pause")
     assert_completed_job_results("pause")
@@ -97,10 +97,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "int supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :INT, wait: 1.second)
-    wait_for_jobs_to_finish_for(5.seconds)
+    signal_process(@pid, :INT, wait: 0.1.second)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_completed_job_results("no pause")
     assert_completed_job_results("pause")
@@ -113,10 +113,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 1.second)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 0.1.second)
 
-    signal_process(@pid, :TERM, wait: 1.second)
-    wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 1.second)
+    signal_process(@pid, :TERM, wait: 0.1.second)
+    wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 0.1.second)
 
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
@@ -134,12 +134,12 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     enqueue_store_result_job("no error", :background, 2)
     enqueue_store_result_job("no error", :default, 2)
     error1 = enqueue_store_result_job("error", :background, 1, exception: RuntimeError)
-    enqueue_store_result_job("no error", :background, 1, pause: 0.3)
-    error2 = enqueue_store_result_job("error", :background, 1, exception: RuntimeError, pause: 0.5)
-    enqueue_store_result_job("no error", :default, 2, pause: 0.1)
+    enqueue_store_result_job("no error", :background, 1, pause: 0.03)
+    error2 = enqueue_store_result_job("error", :background, 1, exception: RuntimeError, pause: 0.05)
+    enqueue_store_result_job("no error", :default, 2, pause: 0.01)
     error3 = enqueue_store_result_job("error", :default, 1, exception: RuntimeError)
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_completed_job_results("no error", :background, 3)
     assert_completed_job_results("no error", :default, 4)

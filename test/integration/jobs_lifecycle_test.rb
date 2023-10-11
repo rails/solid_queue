@@ -21,7 +21,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     @scheduler.start(mode: :async)
     @worker.start(mode: :async)
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_equal [ "hey", "ho" ], JobBuffer.values.sort
   end
@@ -44,7 +44,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
 
     travel_to 5.days.from_now
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(0.5.seconds)
 
     assert_equal 2, JobBuffer.size
     assert_equal "I'm scheduled later", JobBuffer.last_value
