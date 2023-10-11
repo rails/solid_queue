@@ -1,7 +1,11 @@
 class SolidQueue::Job < ActiveRecord::Base
   include Executable
 
-  serialize :arguments, JSON
+  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
+    serialize :arguments, coder: JSON
+  else
+    serialize :arguments, JSON
+  end
 
   DEFAULT_PRIORITY = 0
   DEFAULT_QUEUE_NAME = "default"

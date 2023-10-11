@@ -1,7 +1,11 @@
 class SolidQueue::Process < ActiveRecord::Base
   include Prunable
 
-  serialize :metadata, JSON
+  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
+    serialize :metadata, coder: JSON
+  else
+    serialize :metadata, JSON
+  end
 
   has_many :claimed_executions
 
