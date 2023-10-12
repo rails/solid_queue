@@ -37,7 +37,7 @@ class WorkerTest < ActiveSupport::TestCase
 
   test "claim and process more enqueued jobs than the pool size allows to process at once" do
     5.times do |i|
-      StoreResultJob.perform_later(:paused, pause: 1.second)
+      StoreResultJob.perform_later(:paused, pause: 0.1.second)
     end
 
     3.times do |i|

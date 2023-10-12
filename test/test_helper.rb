@@ -26,7 +26,7 @@ class ActiveSupport::TestCase
   end
 
   private
-    def wait_for_jobs_to_finish_for(timeout = 10.seconds)
+    def wait_for_jobs_to_finish_for(timeout = 1.second)
       Timeout.timeout(timeout) do
         while SolidQueue::Job.where(finished_at: nil).any? do
           sleep 0.25
@@ -41,7 +41,7 @@ class ActiveSupport::TestCase
       end
     end
 
-    def wait_for_registered_processes(count, timeout: 10.seconds)
+    def wait_for_registered_processes(count, timeout: 1.second)
       Timeout.timeout(timeout) do
         while SolidQueue::Process.count < count do
           sleep 0.25
