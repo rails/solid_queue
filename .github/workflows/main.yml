@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version: [3.2.2]
-        database: [mysql]
+        database: [mysql, sqlite]
     services:
       mysql:
         image: mysql:8.0.31

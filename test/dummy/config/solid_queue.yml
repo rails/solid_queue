@@ -5,7 +5,7 @@ default: &default
     default:
       pool_size: 5
   scheduler:
-    polling_interval: 300
+    polling_interval: 1
     batch_size: 500
 
 development:

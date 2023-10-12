@@ -5,6 +5,22 @@
 #   gem "mysql2"
 #
 
+<% if ENV["TARGET_DB"] == "sqlite" %>
+default: &default
+  adapter: sqlite3
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 50 } %>
+  retries: 100
+
+development:
+  <<: *default
+  database: db/development.sqlite3
+
+test:
+  <<: *default
+  pool: 20
+  database: db/test.sqlite3
+
+<% else %>
 default: &default
   adapter: mysql2
   username: root
@@ -20,3 +36,5 @@ test:
   <<: *default
   pool: 20
   database: solid_queue_test
+<% end %>
+
