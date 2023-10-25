@@ -4,7 +4,7 @@ module SolidQueue
 
     class << self
       def all
-        SolidQueue::Job.select(:queue_name).distinct.collect do |job|
+        Job.select(:queue_name).distinct.collect do |job|
           new(job.queue_name)
         end
       end

@@ -1,2 +1,2 @@
-class JobResult < ActiveRecord::Base
+class JobResult < ApplicationRecord
 end

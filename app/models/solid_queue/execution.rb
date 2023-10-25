@@ -1,4 +1,4 @@
-class SolidQueue::Execution < ActiveRecord::Base
+class SolidQueue::Execution < SolidQueue::Record
   self.abstract_class = true
 
   belongs_to :job
