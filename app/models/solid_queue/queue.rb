@@ -19,13 +19,15 @@ module SolidQueue
     end
 
     def paused?
-      false
+      Pause.exists?(queue_name: name)
     end
 
     def pause
+      Pause.create_or_find_by!(queue_name: name)
     end
 
     def resume
+      Pause.where(queue_name: name).delete_all
     end
 
     def clear
