@@ -67,6 +67,17 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
   end
 
+  test "claim jobs using a wildcard and having paused queues" do
+    other_jobs = SolidQueue::Job.all - @jobs
+    other_jobs.each(&:prepare_for_execution)
+
+    SolidQueue::Queue.find_by_name("fixtures").pause
+
+    assert_claimed_jobs(other_jobs.count) do
+      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1)
+    end
+  end
+
   test "claim jobs using queue prefixes" do
     assert_claimed_jobs(2) do
       SolidQueue::ReadyExecution.claim("fix*", 2)

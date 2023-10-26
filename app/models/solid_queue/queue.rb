@@ -4,7 +4,7 @@ module SolidQueue
 
     class << self
       def all
-        SolidQueue::Job.select(:queue_name).distinct.collect do |job|
+        Job.select(:queue_name).distinct.collect do |job|
           new(job.queue_name)
         end
       end
@@ -19,13 +19,15 @@ module SolidQueue
     end
 
     def paused?
-      false
+      Pause.exists?(queue_name: name)
     end
 
     def pause
+      Pause.create_or_find_by!(queue_name: name)
     end
 
     def resume
+      Pause.where(queue_name: name).delete_all
     end
 
     def clear

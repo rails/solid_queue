@@ -1,4 +1,4 @@
-class SolidQueue::Job < ActiveRecord::Base
+class SolidQueue::Job < SolidQueue::Record
   include Executable
 
   if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")

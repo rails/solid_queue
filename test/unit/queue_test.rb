@@ -31,4 +31,14 @@ class QueueTest < ActiveSupport::TestCase
   test "all existing queues" do
     assert_equal [ @background_queue ], SolidQueue::Queue.all
   end
+
+  test "pause and resume queue" do
+    assert_changes -> { @default_queue.paused? }, from: false, to: true do
+      @default_queue.pause
+    end
+
+    assert_changes -> { @default_queue.paused? }, from: true, to: false do
+      @default_queue.resume
+    end
+  end
 end

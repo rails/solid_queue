@@ -1,6 +1,7 @@
 module SolidQueue
   class ReadyExecution < Execution
     scope :ordered, -> { order(priority: :asc) }
+    scope :not_paused, -> { where.not(queue_name: Pause.all_queue_names) }
 
     before_create :assume_attributes_from_job
 
@@ -24,7 +25,7 @@ module SolidQueue
 
       private
         def query_candidates(queues, limit)
-          queued_as(queues).ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
+          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
         end
 
         def lock(job_ids)

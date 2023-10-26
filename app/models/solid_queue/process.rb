@@ -1,4 +1,4 @@
-class SolidQueue::Process < ActiveRecord::Base
+class SolidQueue::Process < SolidQueue::Record
   include Prunable
 
   if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
