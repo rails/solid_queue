@@ -29,7 +29,7 @@ class ActiveSupport::TestCase
     def wait_for_jobs_to_finish_for(timeout = 1.second)
       Timeout.timeout(timeout) do
         while SolidQueue::Job.where(finished_at: nil).any? do
-          sleep 0.25
+          sleep 0.05
         end
       end
     rescue Timeout::Error
@@ -44,7 +44,7 @@ class ActiveSupport::TestCase
     def wait_for_registered_processes(count, timeout: 1.second)
       Timeout.timeout(timeout) do
         while SolidQueue::Process.count < count do
-          sleep 0.25
+          sleep 0.05
         end
       end
     rescue Timeout::Error
@@ -69,7 +69,7 @@ class ActiveSupport::TestCase
         else
           loop do
             break unless process_exists?(pid)
-            sleep(0.1)
+            sleep 0.05
           end
         end
       end

@@ -16,7 +16,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
   test "start in work mode (default)" do
     pid = run_supervisor_as_fork
-    wait_for_registered_processes(2)
+    wait_for_registered_processes(0.3)
 
     terminate_process(pid)
 
@@ -25,7 +25,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
   test "start in schedule mode" do
     pid = run_supervisor_as_fork(mode: :schedule)
-    wait_for_registered_processes(1)
+    wait_for_registered_processes(0.3)
 
     terminate_process(pid)
 
@@ -36,7 +36,7 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_not File.exist?(@pidfile)
 
     pid = run_supervisor_as_fork(mode: :all)
-    wait_for_registered_processes(3)
+    wait_for_registered_processes(0.3)
 
     assert File.exist?(@pidfile)
     assert_equal pid, File.read(@pidfile).strip.to_i
@@ -50,7 +50,7 @@ class SupervisorTest < ActiveSupport::TestCase
     File.write(@pidfile, ::Process.pid.to_s)
 
     pid = run_supervisor_as_fork(mode: :all)
-    wait_for_registered_processes(3)
+    wait_for_registered_processes(0.3)
 
     assert File.exist?(@pidfile)
     assert_not_equal pid, File.read(@pidfile).strip.to_i
@@ -60,7 +60,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
   test "deletes previous pidfile if the owner is dead" do
     pid = run_supervisor_as_fork(mode: :all)
-    wait_for_registered_processes(3)
+    wait_for_registered_processes(0.3)
 
     terminate_process(pid, signal: :KILL)
 
@@ -68,7 +68,7 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_equal pid, File.read(@pidfile).strip.to_i
 
     pid = run_supervisor_as_fork(mode: :all)
-    wait_for_registered_processes(3)
+    wait_for_registered_processes(0.3)
 
     assert File.exist?(@pidfile)
     assert_equal pid, File.read(@pidfile).strip.to_i
