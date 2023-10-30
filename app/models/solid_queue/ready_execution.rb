@@ -7,16 +7,10 @@ module SolidQueue
 
     class << self
       def claim(queues, limit)
-        return [] unless limit > 0
-
-        candidate_job_ids = []
-
         transaction do
-          candidate_job_ids = query_candidates(queues, limit)
-          lock(candidate_job_ids)
+          candidates = select_candidates(queues, limit)
+          lock(candidates)
         end
-
-        claimed_executions_for(candidate_job_ids)
       end
 
       def queued_as(queues)
@@ -24,27 +18,24 @@ module SolidQueue
       end
 
       private
-        def query_candidates(queues, limit)
-          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
+        def select_candidates(queues, limit)
+          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED")
         end
 
-        def lock(job_ids)
-          return nil if job_ids.none?
-          SolidQueue::ClaimedExecution.claim_batch(job_ids)
-          where(job_id: job_ids).delete_all
-        end
+        def lock(candidates)
+          return [] if candidates.none?
 
-        def claimed_executions_for(job_ids)
-          return [] if job_ids.none?
-
-          SolidQueue::ClaimedExecution.where(job_id: job_ids)
+          SolidQueue::ClaimedExecution.claiming(candidates) do |claimed|
+            where(job_id: claimed.pluck(:job_id)).delete_all
+          end
         end
     end
 
     def claim
       transaction do
-        SolidQueue::ClaimedExecution.claim_batch(job_id)
-        delete
+        SolidQueue::ClaimedExecution.claiming(self) do |claimed|
+          delete if claimed.one?
+        end
       end
     end
   end
