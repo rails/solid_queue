@@ -7,13 +7,17 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
   end
 
-  class << self
-    def claim_batch(job_ids)
-      claimed_at = Time.current
-      rows = Array(job_ids).map { |id| { job_id: id, created_at: claimed_at } }
-      insert_all(rows) if rows.any?
+  CLAIM_ATTRIBUTES = %w[ job_id ]
 
-      SolidQueue.logger.info("[SolidQueue] Claimed #{rows.size} jobs at #{claimed_at}")
+  class << self
+    def claiming(executions, &block)
+      job_data = Array(executions).collect { |execution| execution.attributes.slice(*CLAIM_ATTRIBUTES) }
+
+      insert_all(job_data)
+      where(job_id: job_data.map { |data| data["job_id"]} ).tap do |claimed|
+        block.call(claimed)
+        SolidQueue.logger.info("[SolidQueue] Claimed #{claimed.size} jobs")
+      end
     end
 
     def release_all
