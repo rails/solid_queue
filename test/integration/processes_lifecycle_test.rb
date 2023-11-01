@@ -113,7 +113,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 0.1.second)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 1.second)
 
     signal_process(@pid, :TERM, wait: 0.1.second)
     wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 0.1.second)

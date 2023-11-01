@@ -47,6 +47,7 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   test "abort if there's already a pidfile for a supervisor" do
+    FileUtils.mkdir_p(File.dirname(@pidfile))
     File.write(@pidfile, ::Process.pid.to_s)
 
     pid = run_supervisor_as_fork(mode: :all)

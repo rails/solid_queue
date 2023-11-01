@@ -15,6 +15,16 @@ if ActiveSupport::TestCase.respond_to?(:fixture_path=)
   ActiveSupport::TestCase.fixtures :all
 end
 
+module BlockLogDeviceTimeoutExceptions
+  def write(...)
+    # Prevents Timeout exceptions from occurring during log writing, where they will be swallowed
+    # See https://bugs.ruby-lang.org/issues/9115
+    Thread.handle_interrupt(Timeout::Error => :never, Timeout::ExitException => :never) { super }
+  end
+end
+
+Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
+
 class ActiveSupport::TestCase
   setup do
     SolidQueue.logger = ActiveSupport::Logger.new(nil)
