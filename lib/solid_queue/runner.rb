@@ -5,13 +5,8 @@ module SolidQueue
     extend ActiveSupport::Concern
 
     included do
-      include ActiveSupport::Callbacks
-      define_callbacks :start, :run, :shutdown
-
       include AppExecutor, Procline
       include ProcessRegistration, Interruptible
-
-      attr_accessor :supervisor_pid
     end
 
     def start(mode: :supervised)
@@ -95,7 +90,7 @@ module SolidQueue
       end
 
       def supervisor_went_away?
-        supervised? && supervisor_pid != ::Process.ppid
+        supervised? && supervisor&.pid != ::Process.ppid
       end
 
       def supervised?
@@ -108,14 +103,6 @@ module SolidQueue
 
       def running_inline?
         mode.inline?
-      end
-
-      def hostname
-        @hostname ||= Socket.gethostname
-      end
-
-      def process_pid
-        @pid ||= ::Process.pid
       end
   end
 end

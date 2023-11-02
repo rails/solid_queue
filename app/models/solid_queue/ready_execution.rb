@@ -6,10 +6,10 @@ module SolidQueue
     before_create :assume_attributes_from_job
 
     class << self
-      def claim(queues, limit)
+      def claim(queues, limit, process_id)
         transaction do
           candidates = select_candidates(queues, limit)
-          lock(candidates)
+          lock(candidates, process_id)
         end
       end
 
@@ -22,18 +22,17 @@ module SolidQueue
           queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED")
         end
 
-        def lock(candidates)
+        def lock(candidates, process_id)
           return [] if candidates.none?
-
-          SolidQueue::ClaimedExecution.claiming(candidates) do |claimed|
+          SolidQueue::ClaimedExecution.claiming(candidates, process_id) do |claimed|
             where(job_id: claimed.pluck(:job_id)).delete_all
           end
         end
     end
 
-    def claim
+    def claim(process_id)
       transaction do
-        SolidQueue::ClaimedExecution.claiming(self) do |claimed|
+        SolidQueue::ClaimedExecution.claiming(self, process_id) do |claimed|
           delete if claimed.one?
         end
       end

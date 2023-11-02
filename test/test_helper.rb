@@ -53,7 +53,7 @@ class ActiveSupport::TestCase
 
     def wait_for_registered_processes(count, timeout: 1.second)
       Timeout.timeout(timeout) do
-        while SolidQueue::Process.count < count do
+        while SolidQueue::Process.count != count do
           sleep 0.05
         end
       end
@@ -63,6 +63,12 @@ class ActiveSupport::TestCase
     def assert_no_registered_processes
       skip_active_record_query_cache do
         assert SolidQueue::Process.none?
+      end
+    end
+
+    def find_processes_registered_as(kind)
+      skip_active_record_query_cache do
+        SolidQueue::Process.all.select { |process| process.metadata["kind"] == kind }
       end
     end
 

@@ -5,7 +5,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     @jobs = SolidQueue::Job.where(queue_name: "fixtures")
     @jobs.each(&:prepare_for_execution)
 
-    @process = SolidQueue::Process.register({ queue: "fixtures" })
+    @process = SolidQueue::Process.register(metadata: { queue: "fixtures" })
   end
 
   test "perform job successfully" do
@@ -13,7 +13,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count }, -1 do
-      claimed_execution.perform(@process)
+      claimed_execution.perform
     end
 
     assert job.reload.finished?
@@ -24,7 +24,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = prepare_and_claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      claimed_execution.perform(@process)
+      claimed_execution.perform
     end
 
     assert_not job.reload.finished?
@@ -43,7 +43,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       job = solid_queue_jobs(:raising_job)
       claimed_execution = prepare_and_claim_job(job)
 
-      claimed_execution.perform(@process)
+      claimed_execution.perform
     end
 
     assert_equal 1, subscriber.errors.count
@@ -64,7 +64,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   private
     def prepare_and_claim_job(job)
       job.prepare_for_execution
-      job.reload.ready_execution.claim
+      job.reload.ready_execution.claim(@process.id)
       job.reload.claimed_execution
     end
 

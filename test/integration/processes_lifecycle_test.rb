@@ -9,7 +9,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     @pid = run_supervisor_as_fork
 
     wait_for_registered_processes(3, timeout: 0.2.second)
-    assert_registered_processes_for(:background, :default)
+    assert_registered_workers_for(:background, :default)
   end
 
   teardown do
@@ -46,7 +46,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("pause")
     assert_job_status(pause, :finished)
 
-    assert_clean_termination
+    # Termination is almost clean, but the supervisor remains
+    assert_registered_supervisor
+    assert_no_registered_workers
+    assert_no_claimed_jobs
   end
 
   test "term supervisor multiple times" do
@@ -70,13 +73,12 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # This job was left claimed as the worker was shutdown without
-    # a chance to terminate orderly
     assert_started_job_result("pause")
-    assert_job_status(pause, :claimed)
-
+    # Workers were shutdown without a chance to terminate orderly, but
+    # since they're linked to the supervisor, the supervisor deregistering
+    # also deregistered them and released claimed jobs
     # Processes didn't have a chance to deregister either
-    assert_registered_processes_for(:background, :default)
+    assert_clean_termination
   end
 
   test "term supervisor while there are jobs in-flight" do
@@ -127,7 +129,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # The process running the long job couldn't deregister, the other did
-    assert_registered_processes_for(:background)
+    assert_registered_workers_for(:background)
   end
 
   test "process some jobs that raise errors" do
@@ -176,8 +178,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert process_exists?(@pid)
 
     terminate_supervisor
-    # TODO: change this to clean termination when replacing a worker also deregisters its process ID
-    assert_registered_processes_for(:background)
+
+    assert_clean_termination
   end
 
   private
@@ -194,15 +196,26 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_clean_termination
+      wait_for_registered_processes 0, timeout: 0.2.second
       assert_no_registered_processes
       assert_no_claimed_jobs
     end
 
-    def assert_registered_processes_for(*queues)
-      skip_active_record_query_cache do
-        registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queues"] }.compact
-        assert_equal queues.map(&:to_s).sort, registered_queues.sort
-      end
+    def assert_registered_workers_for(*queues)
+      workers = find_processes_registered_as("Worker")
+      registered_queues = workers.map { |process| process.metadata["queues"] }.compact
+      assert_equal queues.map(&:to_s).sort, registered_queues.sort
+      assert_equal [ @pid ], workers.map { |process| process.metadata["supervisor_pid"] }.uniq
+    end
+
+    def assert_registered_supervisor
+      processes = find_processes_registered_as("Supervisor")
+      assert_equal 1, processes.count
+      assert_equal @pid, processes.first.metadata["pid"]
+    end
+
+    def assert_no_registered_workers
+      assert_empty find_processes_registered_as("Worker")
     end
 
     def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)
