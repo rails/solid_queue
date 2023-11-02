@@ -16,13 +16,13 @@ module SolidQueue
 
     private
       def run
-        claimed_executions = SolidQueue::ReadyExecution.claim(queues, pool.idle_threads)
+        claimed_executions = SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
 
         if claimed_executions.size > 0
           procline "performing #{claimed_executions.count} jobs in #{queues}"
 
           claimed_executions.each do |execution|
-            pool.post(execution, process)
+            pool.post(execution)
           end
         else
           procline "waiting for jobs in #{queues}"

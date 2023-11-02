@@ -15,12 +15,12 @@ module SolidQueue
       @mutex = Mutex.new
     end
 
-    def post(execution, process)
+    def post(execution)
       available_threads.decrement
 
-      future = Concurrent::Future.new(args: [ execution, process ], executor: executor) do |thread_execution, thread_process|
+      future = Concurrent::Future.new(args: [ execution ], executor: executor) do |thread_execution|
         wrap_in_app_executor do
-          thread_execution.perform(thread_process)
+          thread_execution.perform
         ensure
           available_threads.increment
           mutex.synchronize { on_idle.try(:call) if idle? }
