@@ -4,6 +4,9 @@ module SolidQueue::Runner::ProcessRegistration
   extend ActiveSupport::Concern
 
   included do
+    include ActiveSupport::Callbacks
+    define_callbacks :start, :run, :shutdown
+
     set_callback :start, :before, :register
     set_callback :start, :before, :start_heartbeat
 
@@ -11,6 +14,8 @@ module SolidQueue::Runner::ProcessRegistration
 
     set_callback :shutdown, :before, :stop_heartbeat
     set_callback :shutdown, :after, :deregister
+
+    attr_accessor :supervisor_pid
   end
 
   def inspect
@@ -44,6 +49,14 @@ module SolidQueue::Runner::ProcessRegistration
 
     def heartbeat
       process.heartbeat
+    end
+
+    def hostname
+      @hostname ||= Socket.gethostname
+    end
+
+    def process_pid
+      @pid ||= ::Process.pid
     end
 
     def metadata

@@ -9,7 +9,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     @pid = run_supervisor_as_fork
 
     wait_for_registered_processes(3, timeout: 0.2.second)
-    assert_registered_processes_for(:background, :default)
+    assert_registered_workers_for(:background, :default)
   end
 
   teardown do
@@ -76,7 +76,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # Processes didn't have a chance to deregister either
-    assert_registered_processes_for(:background, :default)
+    assert_registered_workers_for(:background, :default)
   end
 
   test "term supervisor while there are jobs in-flight" do
@@ -127,7 +127,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # The process running the long job couldn't deregister, the other did
-    assert_registered_processes_for(:background)
+    assert_registered_workers_for(:background)
   end
 
   test "process some jobs that raise errors" do
@@ -177,7 +177,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     terminate_supervisor
     # TODO: change this to clean termination when replacing a worker also deregisters its process ID
-    assert_registered_processes_for(:background)
+    assert_registered_workers_for(:background)
   end
 
   private
@@ -198,10 +198,12 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       assert_no_claimed_jobs
     end
 
-    def assert_registered_processes_for(*queues)
+    def assert_registered_workers_for(*queues)
       skip_active_record_query_cache do
         registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queues"] }.compact
         assert_equal queues.map(&:to_s).sort, registered_queues.sort
+        assert_equal [ "Worker" ], SolidQueue::Process.all.map { |process| process.metadata["kind"] }.uniq
+        assert_equal [ @pid ], SolidQueue::Process.all.map { |process| process.metadata["supervisor_pid"] }.uniq
       end
     end
 
