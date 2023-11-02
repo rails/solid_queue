@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor
-    include AppExecutor, Signals, Procline
+    include AppExecutor, ProcessRegistration, Signals, Procline
 
     class << self
       def start(mode: :work, load_configuration_from: nil)
@@ -19,26 +19,30 @@ module SolidQueue
     end
 
     def start
-      procline "starting"
+      run_callbacks(:start) do
+        procline "starting"
 
-      sync_std_streams
-      setup_pidfile
-      register_signal_handlers
-      start_process_prune
+        sync_std_streams
+        setup_pidfile
+        register_signal_handlers
+        start_process_prune
 
-      start_runners
+        start_runners
 
-      procline "started"
+        procline "started"
 
-      supervise
+        supervise
+      end
     rescue GracefulShutdownRequested
       graceful_shutdown
     rescue ImmediateShutdownRequested
       immediate_shutdown
     ensure
-      stop_process_prune
-      restore_default_signal_handlers
-      delete_pidfile
+      run_callbacks(:shutdown) do
+        stop_process_prune
+        restore_default_signal_handlers
+        delete_pidfile
+      end
     end
 
     private

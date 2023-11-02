@@ -66,6 +66,12 @@ class ActiveSupport::TestCase
       end
     end
 
+    def find_processes_registered_as(kind)
+      skip_active_record_query_cache do
+        SolidQueue::Process.all.select { |process| process.metadata["kind"] == kind }
+      end
+    end
+
     def terminate_process(pid, timeout: 10, signal: :TERM, from_parent: true)
       signal_process(pid, signal)
       wait_for_process_termination_with_timeout(pid, timeout: timeout, from_parent: from_parent)

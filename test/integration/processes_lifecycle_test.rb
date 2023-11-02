@@ -46,7 +46,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("pause")
     assert_job_status(pause, :finished)
 
-    assert_clean_termination
+    # Termination is almost clean, but the supervisor remains
+    assert_registered_supervisor
+    assert_no_registered_workers
+    assert_no_claimed_jobs
   end
 
   test "term supervisor multiple times" do
@@ -199,12 +202,20 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_workers_for(*queues)
-      skip_active_record_query_cache do
-        registered_queues = SolidQueue::Process.all.map { |process| process.metadata["queues"] }.compact
-        assert_equal queues.map(&:to_s).sort, registered_queues.sort
-        assert_equal [ "Worker" ], SolidQueue::Process.all.map { |process| process.metadata["kind"] }.uniq
-        assert_equal [ @pid ], SolidQueue::Process.all.map { |process| process.metadata["supervisor_pid"] }.uniq
-      end
+      workers = find_processes_registered_as("Worker")
+      registered_queues = workers.map { |process| process.metadata["queues"] }.compact
+      assert_equal queues.map(&:to_s).sort, registered_queues.sort
+      assert_equal [ @pid ], workers.map { |process| process.metadata["supervisor_pid"] }.uniq
+    end
+
+    def assert_registered_supervisor
+      processes = find_processes_registered_as("Supervisor")
+      assert_equal 1, processes.count
+      assert_equal @pid, processes.first.metadata["pid"]
+    end
+
+    def assert_no_registered_workers
+      assert_empty find_processes_registered_as("Worker")
     end
 
     def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)

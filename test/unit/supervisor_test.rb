@@ -17,6 +17,8 @@ class SupervisorTest < ActiveSupport::TestCase
   test "start in work mode (default)" do
     pid = run_supervisor_as_fork
     wait_for_registered_processes(0.3)
+
+    assert_registered_supervisor(pid: pid, supervisor_pid: nil)
     assert_registered_workers(2, supervisor_pid: pid)
 
     terminate_process(pid)
@@ -27,6 +29,8 @@ class SupervisorTest < ActiveSupport::TestCase
   test "start in schedule mode" do
     pid = run_supervisor_as_fork(mode: :schedule)
     wait_for_registered_processes(0.3)
+
+    assert_registered_supervisor(pid: pid, supervisor_pid: nil)
     assert_registered_scheduler(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -82,10 +86,10 @@ class SupervisorTest < ActiveSupport::TestCase
   private
     def assert_registered_workers(count, **metadata)
       skip_active_record_query_cache do
-        assert_equal count, SolidQueue::Process.count
+        workers = find_processes_registered_as("Worker")
+        assert_equal count, workers.count
 
-        SolidQueue::Process.all.each do |process|
-          assert_equal "Worker", process.metadata["kind"]
+        workers.each do |process|
           assert metadata < process.metadata.symbolize_keys
         end
       end
@@ -93,11 +97,17 @@ class SupervisorTest < ActiveSupport::TestCase
 
     def assert_registered_scheduler(**metadata)
       skip_active_record_query_cache do
-        assert_equal 1, SolidQueue::Process.count
-        scheduler = SolidQueue::Process.first
+        processes = find_processes_registered_as("Scheduler")
+        assert_equal 1, processes.count
+        assert metadata < processes.first.metadata.symbolize_keys
+      end
+    end
 
-        assert_equal "Scheduler", scheduler.metadata["kind"]
-        assert metadata < scheduler.metadata.symbolize_keys
+    def assert_registered_supervisor(**metadata)
+      skip_active_record_query_cache do
+        processes = find_processes_registered_as("Supervisor")
+        assert_equal 1, processes.count
+        assert metadata < processes.first.metadata.symbolize_keys
       end
     end
 end
