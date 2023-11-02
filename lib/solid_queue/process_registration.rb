@@ -16,7 +16,7 @@ module SolidQueue
       set_callback :shutdown, :before, :stop_heartbeat
       set_callback :shutdown, :after, :deregister
 
-      attr_accessor :supervisor_pid
+      attr_reader :supervisor
     end
 
     def inspect
@@ -24,11 +24,15 @@ module SolidQueue
     end
     alias to_s inspect
 
+    def supervised_by(process)
+      @supervisor = process
+    end
+
     private
       attr_accessor :process
 
       def register
-        @process = SolidQueue::Process.register(metadata)
+        @process = SolidQueue::Process.register(supervisor: supervisor, metadata: metadata)
       end
 
       def deregister
@@ -61,7 +65,7 @@ module SolidQueue
       end
 
       def metadata
-        { kind: self.class.name.demodulize, hostname: hostname, pid: process_pid, supervisor_pid: supervisor_pid }
+        { kind: self.class.name.demodulize, hostname: hostname, pid: process_pid, supervisor_pid: supervisor&.pid }
       end
   end
 end

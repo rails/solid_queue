@@ -90,7 +90,7 @@ module SolidQueue
       end
 
       def supervisor_went_away?
-        supervised? && supervisor_pid != ::Process.ppid
+        supervised? && supervisor&.pid != ::Process.ppid
       end
 
       def supervised?

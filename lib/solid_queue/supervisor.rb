@@ -118,7 +118,7 @@ module SolidQueue
       end
 
       def start_runner(runner)
-        runner.supervisor_pid = ::Process.pid
+        runner.supervised_by process
 
         pid = fork do
           runner.start

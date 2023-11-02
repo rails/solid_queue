@@ -73,13 +73,12 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # This job was left claimed as the worker was shutdown without
-    # a chance to terminate orderly
     assert_started_job_result("pause")
-    assert_job_status(pause, :claimed)
-
+    # Workers were shutdown without a chance to terminate orderly, but
+    # since they're linked to the supervisor, the supervisor deregistering
+    # also deregistered them and released claimed jobs
     # Processes didn't have a chance to deregister either
-    assert_registered_workers_for(:background, :default)
+    assert_clean_termination
   end
 
   test "term supervisor while there are jobs in-flight" do
@@ -179,8 +178,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert process_exists?(@pid)
 
     terminate_supervisor
-    # TODO: change this to clean termination when replacing a worker also deregisters its process ID
-    assert_registered_workers_for(:background)
+
+    assert_clean_termination
   end
 
   private
@@ -197,6 +196,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_clean_termination
+      wait_for_registered_processes 0, timeout: 0.2.second
       assert_no_registered_processes
       assert_no_claimed_jobs
     end

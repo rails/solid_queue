@@ -53,7 +53,7 @@ class ActiveSupport::TestCase
 
     def wait_for_registered_processes(count, timeout: 1.second)
       Timeout.timeout(timeout) do
-        while SolidQueue::Process.count < count do
+        while SolidQueue::Process.count != count do
           sleep 0.05
         end
       end

@@ -5,7 +5,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     @jobs = SolidQueue::Job.where(queue_name: "fixtures")
     @jobs.each(&:prepare_for_execution)
 
-    @process = SolidQueue::Process.register({ queue: "fixtures" })
+    @process = SolidQueue::Process.register(metadata: { queue: "fixtures" })
   end
 
   test "perform job successfully" do
