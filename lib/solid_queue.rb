@@ -2,6 +2,7 @@ require "solid_queue/version"
 require "solid_queue/engine"
 
 require "active_job/queue_adapters/solid_queue_adapter"
+require "active_job/concurrency_controls"
 
 require "solid_queue/app_executor"
 require "solid_queue/interruptible"
