@@ -5,7 +5,7 @@ class WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
   setup do
-    @worker = SolidQueue::Worker.new(queue_name: "background", pool_size: 3, polling_interval: 10)
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 10)
   end
 
   teardown do

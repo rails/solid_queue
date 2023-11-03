@@ -4,8 +4,8 @@ module SolidQueue
   class QueueParser
     attr_reader :raw_queues, :relation
 
-    def initialize(queue_string, relation)
-      @raw_queues = queue_string.split(",").map(&:strip).presence || [ "*" ]
+    def initialize(queue_list, relation)
+      @raw_queues = Array(queue_list).map(&:strip).presence || [ "*" ]
       @relation = relation
     end
 

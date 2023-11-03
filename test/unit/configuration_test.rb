@@ -9,15 +9,28 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "provide configuration as a hash and fill defaults" do
-    config_as_hash = { workers: { background: { polling_interval: 10 } } }
+    background_worker = { queues: "background", polling_interval: 10 }
+    config_as_hash = { workers: [ background_worker, background_worker ] }
     configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
 
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
-    assert configuration.workers.detect { |w| w.queues == "background" }.pool.size > 0
+    assert_equal 2, configuration.workers.count
+    assert_equal [ "background" ], configuration.workers.map(&:queues).uniq
+    assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
   end
 
   test "max number of threads" do
     configuration = SolidQueue::Configuration.new(mode: :all)
     assert 7, configuration.max_number_of_threads
+  end
+
+  test "mulitple workers with the same configuration" do
+    background_worker = { queues: "background", polling_interval: 10, processes: 3 }
+    config_as_hash = { workers: [ background_worker ] }
+    configuration = SolidQueue::Configuration.new(mode: :work, load_from: config_as_hash)
+
+    assert_equal 3, configuration.workers.count
+    assert_equal [ "background" ], configuration.workers.map(&:queues).uniq
+    assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
   end
 end

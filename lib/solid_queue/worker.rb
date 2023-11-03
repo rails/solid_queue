@@ -10,8 +10,8 @@ module SolidQueue
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
       @polling_interval = options[:polling_interval]
-      @queues = options[:queues].to_s
-      @pool = Pool.new(options[:pool_size], on_idle: -> { wake_up })
+      @queues = options[:queues]
+      @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
     end
 
     private
@@ -42,7 +42,7 @@ module SolidQueue
       end
 
       def metadata
-        super.merge(queues: queues, pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
+        super.merge(queues: queues, thread_pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
       end
   end
 end

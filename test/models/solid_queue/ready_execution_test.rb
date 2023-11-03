@@ -55,7 +55,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
 
     assert_claimed_jobs(SolidQueue::Job.count) do
-      SolidQueue::ReadyExecution.claim("fixtures,background", SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ fixtures background ], SolidQueue::Job.count + 1, 42)
     end
   end
 
@@ -93,7 +93,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
 
     assert_claimed_jobs(SolidQueue::Job.count) do
-      SolidQueue::ReadyExecution.claim("fix*,background", SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ fix* background ], SolidQueue::Job.count + 1, 42)
     end
   end
 
