@@ -3,7 +3,7 @@ require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
-    @worker = SolidQueue::Worker.new(queue_name: "background", pool_size: 3, polling_interval: 1)
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 1)
     @scheduler = SolidQueue::Scheduler.new(batch_size: 10, polling_interval: 1)
   end
 

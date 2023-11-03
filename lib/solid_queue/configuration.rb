@@ -3,7 +3,8 @@
 module SolidQueue
   class Configuration
     WORKER_DEFAULTS = {
-      pool_size: 5,
+      threads: 5,
+      processes: 1,
       polling_interval: 0.1
     }
 
@@ -28,7 +29,10 @@ module SolidQueue
 
     def workers
       if mode.in? %i[ work all]
-        workers_options.values.map { |worker_options| SolidQueue::Worker.new(**worker_options) }
+        workers_options.flat_map do |worker_options|
+          processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+          processes.times.collect { SolidQueue::Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
+        end
       else
         []
       end
@@ -41,8 +45,8 @@ module SolidQueue
     end
 
     def max_number_of_threads
-      # At most pool_size thread in each worker + 1 thread for the worker + 1 thread for the heartbeat task
-      workers_options.values.map { |options| options[:pool_size] }.max + 2
+      # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
+      workers_options.map { |options| options[:threads] }.max + 2
     end
 
     private
@@ -54,9 +58,7 @@ module SolidQueue
       end
 
       def workers_options
-        @workers_options ||= (raw_config[:workers] || {}).each_with_object({}) do |(queue_string, options), hsh|
-          hsh[queue_string] = options.merge(queues: queue_string.to_s).with_defaults(WORKER_DEFAULTS)
-        end.deep_symbolize_keys
+        @workers_options ||= (raw_config[:workers] || {}).map { |options| options.dup.symbolize_keys }
       end
 
       def scheduler_options

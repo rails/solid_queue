@@ -1,9 +1,9 @@
 default: &default
   workers:
-    background:
-      pool_size: 3
-    default:
-      pool_size: 5
+    - queues: background
+      threads: 3
+    - queues: default
+      threads: 5
   scheduler:
     polling_interval: 1
     batch_size: 500
