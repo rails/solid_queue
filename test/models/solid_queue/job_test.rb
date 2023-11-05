@@ -1,10 +1,16 @@
 require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
+  class NonOverlappingJob < UpdateResultJob
+    include ActiveJob::ConcurrencyControls
+
+    limit_concurrency limit: 1, key: ->(job_result, **) { job_result }
+  end
+
   test "enqueue active job to be executed right away" do
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
-    assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ReadyExecution.count } => +1 do
+    assert_ready do
       SolidQueue::Job.enqueue_active_job(active_job)
     end
 
@@ -24,7 +30,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   test "enqueue active job to be scheduled in the future" do
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
-    assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ScheduledExecution.count } => +1 do
+    assert_scheduled do
       SolidQueue::Job.enqueue_active_job(active_job, scheduled_at: 5.minutes.from_now)
     end
 
@@ -41,4 +47,45 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal 8, execution.priority
     assert Time.now < execution.scheduled_at
   end
+
+  setup do
+    @result = JobResult.create!(queue_name: "default")
+  end
+
+  test "enqueue jobs with concurrency controls" do
+    active_job = NonOverlappingJob.perform_later(@result, name: "A")
+    assert_equal 1, active_job.concurrency_limit
+    assert_equal "SolidQueue::JobTest::NonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+
+    job = SolidQueue::Job.last
+    assert_equal active_job.concurrency_limit, job.concurrency_limit
+    assert_equal active_job.concurrency_key, job.concurrency_key
+  end
+
+  test "block jobs when concurrency limits are reached" do
+    assert_ready do
+      NonOverlappingJob.perform_later(@result, name: "A")
+    end
+
+    assert_blocked do
+      NonOverlappingJob.perform_later(@result, name: "B")
+    end
+  end
+
+  private
+    def assert_ready(&block)
+      assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ReadyExecution.count } => +1, &block
+    end
+
+    def assert_scheduled(&block)
+      assert_no_difference -> { SolidQueue::ReadyExecution.count } do
+        assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ScheduledExecution.count } => +1, &block
+      end
+    end
+
+    def assert_blocked(&block)
+      assert_no_difference -> { SolidQueue::ReadyExecution.count } do
+        assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::BlockedExecution.count } => +1, &block
+      end
+    end
 end
