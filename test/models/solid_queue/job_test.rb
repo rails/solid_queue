@@ -1,10 +1,17 @@
 require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
-  class NonOverlappingJob < UpdateResultJob
+  class NonOverlappingJob < ApplicationJob
     include ActiveJob::ConcurrencyControls
 
     limit_concurrency limit: 1, key: ->(job_result, **) { job_result }
+
+    def perform(job_result)
+    end
+  end
+
+  setup do
+    @result = JobResult.create!(queue_name: "default")
   end
 
   test "enqueue active job to be executed right away" do
@@ -46,10 +53,6 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal "test", execution.queue_name
     assert_equal 8, execution.priority
     assert Time.now < execution.scheduled_at
-  end
-
-  setup do
-    @result = JobResult.create!(queue_name: "default")
   end
 
   test "enqueue jobs with concurrency controls" do

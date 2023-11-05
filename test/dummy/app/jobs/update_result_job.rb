@@ -1,7 +1,15 @@
 class UpdateResultJob < ApplicationJob
-  def perform(job_result, name:, pause: 0.1)
-    job_result.update!(status: "started_#{name}")
-    sleep(pause)
-    job_result.update!(status: "completed_#{name}")
+  include ActiveJob::ConcurrencyControls
+
+  limit_concurrency limit: 1, key: ->(job_result, **) { job_result }
+
+  def perform(job_result, name:, pause: nil)
+    job_result.status += "s#{name}"
+    job_result.save!
+
+    sleep(pause) if pause
+
+    job_result.status += "c#{name}"
+    job_result.save!
   end
 end

@@ -7,7 +7,7 @@ module ActiveJob
     DEFAULT_CONCURRENCY_KEY = ->(*) { self.name }
 
     included do
-      class_attribute :concurrency_limit, default: 1
+      class_attribute :concurrency_limit, default: 0 # No limit
       class_attribute :concurrency_key, default: DEFAULT_CONCURRENCY_KEY, instance_accessor: false
     end
 

@@ -34,6 +34,7 @@ module SolidQueue
         else
           touch(:finished_at)
         end
+        dispatch_blocked_jobs
       end
 
       def finished?
@@ -42,6 +43,7 @@ module SolidQueue
 
       def failed_with(exception)
         FailedExecution.create_or_find_by!(job_id: id, exception: exception)
+        dispatch_blocked_jobs
       end
 
       def discard
@@ -65,6 +67,12 @@ module SolidQueue
           if acquire_concurrency_lock then ready
           else
             block
+          end
+        end
+
+        def dispatch_blocked_jobs
+          if release_concurrency_lock
+            release_next_blocked_job
           end
         end
 
