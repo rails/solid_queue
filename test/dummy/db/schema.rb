@@ -19,6 +19,17 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "solid_queue_blocked_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "job_id"
+    t.string "queue_name", null: false
+    t.integer "priority", default: 0, null: false
+    t.integer "concurrency_limit", null: false
+    t.string "concurrency_key", null: false
+    t.datetime "created_at", null: false
+    t.index ["concurrency_key"], name: "index_solid_queue_blocked_executions_on_concurrency_key"
+    t.index ["job_id"], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
+  end
+
   create_table "solid_queue_claimed_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "process_id"
@@ -44,6 +55,8 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "concurrency_limit"
+    t.string "concurrency_key"
     t.index ["active_job_id"], name: "index_solid_queue_jobs_on_job_id"
     t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
     t.index ["queue_name", "scheduled_at", "finished_at"], name: "index_solid_queue_jobs_for_alerting"
@@ -82,6 +95,14 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
     t.index ["scheduled_at", "priority"], name: "index_solid_queue_scheduled_executions"
+  end
+
+  create_table "solid_queue_semaphores", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.string "identifier", null: false
+    t.integer "value", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["identifier"], name: "index_solid_queue_semaphores_on_identifier", unique: true
   end
 
 end
