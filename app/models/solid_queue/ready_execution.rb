@@ -3,7 +3,7 @@ module SolidQueue
     scope :ordered, -> { order(priority: :asc) }
     scope :not_paused, -> { where.not(queue_name: Pause.all_queue_names) }
 
-    before_create :assume_attributes_from_job
+    assume_attributes_from_job
 
     class << self
       def claim(queues, limit, process_id)

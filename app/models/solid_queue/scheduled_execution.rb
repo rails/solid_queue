@@ -3,7 +3,7 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
   scope :ordered, -> { order(scheduled_at: :asc, priority: :asc) }
   scope :next_batch, ->(batch_size) { due.ordered.limit(batch_size) }
 
-  before_create :assume_attributes_from_job
+  assume_attributes_from_job :scheduled_at
 
   class << self
     def prepare_batch(batch)
@@ -27,10 +27,4 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
   def execution_ready_attributes
     attributes.slice("job_id", "queue_name", "priority")
   end
-
-  private
-    def assume_attributes_from_job
-      super
-      self.scheduled_at ||= job&.scheduled_at
-    end
 end
