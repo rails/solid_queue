@@ -31,6 +31,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     else
       failed_with(result.error)
     end
+  ensure
+    job.dispatch_blocked_jobs
   end
 
   def release

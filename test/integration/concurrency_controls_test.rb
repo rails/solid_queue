@@ -64,6 +64,22 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence(@result, [ "C" ])
   end
 
+  test "run several jobs over the same record sequentially, with some of them failing" do
+    ("A".."F").each_with_index do |name, i|
+      # A, C, E will fail, for i= 0, 2, 4
+      SequentialUpdateResultJob.perform_later(@result, name: name, pause: 0.2.seconds, exception: (RuntimeError if i.even?))
+    end
+
+    ("G".."K").each do |name|
+      SequentialUpdateResultJob.perform_later(@result, name: name)
+    end
+
+    wait_for_jobs_to_finish_for(4.seconds)
+    assert_equal 3, SolidQueue::FailedExecution.count
+
+    assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
+  end
+
   private
     def assert_stored_sequence(result, sequence)
       expected = "seq: " + sequence.map { |name| "s#{name}c#{name}"}.join

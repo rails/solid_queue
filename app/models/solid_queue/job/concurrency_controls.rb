@@ -7,6 +7,12 @@ module SolidQueue
         has_one :blocked_execution, dependent: :destroy
       end
 
+      def dispatch_blocked_jobs
+        if release_concurrency_lock
+          release_next_blocked_job
+        end
+      end
+
       private
         def acquire_concurrency_lock
           return true unless concurrency_limited?
