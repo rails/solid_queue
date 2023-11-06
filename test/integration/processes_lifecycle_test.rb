@@ -77,7 +77,6 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     # Workers were shutdown without a chance to terminate orderly, but
     # since they're linked to the supervisor, the supervisor deregistering
     # also deregistered them and released claimed jobs
-    # Processes didn't have a chance to deregister either
     assert_clean_termination
   end
 
