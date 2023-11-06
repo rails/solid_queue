@@ -8,7 +8,17 @@ module SolidQueue
     scope :ordered, -> { order(priority: :asc) }
 
     class << self
-      def release(concurrency_key)
+      def unblock(count)
+        release_many releasable.select(:concurrency_key).distinct.limit(count).pluck(:concurrency_key)
+      end
+
+      def release_many(concurrency_keys)
+        # We want to release exactly one blocked execution for each concurrency key, and we need to do it
+        # one by one, locking each record and acquiring the semaphore individually for each of them:
+        Array(concurrency_keys).each { |concurrency_key| release_one(concurrency_key) }
+      end
+
+      def release_one(concurrency_key)
         ordered.where(concurrency_key: concurrency_key).limit(1).lock("FOR UPDATE SKIP LOCKED").each(&:release)
       end
     end
@@ -18,6 +28,8 @@ module SolidQueue
         if acquire_concurrency_lock
           promote_to_ready
           destroy!
+
+          SolidQueue.logger.info("[SolidQueue] Unblocked job #{job.id} under #{concurrency_key}")
         end
       end
     end

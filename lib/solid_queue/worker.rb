@@ -16,6 +16,15 @@ module SolidQueue
 
     private
       def run
+        unblock_executions
+        poll_and_dispatch_executions
+      end
+
+      def unblock_executions
+        SolidQueue::BlockedExecution.queued_as(queues).unblock(pool.size)
+      end
+
+      def poll_and_dispatch_executions
         claimed_executions = with_polling_volume do
           SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
         end

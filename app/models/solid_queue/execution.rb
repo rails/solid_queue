@@ -1,9 +1,17 @@
-class SolidQueue::Execution < SolidQueue::Record
-  include JobAttributes
+module SolidQueue
+  class Execution < SolidQueue::Record
+    include JobAttributes
 
-  self.abstract_class = true
+    self.abstract_class = true
 
-  belongs_to :job
+    belongs_to :job
 
-  alias_method :discard, :destroy
+    alias_method :discard, :destroy
+
+    class << self
+      def queued_as(queues)
+        QueueParser.new(queues, self).scoped_relation
+      end
+    end
+  end
 end

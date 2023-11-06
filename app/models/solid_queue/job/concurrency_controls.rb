@@ -31,7 +31,7 @@ module SolidQueue
         end
 
         def release_next_blocked_job
-          BlockedExecution.release(concurrency_key)
+          BlockedExecution.release_one(concurrency_key)
         end
 
         def concurrency_limited?
