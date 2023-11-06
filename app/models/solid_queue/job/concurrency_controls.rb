@@ -37,7 +37,6 @@ module SolidQueue
         def concurrency_limited?
           concurrency_limit.to_i > 0 && concurrency_key.present?
         end
-
     end
   end
 end

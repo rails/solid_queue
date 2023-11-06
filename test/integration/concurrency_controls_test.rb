@@ -28,7 +28,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(4.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
@@ -74,7 +74,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(4.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_equal 3, SolidQueue::FailedExecution.count
 
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
