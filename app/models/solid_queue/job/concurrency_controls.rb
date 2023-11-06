@@ -7,7 +7,7 @@ module SolidQueue
         has_one :blocked_execution, dependent: :destroy
       end
 
-      def dispatch_blocked_jobs
+      def unblock_blocked_jobs
         if release_concurrency_lock
           release_next_blocked_job
         end
@@ -23,7 +23,7 @@ module SolidQueue
         def release_concurrency_lock
           return false unless concurrency_limited?
 
-          Semaphore.release(concurrency_key)
+          Semaphore.release(concurrency_key, concurrency_limit)
         end
 
         def block

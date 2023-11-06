@@ -15,9 +15,20 @@ module SolidQueue
 
     def release
       transaction do
-        job.prepare_for_execution
-        destroy!
+        if acquire_concurrency_lock
+          promote_to_ready
+          destroy!
+        end
       end
     end
+
+    private
+      def acquire_concurrency_lock
+        Semaphore.wait_for(concurrency_key, concurrency_limit)
+      end
+
+      def promote_to_ready
+        ReadyExecution.create_or_find_by!(job_id: job_id)
+      end
   end
 end
