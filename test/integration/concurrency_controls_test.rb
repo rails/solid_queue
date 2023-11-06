@@ -80,7 +80,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
   end
 
-  test "rely on worker to unblock blocked executions" do
+  test "rely on worker to unblock blocked executions with an available semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
     wait_for_jobs_to_finish_for(2.seconds)
@@ -94,8 +94,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # Now enqueue more jobs under that same key. They'll be all locked. Use priorities
     # to ensure order.
     assert_difference -> { SolidQueue::BlockedExecution.count }, +10 do
-      ("B".."K").each_with_index do |name, i|
-        SequentialUpdateResultJob.set(priority: i).perform_later(@result, name: name)
+      ("B".."K").each do |name|
+        SequentialUpdateResultJob.perform_later(@result, name: name)
       end
     end
 
@@ -103,17 +103,50 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # the semaphore but hadn't unblocked any jobs
     assert SolidQueue::Semaphore.release(job.concurrency_key, job.concurrency_limit)
 
+    # And wait for workers to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)
     assert_no_pending_jobs
 
-    assert_stored_sequence @result, ("A".."K").to_a
+    # We can't ensure the order between B and C, because it depends on which worker wins when
+    # unblocking, as one will try to unblock B and another C
+    assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
+  end
+
+  test "rely on worker to unblock blocked executions with a missing semaphore" do
+    # Simulate a scenario where we got an available semaphore and some stuck jobs
+    job = SequentialUpdateResultJob.perform_later(@result, name: "A")
+    wait_for_jobs_to_finish_for(2.seconds)
+    assert_no_pending_jobs
+
+    # Lock the semaphore so we can enqueue jobs and leave them blocked
+    skip_active_record_query_cache do
+      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit)
+    end
+
+    # Now enqueue more jobs under that same key. They'll be all locked
+    assert_difference -> { SolidQueue::BlockedExecution.count }, +10 do
+      ("B".."K").each do |name|
+        SequentialUpdateResultJob.perform_later(@result, name: name)
+      end
+    end
+
+    # Then delete the semaphore, as if we had cleared it
+    SolidQueue::Semaphore.find_by(identifier: job.concurrency_key).destroy!
+
+    # And wait for workers to release the jobs
+    wait_for_jobs_to_finish_for(2.seconds)
+    assert_no_pending_jobs
+
+    # We can't ensure the order between B and C, because it depends on which worker wins when
+    # unblocking, as one will try to unblock B and another C
+    assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
   end
 
   private
-    def assert_stored_sequence(result, sequence)
-      expected = "seq: " + sequence.map { |name| "s#{name}c#{name}"}.join
+    def assert_stored_sequence(result, *sequences)
+      expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}"}.join }
       skip_active_record_query_cache do
-        assert_equal expected, result.reload.status
+        assert_includes expected, result.reload.status
       end
     end
 end

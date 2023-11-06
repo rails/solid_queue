@@ -1,5 +1,6 @@
 class SolidQueue::Semaphore < SolidQueue::Record
   scope :available, -> { where("value > 0") }
+  scope :locked, -> { where(value: 0) }
 
   class << self
     def wait_for(identifier, limit)

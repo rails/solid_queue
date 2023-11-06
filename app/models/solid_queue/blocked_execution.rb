@@ -4,7 +4,7 @@ module SolidQueue
 
     has_one :semaphore, foreign_key: :identifier, primary_key: :concurrency_key
 
-    scope :releasable, -> { joins(:semaphore).merge(Semaphore.available) }
+    scope :releasable, -> { left_outer_joins(:semaphore).merge(Semaphore.available.or(Semaphore.where(id: nil))) }
     scope :ordered, -> { order(priority: :asc) }
 
     class << self
