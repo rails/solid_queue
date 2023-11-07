@@ -7,14 +7,12 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
   end
 
-  CLAIM_ATTRIBUTES = %w[ job_id ]
-
   class << self
-    def claiming(executions, process_id, &block)
-      job_data = Array(executions).collect { |execution| { job_id: execution.job_id, process_id: process_id } }
+    def claiming(job_ids, process_id, &block)
+      job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
 
       insert_all(job_data)
-      where(job_id: job_data.map { |data| data[:job_id]} ).tap do |claimed|
+      where(job_id: job_ids).tap do |claimed|
         block.call(claimed)
         SolidQueue.logger.info("[SolidQueue] Claimed #{claimed.size} jobs")
       end

@@ -19,7 +19,7 @@ module SolidQueue
 
       private
         def select_candidates(queues, limit)
-          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED")
+          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
         end
 
         def lock(candidates, process_id)
@@ -32,7 +32,7 @@ module SolidQueue
 
     def claim(process_id)
       transaction do
-        SolidQueue::ClaimedExecution.claiming(self, process_id) do |claimed|
+        SolidQueue::ClaimedExecution.claiming(job_id, process_id) do |claimed|
           delete if claimed.one?
         end
       end
