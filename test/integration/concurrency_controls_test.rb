@@ -131,7 +131,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     end
 
     # Then delete the semaphore, as if we had cleared it
-    SolidQueue::Semaphore.find_by(identifier: job.concurrency_key).destroy!
+    SolidQueue::Semaphore.find_by(concurrency_key: job.concurrency_key).destroy!
 
     # And wait for workers to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)
