@@ -12,11 +12,6 @@ module SolidQueue
       @polling_interval = options[:polling_interval]
       @queues = options[:queues]
       @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
-      @silence_polling = options[:silence_polling]
-    end
-
-    def silence_polling?
-      @silence_polling
     end
 
     private
@@ -53,7 +48,7 @@ module SolidQueue
       end
 
       def with_polling_volume
-        if silence_polling?
+        if SolidQueue.silence_polling?
           ActiveRecord::Base.logger.silence { yield }
         else
           yield

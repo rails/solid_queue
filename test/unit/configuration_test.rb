@@ -24,14 +24,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert 7, configuration.max_number_of_threads
   end
 
-  test "silence polling" do
-    background_worker = { queues: "background", polling_interval: 10 }
-    config_as_hash = { workers: [ background_worker, background_worker ], silence_polling: true }
-    configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
-    assert configuration.silence_polling?
-    assert configuration.workers.map(&:silence_polling?).all?
-  end
-
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     config_as_hash = { workers: [ background_worker ] }

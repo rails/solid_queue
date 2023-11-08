@@ -30,7 +30,6 @@ module SolidQueue
     def workers
       if mode.in? %i[ work all]
         workers_options.flat_map do |worker_options|
-          worker_options = { silence_polling: silence_polling? }.merge(worker_options)
           processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
           processes.times.collect { SolidQueue::Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
         end
@@ -48,10 +47,6 @@ module SolidQueue
     def max_number_of_threads
       # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
       workers_options.map { |options| options[:threads] }.max + 2
-    end
-
-    def silence_polling?
-      @raw_config[:silence_polling].present?
     end
 
     private
