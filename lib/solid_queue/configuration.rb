@@ -52,6 +52,8 @@ module SolidQueue
     private
       attr_reader :raw_config, :mode
 
+      DEFAULT_CONFIG_FILE_PATH = "config/solid_queue.yml"
+
       def config_from(file_or_hash, env: Rails.env)
         config = load_config_from(file_or_hash)
         config[env.to_sym] ? config[env.to_sym] : config
@@ -84,7 +86,9 @@ module SolidQueue
       end
 
       def default_config_file
-        Rails.root.join("config/solid_queue.yml").tap do |config_file|
+        path_to_file = ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH
+
+        Rails.root.join(path_to_file).tap do |config_file|
           raise "Configuration for Solid Queue not found in #{config_file}" unless config_file.exist?
         end
       end
