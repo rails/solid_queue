@@ -13,6 +13,7 @@ module SolidQueue
         SolidQueue.process_heartbeat_interval = app.config.solid_queue.process_heartbeat_interval || 60.seconds
         SolidQueue.process_alive_threshold    = app.config.solid_queue.process_alive_threshold || 5.minutes
         SolidQueue.shutdown_timeout           = app.config.solid_queue.shutdown_timeout || 5.seconds
+        SolidQueue.silence_polling            = app.config.solid_queue.silence_polling || false
         SolidQueue.supervisor_pidfile         = app.config.solid_queue.supervisor_pidfile || app.root.join("tmp", "pids", "solid_queue_supervisor.pid")
       end
     end

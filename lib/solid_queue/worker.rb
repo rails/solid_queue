@@ -16,7 +16,9 @@ module SolidQueue
 
     private
       def run
-        claimed_executions = SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
+        claimed_executions = with_polling_volume do
+          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
+        end
 
         if claimed_executions.size > 0
           procline "performing #{claimed_executions.count} jobs in #{queues}"
@@ -43,6 +45,14 @@ module SolidQueue
 
       def metadata
         super.merge(queues: queues, thread_pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
+      end
+
+      def with_polling_volume
+        if SolidQueue.silence_polling?
+          ActiveRecord::Base.logger.silence { yield }
+        else
+          yield
+        end
       end
   end
 end
