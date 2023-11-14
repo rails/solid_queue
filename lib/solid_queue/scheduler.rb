@@ -14,15 +14,17 @@ class SolidQueue::Scheduler
 
   private
     def run
-      batch = SolidQueue::ScheduledExecution.next_batch(batch_size)
+      with_polling_volume do
+        batch = SolidQueue::ScheduledExecution.next_batch(batch_size)
 
-      if batch.size > 0
-        procline "preparing #{batch.size} jobs for execution"
+        if batch.size > 0
+          procline "preparing #{batch.size} jobs for execution"
 
-        SolidQueue::ScheduledExecution.prepare_batch(batch)
-      else
-        procline "waiting"
-        interruptible_sleep(polling_interval)
+          SolidQueue::ScheduledExecution.prepare_batch(batch)
+        else
+          procline "waiting"
+          interruptible_sleep(polling_interval)
+        end
       end
     end
 
