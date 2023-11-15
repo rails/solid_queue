@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2023_11_02_184135) do
+ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
   create_table "job_results", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "queue_name"
     t.string "status"
@@ -70,8 +70,8 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_02_184135) do
     t.integer "priority", default: 0, null: false
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_ready_executions_on_job_id", unique: true
-    t.index ["priority"], name: "index_solid_queue_ready_executions_on_priority"
-    t.index ["queue_name", "priority"], name: "index_solid_queue_ready_executions"
+    t.index ["priority", "job_id"], name: "index_solid_queue_poll_all"
+    t.index ["queue_name", "priority", "job_id"], name: "index_solid_queue_poll_by_queue"
   end
 
   create_table "solid_queue_scheduled_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
