@@ -5,6 +5,8 @@ module SolidQueue
 
       included do
         has_one :blocked_execution, dependent: :destroy
+
+        delegate :concurrency_limit, :concurrency_limit_duration, to: :job_class
       end
 
       def unblock_blocked_jobs
@@ -17,13 +19,13 @@ module SolidQueue
         def acquire_concurrency_lock
           return true unless concurrency_limited?
 
-          Semaphore.wait_for(concurrency_key, concurrency_limit)
+          Semaphore.wait_for(concurrency_key, concurrency_limit, concurrency_limit_duration)
         end
 
         def release_concurrency_lock
           return false unless concurrency_limited?
 
-          Semaphore.release(concurrency_key, concurrency_limit)
+          Semaphore.release(concurrency_key, concurrency_limit, concurrency_limit_duration)
         end
 
         def block
@@ -36,6 +38,10 @@ module SolidQueue
 
         def concurrency_limited?
           concurrency_limit.to_i > 0 && concurrency_key.present?
+        end
+
+        def job_class
+          @job_class ||= class_name.safe_constantize
         end
     end
   end

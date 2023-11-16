@@ -1,6 +1,6 @@
 module SolidQueue
   class BlockedExecution < SolidQueue::Execution
-    assume_attributes_from_job :concurrency_limit, :concurrency_key
+    assume_attributes_from_job :concurrency_key
 
     has_one :semaphore, foreign_key: :concurrency_key, primary_key: :concurrency_key
 
@@ -36,11 +36,11 @@ module SolidQueue
 
     private
       def acquire_concurrency_lock
-        Semaphore.wait_for(concurrency_key, concurrency_limit)
+        Semaphore.wait_for(concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
       end
 
       def promote_to_ready
-        ReadyExecution.create_or_find_by!(job_id: job_id)
+        ReadyExecution.create!(job_id: job_id, queue_name: queue_name, priority: priority)
       end
   end
 end

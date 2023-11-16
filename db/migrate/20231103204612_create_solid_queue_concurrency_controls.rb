@@ -1,7 +1,6 @@
 class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
   def change
     change_table :solid_queue_jobs do |t|
-      t.integer :concurrency_limit
       t.string :concurrency_key
     end
 
@@ -10,7 +9,6 @@ class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
       t.string :queue_name, null: false
       t.integer :priority, default: 0, null: false
 
-      t.integer :concurrency_limit, null: false
       t.string :concurrency_key, null: false
 
       t.datetime :created_at, null: false
@@ -21,7 +19,7 @@ class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
     create_table :solid_queue_semaphores do |t|
       t.string :concurrency_key, null: false, index: { unique: true }
       t.integer :value, null: false, default: 1
-      t.datetime :expires_at
+      t.datetime :expires_at, null: false, index: true
 
       t.timestamps
     end

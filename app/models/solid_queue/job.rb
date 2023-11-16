@@ -19,7 +19,6 @@ class SolidQueue::Job < SolidQueue::Record
         scheduled_at: scheduled_at,
         class_name: active_job.class.name,
         arguments: active_job.serialize,
-        concurrency_limit: active_job.try(:concurrency_limit),
         concurrency_key: active_job.try(:concurrency_key)
     end
 

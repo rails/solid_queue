@@ -81,14 +81,17 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "rely on worker to unblock blocked executions with an available semaphore" do
+    skip "Moving this task to the supervisor"
+
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
+
     wait_for_jobs_to_finish_for(2.seconds)
     assert_no_pending_jobs
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
-      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit)
+      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
     end
 
     # Now enqueue more jobs under that same key. They'll be all locked. Use priorities
@@ -101,7 +104,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # Then unlock the semaphore: this would be as if the first job had released
     # the semaphore but hadn't unblocked any jobs
-    assert SolidQueue::Semaphore.release(job.concurrency_key, job.concurrency_limit)
+    assert SolidQueue::Semaphore.release(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
 
     # And wait for workers to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)
@@ -113,6 +116,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "rely on worker to unblock blocked executions with a missing semaphore" do
+    skip "Moving this task to the supervisor"
+
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
     wait_for_jobs_to_finish_for(2.seconds)
@@ -120,7 +125,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
-      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit)
+      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
     end
 
     # Now enqueue more jobs under that same key. They'll be all locked
