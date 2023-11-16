@@ -10,7 +10,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     @result = JobResult.create!(queue_name: "default", status: "seq: ")
 
     default_worker = { queues: "default", polling_interval: 1, processes: 3, threads: 2 }
-    @pid = run_supervisor_as_fork(load_configuration_from: { workers: [ default_worker ] })
+    scheduler = { polling_interval: 1, batch_size: 200 }
+
+    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], scheduler: scheduler })
 
     wait_for_registered_processes(4, timeout: 0.2.second) # 3 workers working the default queue + supervisor
   end
@@ -80,9 +82,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
   end
 
-  test "rely on worker to unblock blocked executions with an available semaphore" do
-    skip "Moving this task to the supervisor"
-
+  test "rely on scheduler to unblock blocked executions with an available semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
 
@@ -115,9 +115,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
   end
 
-  test "rely on worker to unblock blocked executions with a missing semaphore" do
-    skip "Moving this task to the supervisor"
-
+  test "rely on scheduler to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
     wait_for_jobs_to_finish_for(2.seconds)
@@ -135,10 +133,10 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       end
     end
 
-    # Then delete the semaphore, as if we had cleared it
-    SolidQueue::Semaphore.find_by(concurrency_key: job.concurrency_key).destroy!
+    # Simulate semaphore expiration
+    SolidQueue::Semaphore.find_by(concurrency_key: job.concurrency_key).update(expires_at: 1.hour.ago)
 
-    # And wait for workers to release the jobs
+    # And wait for scheduler to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)
     assert_no_pending_jobs
 
