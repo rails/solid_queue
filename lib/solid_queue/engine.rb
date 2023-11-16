@@ -27,5 +27,11 @@ module SolidQueue
         self.logger = app.logger
       end
     end
+
+    initializer "solid_queue.active_job.extensions" do
+      ActiveSupport.on_load :active_job do
+        include ActiveJob::ConcurrencyControls
+      end
+    end
   end
 end

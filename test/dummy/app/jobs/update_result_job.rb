@@ -1,6 +1,4 @@
 class UpdateResultJob < ApplicationJob
-  include ActiveJob::ConcurrencyControls
-
   def perform(job_result, name:, pause: nil, exception: nil)
     job_result.status += "s#{name}"
 
