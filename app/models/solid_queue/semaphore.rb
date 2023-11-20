@@ -1,6 +1,5 @@
 class SolidQueue::Semaphore < SolidQueue::Record
   scope :available, -> { where("value > 0") }
-  scope :locked, -> { where(value: 0) }
   scope :expired, -> { where(expires_at: ...Time.current)}
 
   class << self
