@@ -32,17 +32,28 @@ class ActiveSupport::TestCase
 
   teardown do
     JobBuffer.clear
-    File.delete(SolidQueue.supervisor_pidfile) if File.exist?(SolidQueue.supervisor_pidfile)
+
+    if SolidQueue.supervisor_pidfile && File.exist?(SolidQueue.supervisor_pidfile)
+      File.delete(SolidQueue.supervisor_pidfile)
+    end
   end
 
   private
     def wait_for_jobs_to_finish_for(timeout = 1.second)
-      Timeout.timeout(timeout) do
-        while SolidQueue::Job.where(finished_at: nil).any? do
-          sleep 0.05
+      skip_active_record_query_cache do
+        Timeout.timeout(timeout) do
+          while SolidQueue::Job.where(finished_at: nil).any? do
+            sleep 0.05
+          end
         end
       end
     rescue Timeout::Error
+    end
+
+    def assert_no_pending_jobs
+      skip_active_record_query_cache do
+        assert SolidQueue::Job.where(finished_at: nil).none?
+      end
     end
 
     def run_supervisor_as_fork(**options)
