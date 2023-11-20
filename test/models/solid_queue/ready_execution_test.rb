@@ -80,21 +80,11 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
   end
 
-  test "claim jobs using queue prefixes" do
-    AddToBufferJob.perform_later("hey")
-
-    assert_claimed_jobs(1) do
-      SolidQueue::ReadyExecution.claim("backgr*", SolidQueue::Job.count + 1, 42)
-    end
-
-    assert @jobs.none?(&:claimed?)
-  end
-
-  test "claim jobs using both exact names and prefixes" do
+  test "claim jobs using both exact names and a wildcard" do
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(6) do
-      SolidQueue::ReadyExecution.claim(%w[ backe* background ], SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ * background ], SolidQueue::Job.count + 1, 42)
     end
   end
 

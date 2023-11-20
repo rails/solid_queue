@@ -61,7 +61,7 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.start(mode: :async)
     sleep 0.5
 
-    assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE \(.solid_queue_ready_executions...queue_name./, log.string
+    assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
     ActiveRecord::Base.logger = old_logger
     SolidQueue.silence_polling = old_silence_polling
@@ -75,7 +75,7 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.start(mode: :async)
     sleep 0.5
 
-    assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE \(.solid_queue_ready_executions...queue_name./, log.string
+    assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
     ActiveRecord::Base.logger = old_logger
     SolidQueue.silence_polling = old_silence_polling
