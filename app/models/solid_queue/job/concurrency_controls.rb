@@ -37,7 +37,7 @@ module SolidQueue
         end
 
         def concurrency_limited?
-          concurrency_limit.to_i > 0 && concurrency_key.present?
+          concurrency_key.present? && concurrency_limit.to_i > 0
         end
 
         def job_class
