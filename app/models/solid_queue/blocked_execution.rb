@@ -40,7 +40,7 @@ module SolidQueue
       end
 
       def promote_to_ready
-        ReadyExecution.create!(job_id: job_id, queue_name: queue_name, priority: priority)
+        ReadyExecution.create!(ready_attributes)
       end
   end
 end

@@ -8,10 +8,8 @@ module SolidQueue
 
     alias_method :discard, :destroy
 
-    class << self
-      def queued_as(queues)
-        QueueParser.new(queues, self).scoped_relation
-      end
+    def ready_attributes
+      attributes.slice("job_id", "queue_name", "priority")
     end
   end
 end
