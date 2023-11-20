@@ -2,8 +2,6 @@ require "test_helper"
 
 class QueueTest < ActiveSupport::TestCase
   setup do
-    SolidQueue::Job.delete_all
-
     5.times do
       AddToBufferJob.perform_later "hey!"
     end
