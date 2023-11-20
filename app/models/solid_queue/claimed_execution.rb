@@ -51,7 +51,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
     def finished
       transaction do
-        job.finished
+        job.finished!
         destroy!
       end
 
