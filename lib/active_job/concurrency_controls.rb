@@ -10,14 +10,14 @@ module ActiveJob
       class_attribute :concurrency_key, default: DEFAULT_CONCURRENCY_KEY, instance_accessor: false
 
       class_attribute :concurrency_limit, default: 0 # No limit
-      class_attribute :concurrency_limit_duration, default: SolidQueue.default_concurrency_control_period
+      class_attribute :concurrency_duration, default: SolidQueue.default_concurrency_control_period
     end
 
     class_methods do
       def restrict_concurrency_with(limit: 1, key: DEFAULT_CONCURRENCY_KEY, duration: SolidQueue.default_concurrency_control_period)
         self.concurrency_limit = limit
         self.concurrency_key = key
-        self.concurrency_limit_duration = duration
+        self.concurrency_duration = duration
       end
     end
 

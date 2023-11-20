@@ -6,14 +6,14 @@ class SolidQueue::Semaphore < SolidQueue::Record
   class << self
     def wait(job)
       if semaphore = find_by(key: job.concurrency_key)
-        semaphore.value > 0 && attempt_decrement(job.concurrency_key, job.concurrency_limit_duration)
+        semaphore.value > 0 && attempt_decrement(job.concurrency_key, job.concurrency_duration)
       else
-        attempt_creation(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+        attempt_creation(job.concurrency_key, job.concurrency_limit, job.concurrency_duration)
       end
     end
 
     def signal(job)
-      attempt_increment(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+      attempt_increment(job.concurrency_key, job.concurrency_limit, job.concurrency_duration)
     end
 
     private

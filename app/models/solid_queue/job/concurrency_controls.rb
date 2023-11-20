@@ -6,7 +6,7 @@ module SolidQueue
       included do
         has_one :blocked_execution, dependent: :destroy
 
-        delegate :concurrency_limit, :concurrency_limit_duration, to: :job_class
+        delegate :concurrency_limit, :concurrency_duration, to: :job_class
       end
 
       def unblock_blocked_jobs
