@@ -91,7 +91,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
-      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+      assert SolidQueue::Semaphore.wait(job)
     end
 
     # Now enqueue more jobs under that same key. They'll be all locked. Use priorities
@@ -104,7 +104,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # Then unlock the semaphore: this would be as if the first job had released
     # the semaphore but hadn't unblocked any jobs
-    assert SolidQueue::Semaphore.release(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+    assert SolidQueue::Semaphore.signal(job)
 
     # And wait for workers to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)
@@ -123,7 +123,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
-      assert SolidQueue::Semaphore.wait_for(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+      assert SolidQueue::Semaphore.wait(job)
     end
 
     # Now enqueue more jobs under that same key. They'll be all locked
@@ -134,7 +134,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     end
 
     # Simulate semaphore expiration
-    SolidQueue::Semaphore.find_by(concurrency_key: job.concurrency_key).update(expires_at: 1.hour.ago)
+    SolidQueue::Semaphore.find_by(key: job.concurrency_key).update(expires_at: 1.hour.ago)
 
     # And wait for scheduler to release the jobs
     wait_for_jobs_to_finish_for(2.seconds)

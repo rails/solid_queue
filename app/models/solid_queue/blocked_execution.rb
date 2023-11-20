@@ -2,7 +2,7 @@ module SolidQueue
   class BlockedExecution < SolidQueue::Execution
     assume_attributes_from_job :concurrency_key
 
-    has_one :semaphore, foreign_key: :concurrency_key, primary_key: :concurrency_key
+    has_one :semaphore, foreign_key: :key, primary_key: :concurrency_key
 
     scope :releasable, -> { left_outer_joins(:semaphore).merge(Semaphore.available.or(Semaphore.where(id: nil))) }
     scope :ordered, -> { order(priority: :asc) }
@@ -36,7 +36,7 @@ module SolidQueue
 
     private
       def acquire_concurrency_lock
-        Semaphore.wait_for(concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
+        Semaphore.wait(job)
       end
 
       def promote_to_ready

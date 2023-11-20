@@ -17,7 +17,7 @@ class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
     end
 
     create_table :solid_queue_semaphores do |t|
-      t.string :concurrency_key, null: false, index: { unique: true }
+      t.string :key, null: false, index: { unique: true }
       t.integer :value, null: false, default: 1
       t.datetime :expires_at, null: false, index: true
 

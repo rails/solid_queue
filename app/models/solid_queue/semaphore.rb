@@ -4,32 +4,32 @@ class SolidQueue::Semaphore < SolidQueue::Record
   scope :expired, -> { where(expires_at: ...Time.current)}
 
   class << self
-    def wait_for(concurrency_key, limit, duration)
-      if semaphore = find_by(concurrency_key: concurrency_key)
-        semaphore.value > 0 && attempt_decrement(concurrency_key, duration)
+    def wait(job)
+      if semaphore = find_by(key: job.concurrency_key)
+        semaphore.value > 0 && attempt_decrement(job.concurrency_key, job.concurrency_limit_duration)
       else
-        attempt_creation(concurrency_key, limit, duration)
+        attempt_creation(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
       end
     end
 
-    def release(concurrency_key, limit, duration)
-      attempt_increment(concurrency_key, limit, duration)
+    def signal(job)
+      attempt_increment(job.concurrency_key, job.concurrency_limit, job.concurrency_limit_duration)
     end
 
     private
-      def attempt_creation(concurrency_key, limit, duration)
-        create!(concurrency_key: concurrency_key, value: limit - 1, expires_at: duration.from_now)
+      def attempt_creation(key, limit, duration)
+        create!(key: key, value: limit - 1, expires_at: duration.from_now)
         true
       rescue ActiveRecord::RecordNotUnique
-        attempt_decrement(concurrency_key, duration)
+        attempt_decrement(key, duration)
       end
 
-      def attempt_decrement(concurrency_key, duration)
-        available.where(concurrency_key: concurrency_key).update_all([ "value = value - 1, expires_at = ?", duration.from_now ]) > 0
+      def attempt_decrement(key, duration)
+        available.where(key: key).update_all([ "value = value - 1, expires_at = ?", duration.from_now ]) > 0
       end
 
-      def attempt_increment(concurrency_key, limit, duration)
-        where("value < ?", limit).where(concurrency_key: concurrency_key).update_all([ "value = value + 1, expires_at = ?", duration.from_now ]) > 0
+      def attempt_increment(key, limit, duration)
+        where("value < ?", limit).where(key: key).update_all([ "value = value + 1, expires_at = ?", duration.from_now ]) > 0
       end
   end
 end

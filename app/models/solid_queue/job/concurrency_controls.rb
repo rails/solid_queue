@@ -19,13 +19,13 @@ module SolidQueue
         def acquire_concurrency_lock
           return true unless concurrency_limited?
 
-          Semaphore.wait_for(concurrency_key, concurrency_limit, concurrency_limit_duration)
+          Semaphore.wait(self)
         end
 
         def release_concurrency_lock
           return false unless concurrency_limited?
 
-          Semaphore.release(concurrency_key, concurrency_limit, concurrency_limit_duration)
+          Semaphore.signal(self)
         end
 
         def block

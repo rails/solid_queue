@@ -96,13 +96,13 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
   end
 
   create_table "solid_queue_semaphores", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.string "concurrency_key", null: false
+    t.string "key", null: false
     t.integer "value", default: 1, null: false
     t.datetime "expires_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["concurrency_key"], name: "index_solid_queue_semaphores_on_concurrency_key", unique: true
     t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
+    t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
 end
