@@ -2,7 +2,7 @@ require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
   class NonOverlappingJob < ApplicationJob
-    restrict_concurrency_with limit: 1, key: ->(job_result, **) { job_result }
+    limits_concurrency key: ->(job_result, **) { job_result }
 
     def perform(job_result)
     end
