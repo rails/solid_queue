@@ -26,10 +26,6 @@ end
 Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
 
 class ActiveSupport::TestCase
-  setup do
-    SolidQueue.logger = ActiveSupport::Logger.new(nil)
-  end
-
   teardown do
     JobBuffer.clear
 

@@ -10,6 +10,8 @@ module SolidQueue
       has_one :scheduled_execution, dependent: :destroy
 
       after_create :prepare_for_execution
+
+      scope :finished, -> { where.not(finished_at: nil) }
     end
 
     STATUSES = %w[ ready claimed failed scheduled ]
@@ -26,8 +28,12 @@ module SolidQueue
       end
     end
 
-    def finished
-      touch(:finished_at)
+    def finished!
+      if delete_finished_jobs?
+        destroy!
+      else
+        touch(:finished_at)
+      end
     end
 
     def finished?
@@ -49,6 +55,10 @@ module SolidQueue
     private
       def due?
         scheduled_at.nil? || scheduled_at <= Time.current
+      end
+
+      def delete_finished_jobs?
+        SolidQueue.delete_finished_jobs
       end
   end
 end

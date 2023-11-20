@@ -32,6 +32,8 @@ module SolidQueue
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
 
+  mattr_accessor :delete_finished_jobs, default: true
+
   def self.supervisor?
     supervisor
   end
