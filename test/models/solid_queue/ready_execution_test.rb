@@ -2,13 +2,16 @@ require "test_helper"
 
 class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
   setup do
-    @jobs = SolidQueue::Job.where(queue_name: "fixtures")
-    @jobs.each(&:prepare_for_execution)
+    5.times do |i|
+      AddToBufferJob.set(queue: "backend", priority: 5 - i).perform_later(i)
+    end
+
+    @jobs = SolidQueue::Job.where(queue_name: "backend")
   end
 
   test "claim all jobs for existing queue" do
     assert_claimed_jobs(@jobs.count) do
-      SolidQueue::ReadyExecution.claim("fixtures", @jobs.count + 1, 42)
+      SolidQueue::ReadyExecution.claim("backend", @jobs.count + 1, 42)
     end
 
     @jobs.each do |job|
@@ -25,7 +28,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
 
   test "claim some jobs for existing queue" do
     assert_claimed_jobs(2) do
-      SolidQueue::ReadyExecution.claim("fixtures", 2, 42)
+      SolidQueue::ReadyExecution.claim("backend", 2, 42)
     end
 
     @jobs.order(:priority).first(2).each do |job|
@@ -40,8 +43,8 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
   end
 
   test "claim individual job" do
-    job = solid_queue_jobs(:add_to_buffer_job)
-    job.prepare_for_execution
+    AddToBufferJob.perform_later("hey")
+    job = SolidQueue::Job.last
 
     assert_claimed_jobs(1) do
       job.ready_execution.claim(42)
@@ -52,48 +55,46 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
   end
 
   test "claim jobs using a list of queues" do
-    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+    AddToBufferJob.perform_later("hey")
 
-    assert_claimed_jobs(SolidQueue::Job.count) do
-      SolidQueue::ReadyExecution.claim(%w[ fixtures background ], SolidQueue::Job.count + 1, 42)
+    assert_claimed_jobs(6) do
+      SolidQueue::ReadyExecution.claim(%w[ backend background ], SolidQueue::Job.count + 1, 42)
     end
   end
 
   test "claim jobs using a wildcard" do
-    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+    AddToBufferJob.perform_later("hey")
 
-    assert_claimed_jobs(SolidQueue::Job.count) do
+    assert_claimed_jobs(6) do
       SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, 42)
     end
   end
 
   test "claim jobs using a wildcard and having paused queues" do
-    other_jobs = SolidQueue::Job.all - @jobs
-    other_jobs.each(&:prepare_for_execution)
+    AddToBufferJob.perform_later("hey")
 
-    SolidQueue::Queue.find_by_name("fixtures").pause
+    SolidQueue::Queue.find_by_name("backend").pause
 
-    assert_claimed_jobs(other_jobs.count) do
+    assert_claimed_jobs(1) do
       SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, 42)
     end
   end
 
   test "claim jobs using queue prefixes" do
-    assert_claimed_jobs(2) do
-      SolidQueue::ReadyExecution.claim("fix*", 2, 42)
+    AddToBufferJob.perform_later("hey")
+
+    assert_claimed_jobs(1) do
+      SolidQueue::ReadyExecution.claim("backgr*", SolidQueue::Job.count + 1, 42)
     end
 
-    @jobs.order(:priority).first(2).each do |job|
-      assert_not job.reload.ready?
-      assert job.claimed?
-    end
+    assert @jobs.none?(&:claimed?)
   end
 
   test "claim jobs using both exact names and prefixes" do
-    (SolidQueue::Job.all - @jobs).each(&:prepare_for_execution)
+    AddToBufferJob.perform_later("hey")
 
-    assert_claimed_jobs(SolidQueue::Job.count) do
-      SolidQueue::ReadyExecution.claim(%w[ fix* background ], SolidQueue::Job.count + 1, 42)
+    assert_claimed_jobs(6) do
+      SolidQueue::ReadyExecution.claim(%w[ backe* background ], SolidQueue::Job.count + 1, 42)
     end
   end
 
