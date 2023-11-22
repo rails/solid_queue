@@ -26,7 +26,7 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
     t.string "concurrency_key", null: false
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
-    t.index ["priority", "concurrency_key", "queue_name", "job_id"], name: "index_solid_queue_blocked_executions_for_release"
+    t.index ["priority", "concurrency_key", "job_id"], name: "index_solid_queue_blocked_executions_for_release"
   end
 
   create_table "solid_queue_claimed_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -102,6 +102,7 @@ ActiveRecord::Schema[7.1].define(version: 2023_11_15_211044) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
+    t.index ["key", "value"], name: "index_solid_queue_semaphores_on_key_and_value"
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 

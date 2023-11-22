@@ -13,7 +13,7 @@ class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
 
       t.datetime :created_at, null: false
 
-      t.index [ :priority, :concurrency_key, :queue_name, :job_id ], name: "index_solid_queue_blocked_executions_for_release"
+      t.index [ :concurrency_key, :priority, :job_id ], name: "index_solid_queue_blocked_executions_for_release"
     end
 
     create_table :solid_queue_semaphores do |t|
@@ -22,6 +22,8 @@ class CreateSolidQueueConcurrencyControls < ActiveRecord::Migration[7.1]
       t.datetime :expires_at, null: false, index: true
 
       t.timestamps
+
+      t.index [ :key, :value ]
     end
   end
 end
