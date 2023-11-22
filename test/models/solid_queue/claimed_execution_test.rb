@@ -2,10 +2,7 @@ require "test_helper"
 
 class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   setup do
-    @jobs = SolidQueue::Job.where(queue_name: "fixtures")
-    @jobs.each(&:prepare_for_execution)
-
-    @process = SolidQueue::Process.register(metadata: { queue: "fixtures" })
+    @process = SolidQueue::Process.register(metadata: { queue: "background" })
   end
 
   test "perform job successfully" do
@@ -62,12 +59,15 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   end
 
   private
-    def prepare_and_claim_job(active_job)
+    def prepare_and_claim_job(active_job, process: @process)
       job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
 
       job.prepare_for_execution
-      job.reload.ready_execution.claim(@process.id)
-      job.reload.claimed_execution
+      assert_difference -> { SolidQueue::ClaimedExecution.count } => +1 do
+        SolidQueue::ReadyExecution.claim(job.queue_name, 1, process.id)
+      end
+
+      SolidQueue::ClaimedExecution.last
     end
 
     def with_error_subscriber(subscriber)

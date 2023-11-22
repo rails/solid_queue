@@ -1,25 +1,31 @@
 module SolidQueue
   class ReadyExecution < Execution
-    scope :ordered, -> { order(priority: :asc) }
-    scope :not_paused, -> { where.not(queue_name: Pause.all_queue_names) }
+    scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
+    scope :ordered, -> { order(priority: :asc, job_id: :asc) }
 
     assume_attributes_from_job
 
     class << self
-      def claim(queues, limit, process_id)
-        transaction do
-          candidates = select_candidates(queues, limit)
-          lock(candidates, process_id)
+      def claim(queue_list, limit, process_id)
+        QueueSelector.new(queue_list, self).scoped_relations.flat_map do |queue_relation|
+          select_and_lock(queue_relation, process_id, limit).tap do |locked|
+            limit -= locked.size
+          end
         end
       end
 
-      def queued_as(queues)
-        QueueParser.new(queues, self).scoped_relation
-      end
-
       private
-        def select_candidates(queues, limit)
-          queued_as(queues).not_paused.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
+        def select_and_lock(queue_relation, process_id, limit)
+          return [] if limit <= 0
+
+          transaction do
+            candidates = select_candidates(queue_relation, limit)
+            lock(candidates, process_id)
+          end
+        end
+
+        def select_candidates(queue_relation, limit)
+          queue_relation.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
         end
 
         def lock(candidates, process_id)
@@ -28,14 +34,6 @@ module SolidQueue
             where(job_id: claimed.pluck(:job_id)).delete_all
           end
         end
-    end
-
-    def claim(process_id)
-      transaction do
-        SolidQueue::ClaimedExecution.claiming(job_id, process_id) do |claimed|
-          delete if claimed.one?
-        end
-      end
     end
   end
 end
