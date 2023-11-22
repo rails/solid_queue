@@ -14,10 +14,6 @@ module SolidQueue
         end
       end
 
-      def queued_as(queues)
-        QueueParser.new(queues, self).scoped_relation
-      end
-
       private
         def select_and_lock(queue_relation, process_id, limit)
           return [] if limit <= 0
