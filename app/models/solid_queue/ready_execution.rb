@@ -1,7 +1,7 @@
 module SolidQueue
   class ReadyExecution < Execution
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
-    scope :ordered, -> { order(priority: :asc) }
+    scope :ordered, -> { order(priority: :asc, job_id: :asc) }
 
     assume_attributes_from_job
 
@@ -9,14 +9,15 @@ module SolidQueue
       def claim(queue_list, limit, process_id)
         QueueSelector.new(queue_list, self).scoped_relations.flat_map do |queue_relation|
           select_and_lock(queue_relation, process_id, limit).tap do |locked|
-            limit -= locked.count
-            break if limit <= 0
+            limit -= locked.size
           end
         end
       end
 
       private
         def select_and_lock(queue_relation, process_id, limit)
+          return [] if limit <= 0
+
           transaction do
             candidates = select_candidates(queue_relation, limit)
             lock(candidates, process_id)

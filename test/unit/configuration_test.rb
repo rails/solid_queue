@@ -15,7 +15,7 @@ class ConfigurationTest < ActiveSupport::TestCase
 
     assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
     assert_equal 2, configuration.workers.count
-    assert_equal [ "background" ], configuration.workers.map(&:queues).uniq
+    assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
     assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
   end
 
@@ -30,7 +30,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(mode: :work, load_from: config_as_hash)
 
     assert_equal 3, configuration.workers.count
-    assert_equal [ "background" ], configuration.workers.map(&:queues).uniq
+    assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
     assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
   end
 end

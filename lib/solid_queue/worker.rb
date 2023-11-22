@@ -10,7 +10,7 @@ module SolidQueue
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
       @polling_interval = options[:polling_interval]
-      @queues = options[:queues]
+      @queues = Array(options[:queues])
       @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
     end
 
@@ -21,13 +21,13 @@ module SolidQueue
         end
 
         if claimed_executions.size > 0
-          procline "performing #{claimed_executions.count} jobs in #{queues}"
+          procline "performing #{claimed_executions.count} jobs"
 
           claimed_executions.each do |execution|
             pool.post(execution)
           end
         else
-          procline "waiting for jobs in #{queues}"
+          procline "waiting for jobs in #{queues.join(",")}"
           interruptible_sleep(polling_interval)
         end
       end
@@ -44,7 +44,7 @@ module SolidQueue
       end
 
       def metadata
-        super.merge(queues: queues, thread_pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
+        super.merge(queues: queues.join(","), thread_pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
       end
   end
 end
