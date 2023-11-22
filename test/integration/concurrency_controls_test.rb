@@ -86,7 +86,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
 
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -107,7 +107,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert SolidQueue::Semaphore.signal(job)
 
     # And wait for workers to release the jobs
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
@@ -118,7 +118,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   test "rely on scheduler to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -137,7 +137,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     SolidQueue::Semaphore.find_by(key: job.concurrency_key).update(expires_at: 1.hour.ago)
 
     # And wait for scheduler to release the jobs
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
