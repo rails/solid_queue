@@ -32,7 +32,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       failed_with(result.error)
     end
   ensure
-    job.unblock_blocked_jobs
+    job.unblock_next_blocked_job
   end
 
   def release

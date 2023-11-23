@@ -9,7 +9,7 @@ module SolidQueue
 
     class << self
       def unblock(count)
-        release_many releasable.select(:concurrency_key).distinct.limit(count).pluck(:concurrency_key)
+        release_many releasable.distinct.limit(count).pluck(:concurrency_key)
       end
 
       def release_many(concurrency_keys)

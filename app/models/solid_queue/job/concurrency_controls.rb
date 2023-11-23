@@ -9,7 +9,7 @@ module SolidQueue
         delegate :concurrency_limit, :concurrency_duration, to: :job_class
       end
 
-      def unblock_blocked_jobs
+      def unblock_next_blocked_job
         if release_concurrency_lock
           release_next_blocked_job
         end
