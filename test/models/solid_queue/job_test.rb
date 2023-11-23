@@ -2,18 +2,18 @@ require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
   class NonOverlappingJob < ApplicationJob
-    limits_concurrency # Using all defaults
+    limits_concurrency key: ->(job_result, **) { job_result }
 
     def perform(job_result)
     end
   end
 
   class NonOverlappingGroupedJob1 < NonOverlappingJob
-    limits_concurrency group: "MyGroup"
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
 
   class NonOverlappingGroupedJob2 < NonOverlappingJob
-    limits_concurrency group: "MyGroup"
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
 
   setup do
