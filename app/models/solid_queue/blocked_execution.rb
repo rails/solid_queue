@@ -1,6 +1,7 @@
 module SolidQueue
   class BlockedExecution < SolidQueue::Execution
     assume_attributes_from_job :concurrency_key
+    before_create :set_expires_at
 
     has_one :semaphore, foreign_key: :key, primary_key: :concurrency_key
 
@@ -34,6 +35,10 @@ module SolidQueue
     end
 
     private
+      def set_expires_at
+        self.expires_at = job.concurrency_duration.from_now
+      end
+
       def acquire_concurrency_lock
         Semaphore.wait(job)
       end

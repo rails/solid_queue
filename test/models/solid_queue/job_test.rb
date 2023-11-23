@@ -93,6 +93,9 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_blocked do
       NonOverlappingJob.perform_later(@result, name: "B")
     end
+
+    blocked_execution = SolidQueue::BlockedExecution.last
+    assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
   end
 
   private
