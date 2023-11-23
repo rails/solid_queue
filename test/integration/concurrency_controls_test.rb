@@ -10,7 +10,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     @result = JobResult.create!(queue_name: "default", status: "seq: ")
 
     default_worker = { queues: "default", polling_interval: 1, processes: 3, threads: 2 }
-    scheduler = { polling_interval: 1, batch_size: 200 }
+    scheduler = { polling_interval: 1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
     @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], scheduler: scheduler })
 

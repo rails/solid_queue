@@ -4,7 +4,7 @@ module SolidQueue
   class Scheduler
     include Runner
 
-    attr_accessor :batch_size, :polling_interval
+    attr_accessor :batch_size, :polling_interval, :concurrency_maintenance_interval
 
     set_callback :start, :before, :launch_concurrency_maintenance
     set_callback :shutdown, :before, :stop_concurrency_maintenance
@@ -14,6 +14,7 @@ module SolidQueue
 
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
+      @concurrency_maintenance_interval = options[:concurrency_maintenance_interval]
     end
 
     private
@@ -33,7 +34,7 @@ module SolidQueue
       end
 
       def launch_concurrency_maintenance
-        @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: polling_interval) do
+        @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: concurrency_maintenance_interval) do
           expire_semaphores
           unblock_blocked_executions
         end
