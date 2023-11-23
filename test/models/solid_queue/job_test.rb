@@ -2,10 +2,18 @@ require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
   class NonOverlappingJob < ApplicationJob
-    limits_concurrency key: ->(job_result, **) { job_result }
+    limits_concurrency # Using all defaults
 
     def perform(job_result)
     end
+  end
+
+  class NonOverlappingGroupedJob1 < NonOverlappingJob
+    limits_concurrency group: "MyGroup"
+  end
+
+  class NonOverlappingGroupedJob2 < NonOverlappingJob
+    limits_concurrency group: "MyGroup"
   end
 
   setup do
@@ -61,6 +69,20 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     job = SolidQueue::Job.last
     assert_equal active_job.concurrency_limit, job.concurrency_limit
     assert_equal active_job.concurrency_key, job.concurrency_key
+  end
+
+  test "enqueue jobs with concurrency controls in the same concurrency group" do
+    assert_ready do
+      active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+
+    assert_blocked do
+      active_job = NonOverlappingGroupedJob2.perform_later(@result, name: "B")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+    end
   end
 
   test "block jobs when concurrency limits are reached" do
