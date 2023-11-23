@@ -181,14 +181,6 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   private
-    def terminate_registered_processes
-      skip_active_record_query_cache do
-        SolidQueue::Process.find_each do |process|
-          terminate_process(process.metadata["pid"], from_parent: false)
-        end
-      end
-    end
-
     def assert_clean_termination
       wait_for_registered_processes 0, timeout: 0.2.second
       assert_no_registered_processes

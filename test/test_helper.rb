@@ -79,22 +79,15 @@ class ActiveSupport::TestCase
       end
     end
 
-    def terminate_process(pid, timeout: 10, signal: :TERM, from_parent: true)
+    def terminate_process(pid, timeout: 10, signal: :TERM)
       signal_process(pid, signal)
-      wait_for_process_termination_with_timeout(pid, timeout: timeout, from_parent: from_parent)
+      wait_for_process_termination_with_timeout(pid, timeout: timeout)
     end
 
-    def wait_for_process_termination_with_timeout(pid, timeout: 10, from_parent: true, exitstatus: 0)
+    def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0)
       Timeout.timeout(timeout) do
-        if from_parent
-          Process.waitpid(pid)
-          assert exitstatus, $?.exitstatus
-        else
-          loop do
-            break unless process_exists?(pid)
-            sleep 0.05
-          end
-        end
+        Process.waitpid(pid)
+        assert exitstatus, $?.exitstatus
       end
     rescue Timeout::Error
       signal_process(pid, :KILL)
