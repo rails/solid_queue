@@ -106,8 +106,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # the semaphore but hadn't unblocked any jobs
     assert SolidQueue::Semaphore.signal(job)
 
-    # And wait for workers to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
+    # And wait for the scheduler to release the jobs
+    wait_for_jobs_to_finish_for(5.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
@@ -133,11 +133,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       end
     end
 
-    # Simulate semaphore expiration
-    SolidQueue::Semaphore.find_by(key: job.concurrency_key).update(expires_at: 1.hour.ago)
-
     # And wait for scheduler to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when

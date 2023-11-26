@@ -34,7 +34,7 @@ module SolidQueue
   mattr_accessor :supervisor, default: false
 
   mattr_accessor :delete_finished_jobs, default: true
-  mattr_accessor :default_concurrency_control_period, default: 15.minutes
+  mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
   def self.supervisor?
     supervisor

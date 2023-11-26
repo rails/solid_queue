@@ -5,11 +5,13 @@ module SolidQueue
 
     has_one :semaphore, foreign_key: :key, primary_key: :concurrency_key
 
-    scope :releasable, -> { left_outer_joins(:semaphore).merge(Semaphore.available.or(Semaphore.where(id: nil))) }
+    scope :expired, -> { where(expires_at: ...Time.current) }
 
     class << self
       def unblock(count)
-        release_many releasable.distinct.limit(count).pluck(:concurrency_key)
+        expired.distinct.limit(count).pluck(:concurrency_key).then do |concurrency_keys|
+          release_many releasable(concurrency_keys)
+        end
       end
 
       def release_many(concurrency_keys)
@@ -21,6 +23,14 @@ module SolidQueue
       def release_one(concurrency_key)
         ordered.where(concurrency_key: concurrency_key).limit(1).lock("FOR UPDATE SKIP LOCKED").each(&:release)
       end
+
+      private
+        def releasable(concurrency_keys)
+          semaphores = Semaphore.where(key: concurrency_keys).pluck(:key, :value).index_by(&:key)
+
+          # Concurrency keys without semaphore + concurrency keys with open semaphore
+          (concurrency_keys - semaphores.keys) | semaphores.select { |key, value| value > 0 }.map(&:first)
+        end
     end
 
     def release
