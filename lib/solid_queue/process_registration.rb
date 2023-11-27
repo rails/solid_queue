@@ -9,7 +9,7 @@ module SolidQueue
       define_callbacks :start, :run, :shutdown
 
       set_callback :start, :before, :register
-      set_callback :start, :before, :start_heartbeat
+      set_callback :start, :before, :launch_heartbeat
 
       set_callback :run, :after, -> { stop unless registered? }
 
@@ -43,7 +43,7 @@ module SolidQueue
         process.persisted?
       end
 
-      def start_heartbeat
+      def launch_heartbeat
         @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) { heartbeat }
         @heartbeat_task.execute
       end

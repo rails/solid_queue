@@ -16,19 +16,23 @@ module SolidQueue
 
     private
       def run
-        claimed_executions = with_polling_volume do
-          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
-        end
+        polled_executions = poll
 
-        if claimed_executions.size > 0
-          procline "performing #{claimed_executions.count} jobs"
+        if polled_executions.size > 0
+          procline "performing #{polled_executions.count} jobs"
 
-          claimed_executions.each do |execution|
+          polled_executions.each do |execution|
             pool.post(execution)
           end
         else
           procline "waiting for jobs in #{queues.join(",")}"
           interruptible_sleep(polling_interval)
+        end
+      end
+
+      def poll
+        with_polling_volume do
+          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
         end
       end
 

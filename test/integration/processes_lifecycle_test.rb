@@ -13,7 +13,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   teardown do
-    terminate_supervisor if process_exists?(@pid)
+    terminate_process(@pid) if process_exists?(@pid)
   end
 
   test "enqueue jobs in multiple queues" do
@@ -26,7 +26,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     6.times { |i| assert_completed_job_results("job_#{i}", :background) }
     6.times { |i| assert_completed_job_results("job_#{i}", :default) }
 
-    terminate_supervisor
+    terminate_process(@pid)
     assert_clean_termination
   end
 
@@ -150,7 +150,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       assert_job_status(job, :failed)
     end
 
-    terminate_supervisor
+    terminate_process(@pid)
     assert_clean_termination
   end
 
@@ -175,25 +175,12 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     assert process_exists?(@pid)
-
-    terminate_supervisor
+    terminate_process(@pid)
 
     assert_clean_termination
   end
 
   private
-    def terminate_supervisor
-      terminate_process(@pid)
-    end
-
-    def terminate_registered_processes
-      skip_active_record_query_cache do
-        SolidQueue::Process.find_each do |process|
-          terminate_process(process.metadata["pid"], from_parent: false)
-        end
-      end
-    end
-
     def assert_clean_termination
       wait_for_registered_processes 0, timeout: 0.2.second
       assert_no_registered_processes

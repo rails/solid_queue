@@ -10,7 +10,8 @@ module SolidQueue
 
     SCHEDULER_DEFAULTS = {
       batch_size: 500,
-      polling_interval: 300
+      polling_interval: 300,
+      concurrency_maintenance_interval: 600
     }
 
     def initialize(mode: :work, load_from: nil)

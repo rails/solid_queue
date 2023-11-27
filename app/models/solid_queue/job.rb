@@ -18,7 +18,8 @@ class SolidQueue::Job < SolidQueue::Record
         priority: active_job.priority,
         scheduled_at: scheduled_at,
         class_name: active_job.class.name,
-        arguments: active_job.serialize
+        arguments: active_job.serialize,
+        concurrency_key: active_job.try(:concurrency_key)
     end
 
     def enqueue(**kwargs)

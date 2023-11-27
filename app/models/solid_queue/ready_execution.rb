@@ -1,7 +1,6 @@
 module SolidQueue
   class ReadyExecution < Execution
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
-    scope :ordered, -> { order(priority: :asc, job_id: :asc) }
 
     assume_attributes_from_job
 

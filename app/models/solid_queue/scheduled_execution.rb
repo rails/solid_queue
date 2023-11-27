@@ -1,5 +1,5 @@
 class SolidQueue::ScheduledExecution < SolidQueue::Execution
-  scope :due, -> { where("scheduled_at <= ?", Time.current) }
+  scope :due, -> { where(scheduled_at: ..Time.current) }
   scope :ordered, -> { order(scheduled_at: :asc, priority: :asc) }
   scope :next_batch, ->(batch_size) { due.ordered.limit(batch_size) }
 
@@ -10,7 +10,7 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
       prepared_at = Time.current
 
       rows = batch.map do |scheduled_execution|
-        scheduled_execution.execution_ready_attributes.merge(created_at: prepared_at)
+        scheduled_execution.ready_attributes.merge(created_at: prepared_at)
       end
 
       if rows.any?
@@ -22,9 +22,5 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
 
       SolidQueue.logger.info("[SolidQueue] Prepared scheduled batch with #{rows.size} jobs at #{prepared_at}")
     end
-  end
-
-  def execution_ready_attributes
-    attributes.slice("job_id", "queue_name", "priority")
   end
 end
