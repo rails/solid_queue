@@ -39,6 +39,10 @@ module SolidQueue
           unblock_blocked_executions
         end
 
+        @concurrency_maintenance_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
+        end
+
         @concurrency_maintenance_task.execute
       end
 

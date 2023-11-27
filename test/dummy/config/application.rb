@@ -28,8 +28,6 @@ module Dummy
     # config.eager_load_paths << Rails.root.join("extras")
 
     config.active_job.queue_adapter = :solid_queue
-
-    config.solid_queue.logger = ActiveSupport::Logger.new(nil)
     config.solid_queue.delete_finished_jobs = false
   end
 end

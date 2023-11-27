@@ -94,20 +94,20 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       assert SolidQueue::Semaphore.wait(job)
     end
 
-    # Now enqueue more jobs under that same key. They'll be all locked. Use priorities
-    # to ensure order.
+    # Now enqueue more jobs under that same key. They'll be all locked
     assert_difference -> { SolidQueue::BlockedExecution.count }, +10 do
       ("B".."K").each do |name|
         SequentialUpdateResultJob.perform_later(@result, name: name)
       end
     end
 
-    # Then unlock the semaphore: this would be as if the first job had released
-    # the semaphore but hadn't unblocked any jobs
+    # Then unlock the semaphore and expire the jobs: this would be as if the first job had
+    # released the semaphore but hadn't unblocked any jobs
+    SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
     assert SolidQueue::Semaphore.signal(job)
 
     # And wait for the scheduler to release the jobs
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
@@ -133,8 +133,12 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       end
     end
 
+    # Simulate expiration of semaphore and executions
+    SolidQueue::Semaphore.where(key: job.concurrency_key).update_all(expires_at: 15.minutes.ago)
+    SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
+
     # And wait for scheduler to release the jobs
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
