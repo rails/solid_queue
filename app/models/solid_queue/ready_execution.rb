@@ -18,8 +18,8 @@ module SolidQueue
           return [] if limit <= 0
 
           transaction do
-            candidates = select_candidates(queue_relation, limit)
-            lock(candidates, process_id)
+            job_ids = select_candidates(queue_relation, limit)
+            lock_candidates(job_ids, process_id)
           end
         end
 
@@ -27,9 +27,10 @@ module SolidQueue
           queue_relation.ordered.limit(limit).lock("FOR UPDATE SKIP LOCKED").pluck(:job_id)
         end
 
-        def lock(candidates, process_id)
-          return [] if candidates.none?
-          SolidQueue::ClaimedExecution.claiming(candidates, process_id) do |claimed|
+        def lock_candidates(job_ids, process_id)
+          return [] if job_ids.none?
+
+          SolidQueue::ClaimedExecution.claiming(job_ids, process_id) do |claimed|
             where(job_id: claimed.pluck(:job_id)).delete_all
           end
         end
