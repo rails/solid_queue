@@ -14,7 +14,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], scheduler: scheduler })
 
-    wait_for_registered_processes(4, timeout: 0.2.second) # 3 workers working the default queue + supervisor
+    wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + scheduler + supervisor
   end
 
   teardown do
