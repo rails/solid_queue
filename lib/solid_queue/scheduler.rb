@@ -58,6 +58,10 @@ module SolidQueue
         BlockedExecution.unblock(batch_size)
       end
 
+      def initial_jitter
+        Kernel.rand(0...polling_interval)
+      end
+
       def metadata
         super.merge(batch_size: batch_size, polling_interval: polling_interval)
       end

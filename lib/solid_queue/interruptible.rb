@@ -17,7 +17,7 @@ module SolidQueue::Interruptible
     end
 
     def interruptible_sleep(time)
-      if self_pipe[:reader].wait_readable(time)
+      if time > 0 && self_pipe[:reader].wait_readable(time)
         loop { self_pipe[:reader].read_nonblock(SELF_PIPE_BLOCK_SIZE) }
       end
     rescue Errno::EAGAIN, Errno::EINTR
