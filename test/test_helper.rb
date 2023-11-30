@@ -36,14 +36,7 @@ class ActiveSupport::TestCase
 
   private
     def wait_for_jobs_to_finish_for(timeout = 1.second)
-      skip_active_record_query_cache do
-        Timeout.timeout(timeout) do
-          while SolidQueue::Job.where(finished_at: nil).any? do
-            sleep 0.05
-          end
-        end
-      end
-    rescue Timeout::Error
+      wait_while_with_timeout(timeout) { SolidQueue::Job.where(finished_at: nil).any? }
     end
 
     def assert_no_pending_jobs
@@ -59,12 +52,7 @@ class ActiveSupport::TestCase
     end
 
     def wait_for_registered_processes(count, timeout: 1.second)
-      Timeout.timeout(timeout) do
-        while SolidQueue::Process.count != count do
-          sleep 0.05
-        end
-      end
-    rescue Timeout::Error
+      wait_while_with_timeout(timeout) { SolidQueue::Process.count != count }
     end
 
     def assert_no_registered_processes
@@ -86,12 +74,25 @@ class ActiveSupport::TestCase
 
     def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0)
       Timeout.timeout(timeout) do
-        Process.waitpid(pid)
-        assert exitstatus, $?.exitstatus
+        if process_exists?(pid)
+          Process.waitpid(pid)
+          assert exitstatus, $?.exitstatus
+        end
       end
     rescue Timeout::Error
       signal_process(pid, :KILL)
       raise
+    end
+
+    def wait_while_with_timeout(timeout, &block)
+      Timeout.timeout(timeout) do
+        skip_active_record_query_cache do
+          while block.call
+            sleep 0.05
+          end
+        end
+      end
+    rescue Timeout::Error
     end
 
     def signal_process(pid, signal, wait: nil)

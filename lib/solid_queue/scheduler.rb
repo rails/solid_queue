@@ -19,17 +19,17 @@ module SolidQueue
 
     private
       def run
+        batch = prepare_next_batch
+
+        unless batch.size > 0
+          procline "waiting"
+          interruptible_sleep(polling_interval)
+        end
+      end
+
+      def prepare_next_batch
         with_polling_volume do
-          batch = SolidQueue::ScheduledExecution.next_batch(batch_size).tap(&:load)
-
-          if batch.size > 0
-            procline "preparing #{batch.size} jobs for execution"
-
-            SolidQueue::ScheduledExecution.prepare_batch(batch)
-          else
-            procline "waiting"
-            interruptible_sleep(polling_interval)
-          end
+          SolidQueue::ScheduledExecution.prepare_next_batch(batch_size)
         end
       end
 
@@ -51,11 +51,19 @@ module SolidQueue
       end
 
       def expire_semaphores
-        Semaphore.expired.in_batches(of: batch_size, &:delete_all)
+        wrap_in_app_executor do
+          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
+        end
       end
 
       def unblock_blocked_executions
-        BlockedExecution.unblock(batch_size)
+        wrap_in_app_executor do
+          BlockedExecution.unblock(batch_size)
+        end
+      end
+
+      def initial_jitter
+        Kernel.rand(0...polling_interval)
       end
 
       def metadata

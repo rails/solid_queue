@@ -11,6 +11,7 @@ module SolidQueue
 
     def start(mode: :supervised)
       boot_in mode
+      observe_starting_delay
 
       run_callbacks(:start) do
         if mode == :async
@@ -42,6 +43,10 @@ module SolidQueue
         register_signal_handlers
 
         SolidQueue.logger.info("[SolidQueue] Starting #{self}")
+      end
+
+      def observe_starting_delay
+        interruptible_sleep(initial_jitter)
       end
 
       def register_signal_handlers
@@ -79,6 +84,10 @@ module SolidQueue
 
       def shutdown
         procline "shutting down"
+      end
+
+      def initial_jitter
+        0
       end
 
       def stopping?

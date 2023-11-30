@@ -14,7 +14,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], scheduler: scheduler })
 
-    wait_for_registered_processes(4, timeout: 0.2.second) # 3 workers working the default queue + supervisor
+    wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + scheduler + supervisor
   end
 
   teardown do
@@ -89,6 +89,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
+    wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
       assert SolidQueue::Semaphore.wait(job)
@@ -121,6 +122,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
+    wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
       assert SolidQueue::Semaphore.wait(job)
