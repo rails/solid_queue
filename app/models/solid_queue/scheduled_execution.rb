@@ -27,6 +27,8 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
         SolidQueue::ReadyExecution.insert_all(rows)
         SolidQueue::ReadyExecution.where(job_id: batch.map(&:job_id)).pluck(:job_id).tap do |enqueued_job_ids|
           where(job_id: enqueued_job_ids).delete_all
+
+          SolidQueue.logger.info("[SolidQueue] Prepared scheduled batch with #{enqueued_job_ids.size} jobs")
         end
       end
 
