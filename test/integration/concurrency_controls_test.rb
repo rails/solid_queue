@@ -89,6 +89,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
+    wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
       assert SolidQueue::Semaphore.wait(job)
@@ -121,6 +122,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
+    wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
     skip_active_record_query_cache do
       assert SolidQueue::Semaphore.wait(job)
