@@ -19,15 +19,15 @@ module SolidQueue
 
     private
       def run
-        with_polling_volume do
-          unless select_and_prepare_next_batch
-            procline "waiting"
-            interruptible_sleep(polling_interval)
-          end
+        batch = prepare_next_batch
+
+        unless batch.size > 0
+          procline "waiting"
+          interruptible_sleep(polling_interval)
         end
       end
 
-      def select_and_prepare_next_batch
+      def prepare_next_batch
         with_polling_volume do
           SolidQueue::ScheduledExecution.prepare_next_batch(batch_size)
         end

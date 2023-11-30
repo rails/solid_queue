@@ -8,8 +8,8 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
   class << self
     def prepare_next_batch(batch_size)
       transaction do
-        prepared_job_ids = prepare_batch next_batch(batch_size).lock("FOR UPDATE SKIP LOCKED").tap(&:load)
-        prepared_job_ids.present?
+        batch = next_batch(batch_size).lock("FOR UPDATE SKIP LOCKED").tap(&:load)
+        prepare_batch batch
       end
     end
 
