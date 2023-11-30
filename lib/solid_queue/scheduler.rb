@@ -51,11 +51,15 @@ module SolidQueue
       end
 
       def expire_semaphores
-        Semaphore.expired.in_batches(of: batch_size, &:delete_all)
+        wrap_in_app_executor do
+          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
+        end
       end
 
       def unblock_blocked_executions
-        BlockedExecution.unblock(batch_size)
+        wrap_in_app_executor do
+          BlockedExecution.unblock(batch_size)
+        end
       end
 
       def initial_jitter
