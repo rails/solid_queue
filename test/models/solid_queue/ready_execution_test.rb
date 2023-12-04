@@ -119,9 +119,17 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
   end
 
+  test "claim jobs for queue without jobs at the moment using prefixes" do
+    AddToBufferJob.perform_later("hey")
+
+    assert_claimed_jobs(0) do
+      SolidQueue::ReadyExecution.claim(%w[ none* ], SolidQueue::Job.count + 1, 42)
+    end
+  end
+
   private
     def assert_claimed_jobs(count, &block)
-      assert_difference -> { SolidQueue::ReadyExecution.count } => -count, -> { SolidQueue::ClaimedExecution.count } => +count do
+      assert_difference -> { SolidQueue::ClaimedExecution.count } => +count, -> { SolidQueue::ReadyExecution.count } => -count do
         block.call
       end
     end
