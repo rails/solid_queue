@@ -130,6 +130,7 @@ GEM
       racc (~> 1.4)
     nokogiri (1.15.4-x86_64-linux)
       racc (~> 1.4)
+    pg (1.5.4)
     racc (1.7.1)
     rack (3.0.8)
     rack-session (2.0.0)
@@ -192,6 +193,7 @@ DEPENDENCIES
   debug
   mocha
   mysql2
+  pg
   solid_queue!
   sqlite3
 

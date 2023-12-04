@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version: [3.2.2]
-        database: [mysql, sqlite]
+        database: [mysql, postgres, sqlite]
     services:
       mysql:
         image: mysql:8.0.31
@@ -18,6 +18,12 @@ jobs:
         ports:
           - 33060:3306
         options: --health-cmd "mysql -h localhost -e \"select now()\"" --health-interval 1s --health-timeout 5s --health-retries 30
+      postgres:
+        image: postgres:15.1
+        env:
+          POSTGRES_HOST_AUTH_METHOD: "trust"
+        ports:
+          - 55432:5432
     env:
       TARGET_DB: ${{ matrix.database }}
     steps:

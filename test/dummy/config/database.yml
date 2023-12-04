@@ -20,6 +20,25 @@ test:
   pool: 20
   database: db/test.sqlite3
 
+<% elsif ENV["TARGET_DB"] == "postgres" %>
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  username: postgres
+  pool: 5
+  host: "127.0.0.1"
+  port: 55432
+  gssencmode: disable # https://github.com/ged/ruby-pg/issues/311
+
+development:
+  <<: *default
+  database: solid_queue_development
+
+test:
+  <<: *default
+  pool: 20
+  database: solid_queue_test
+
 <% else %>
 default: &default
   adapter: mysql2
