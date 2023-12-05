@@ -4,7 +4,7 @@ module SolidQueue
   class Scheduler
     include Runner
 
-    attr_accessor :batch_size, :polling_interval, :concurrency_maintenance_interval
+    attr_accessor :batch_size, :polling_interval
 
     set_callback :start, :before, :launch_concurrency_maintenance
     set_callback :shutdown, :before, :stop_concurrency_maintenance
@@ -14,7 +14,8 @@ module SolidQueue
 
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
-      @concurrency_maintenance_interval = options[:concurrency_maintenance_interval]
+
+      @concurrency_clerk = ConcurrencyClerk.new(options[:concurrency_maintenance_interval], options[:batch_size])
     end
 
     private
@@ -34,32 +35,11 @@ module SolidQueue
       end
 
       def launch_concurrency_maintenance
-        @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: concurrency_maintenance_interval) do
-          expire_semaphores
-          unblock_blocked_executions
-        end
-
-        @concurrency_maintenance_task.add_observer do |_, _, error|
-          handle_thread_error(error) if error
-        end
-
-        @concurrency_maintenance_task.execute
+        @concurrency_clerk.start
       end
 
       def stop_concurrency_maintenance
-        @concurrency_maintenance_task.shutdown
-      end
-
-      def expire_semaphores
-        wrap_in_app_executor do
-          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
-        end
-      end
-
-      def unblock_blocked_executions
-        wrap_in_app_executor do
-          BlockedExecution.unblock(batch_size)
-        end
+        @concurrency_clerk.stop
       end
 
       def initial_jitter
