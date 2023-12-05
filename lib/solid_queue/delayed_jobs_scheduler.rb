@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Scheduler
+  class DelayedJobsScheduler
     include Runner
 
     attr_accessor :batch_size, :polling_interval

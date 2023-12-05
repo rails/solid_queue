@@ -11,7 +11,8 @@ module SolidQueue
     SCHEDULER_DEFAULTS = {
       batch_size: 500,
       polling_interval: 300,
-      concurrency_maintenance_interval: 600
+      concurrency_maintenance_interval: 600,
+      recurring_jobs: []
     }
 
     def initialize(mode: :work, load_from: nil)
@@ -21,9 +22,9 @@ module SolidQueue
 
     def runners
       case mode
-      when :schedule then scheduler
+      when :schedule then schedulers
       when :work     then workers
-      when :all      then [ scheduler ] + workers
+      when :all      then schedulers + workers
       else           raise "Invalid mode #{mode}"
       end
     end
@@ -39,9 +40,9 @@ module SolidQueue
       end
     end
 
-    def scheduler
+    def schedulers
       if mode.in? %i[ schedule all]
-        SolidQueue::Scheduler.new(**scheduler_options)
+        [ SolidQueue::DelayedJobsScheduler.new(**scheduler_options) ]
       end
     end
 

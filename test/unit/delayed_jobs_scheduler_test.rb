@@ -1,11 +1,11 @@
 require "test_helper"
 require "active_support/testing/method_call_assertions"
 
-class SchedulerTest < ActiveSupport::TestCase
+class DelayedJobsSchedulerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
   setup do
-    @scheduler = SolidQueue::Scheduler.new(polling_interval: 0.1, batch_size: 10)
+    @scheduler = SolidQueue::DelayedJobsScheduler.new(polling_interval: 0.1, batch_size: 10)
   end
 
   teardown do
@@ -46,7 +46,7 @@ class SchedulerTest < ActiveSupport::TestCase
     end
     assert_equal 15, SolidQueue::ScheduledExecution.count
 
-    another_scheduler = SolidQueue::Scheduler.new(polling_interval: 0.1, batch_size: 10)
+    another_scheduler = SolidQueue::DelayedJobsScheduler.new(polling_interval: 0.1, batch_size: 10)
     @scheduler.start(mode: :async)
     another_scheduler.start(mode: :async)
 

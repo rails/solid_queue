@@ -16,7 +16,7 @@ require "solid_queue/runner"
 require "solid_queue/process_registration"
 require "solid_queue/concurrency_clerk"
 require "solid_queue/worker"
-require "solid_queue/scheduler"
+require "solid_queue/delayed_jobs_scheduler"
 require "solid_queue/supervisor"
 
 module SolidQueue

@@ -97,7 +97,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
     def assert_registered_scheduler(**metadata)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Scheduler")
+        processes = find_processes_registered_as("DelayedJobsScheduler")
         assert_equal 1, processes.count
         assert metadata < processes.first.metadata.symbolize_keys
       end
