@@ -106,12 +106,12 @@ module SolidQueue
         mode.supervised?
       end
 
-      def all_work_completed?
-        false
-      end
-
       def running_inline?
         mode.inline?
+      end
+
+      def all_work_completed?
+        false
       end
 
       def with_polling_volume

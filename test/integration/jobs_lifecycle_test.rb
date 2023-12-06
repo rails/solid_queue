@@ -4,7 +4,7 @@ require "test_helper"
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.5)
-    @scheduler = SolidQueue::DelayedJobsScheduler.new(batch_size: 10, polling_interval: 1)
+    @scheduler = SolidQueue::Scheduler::DelayedJobsScheduler.new(batch_size: 10, polling_interval: 1)
   end
 
   teardown do

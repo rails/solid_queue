@@ -1,7 +1,7 @@
 require "test_helper"
 require "active_support/testing/method_call_assertions"
 
-class WorkerTest < ActiveSupport::TestCase
+class SolidQueue::WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
   setup do

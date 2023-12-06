@@ -7,11 +7,6 @@ default: &default
   scheduler:
     polling_interval: 1
     batch_size: 500
-    recurring_tasks:
-      store-results:
-        class: "StoreResultJob"
-        schedule: "0/5 * * * *"
-        args: [ 42, { pause: 2 } ]
 
 development:
   <<: *default

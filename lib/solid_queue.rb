@@ -14,10 +14,6 @@ require "solid_queue/pool"
 require "solid_queue/queue_selector"
 require "solid_queue/runner"
 require "solid_queue/process_registration"
-require "solid_queue/concurrency_clerk"
-require "solid_queue/worker"
-require "solid_queue/delayed_jobs_scheduler"
-require "solid_queue/supervisor"
 
 module SolidQueue
   mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
