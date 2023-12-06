@@ -29,10 +29,10 @@ module SolidQueue
       end
 
       def finished!
-        if delete_finished_jobs?
-          destroy!
-        else
+        if preserve_finished_jobs?
           touch(:finished_at)
+        else
+          destroy!
         end
       end
 
@@ -77,8 +77,8 @@ module SolidQueue
         end
 
 
-        def delete_finished_jobs?
-          SolidQueue.delete_finished_jobs
+        def preserve_finished_jobs?
+          SolidQueue.preserve_finished_jobs
         end
     end
   end
