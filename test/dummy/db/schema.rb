@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2023_12_01_102514) do
+ActiveRecord::Schema[7.1].define(version: 2023_12_06_150233) do
   create_table "job_results", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "queue_name"
     t.string "status"
@@ -58,6 +58,7 @@ ActiveRecord::Schema[7.1].define(version: 2023_12_01_102514) do
     t.string "concurrency_key"
     t.index ["active_job_id"], name: "index_solid_queue_jobs_on_job_id"
     t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
+    t.index ["finished_at"], name: "index_solid_queue_jobs_on_finished_at"
     t.index ["queue_name", "scheduled_at", "finished_at"], name: "index_solid_queue_jobs_for_alerting"
   end
 
@@ -107,4 +108,9 @@ ActiveRecord::Schema[7.1].define(version: 2023_12_01_102514) do
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
   end
 
+  add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
 end
