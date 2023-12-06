@@ -64,6 +64,28 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal 0, SolidQueue::Job.count
   end
 
+  test "clear finished jobs after configured period" do
+    10.times { AddToBufferJob.perform_later(2) }
+    jobs = SolidQueue::Job.last(10)
+
+    assert_no_difference -> { SolidQueue::Job.count } do
+      SolidQueue::Job.clear_finished_in_batches
+    end
+
+    # Simulate that only 5 of these jobs finished
+    jobs.sample(5).each(&:finished!)
+
+    assert_no_difference -> { SolidQueue::Job.count } do
+      SolidQueue::Job.clear_finished_in_batches
+    end
+
+    travel_to 3.days.from_now
+
+    assert_difference -> { SolidQueue::Job.count }, -5 do
+      SolidQueue::Job.clear_finished_in_batches
+    end
+  end
+
   private
     def deleting_finished_jobs
       previous, SolidQueue.preserve_finished_jobs = SolidQueue.preserve_finished_jobs, false

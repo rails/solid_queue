@@ -4,7 +4,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include ConcurrencyControls
+        include Clearable, ConcurrencyControls
 
         has_one :ready_execution, dependent: :destroy
         has_one :claimed_execution, dependent: :destroy
