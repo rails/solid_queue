@@ -106,6 +106,8 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   test "uses a different connection and transaction than the one in use" do
+    skip "SQLite doesn't support multiple connections open at the same time" if target_db.sqlite?
+
     assert_difference -> { SolidQueue::Job.count } do
       assert_no_difference -> { JobResult.count } do
         JobResult.transaction do

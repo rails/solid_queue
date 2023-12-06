@@ -8,7 +8,7 @@ module SolidQueue
 
     class_methods do
       def with_separate_database_connection(&block)
-        if requires_new_connection?
+        if !SolidQueue.use_active_db_connection_to_enqueue_jobs && requires_new_connection?
           with_new_connection(&block)
         else
           block.call

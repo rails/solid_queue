@@ -34,6 +34,10 @@ class ActiveSupport::TestCase
     end
   end
 
+  def target_db
+    ENV["TARGET_DB"].inquiry
+  end
+
   private
     def wait_for_jobs_to_finish_for(timeout = 1.second)
       wait_while_with_timeout(timeout) { SolidQueue::Job.where(finished_at: nil).any? }

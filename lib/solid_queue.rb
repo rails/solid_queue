@@ -37,6 +37,8 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  mattr_accessor :use_active_db_connection_to_enqueue_jobs, default: false
+
   def self.supervisor?
     supervisor
   end
