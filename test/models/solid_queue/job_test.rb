@@ -1,6 +1,8 @@
 require "test_helper"
 
 class SolidQueue::JobTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
   class NonOverlappingJob < ApplicationJob
     limits_concurrency key: ->(job_result, **) { job_result }
 
@@ -18,6 +20,11 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
   setup do
     @result = JobResult.create!(queue_name: "default")
+  end
+
+  teardown do
+    SolidQueue::Job.destroy_all
+    JobResult.delete_all
   end
 
   test "enqueue active job to be executed right away" do
@@ -96,6 +103,21 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     blocked_execution = SolidQueue::BlockedExecution.last
     assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
+  end
+
+  test "uses a different connection and transaction than the one in use" do
+    assert_difference -> { SolidQueue::Job.count } do
+      assert_no_difference -> { JobResult.count } do
+        JobResult.transaction do
+          JobResult.create!(queue_name: "default", value: "this will be rolled back")
+          StoreResultJob.perform_later("enqueued inside a rolled back transaction")
+          raise ActiveRecord::Rollback
+        end
+      end
+    end
+
+    job = SolidQueue::Job.last
+    assert_equal "enqueued inside a rolled back transaction", job.arguments.dig("arguments", 0)
   end
 
   private

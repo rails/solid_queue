@@ -1,5 +1,5 @@
 class SolidQueue::Job < SolidQueue::Record
-  include Executable
+  include Executable, SeparateDatabaseConnections
 
   if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
     serialize :arguments, coder: JSON
@@ -23,8 +23,10 @@ class SolidQueue::Job < SolidQueue::Record
     end
 
     def enqueue(**kwargs)
-      create!(**kwargs.compact.with_defaults(defaults)).tap do
-        SolidQueue.logger.debug "[SolidQueue] Enqueued job #{kwargs}"
+      with_separate_database_connection do
+        create!(**kwargs.compact.with_defaults(defaults)).tap do
+          SolidQueue.logger.debug "[SolidQueue] Enqueued job #{kwargs}"
+        end
       end
     end
 
