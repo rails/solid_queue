@@ -42,7 +42,7 @@ module SolidQueue
 
     def schedulers
       if mode.in? %i[ schedule all]
-        [ SolidQueue::DelayedJobsScheduler.new(**scheduler_options) ]
+        [ delayed_jobs_scheduler, recurring_jobs_scheduler ].compact
       end
     end
 
@@ -53,6 +53,16 @@ module SolidQueue
 
     private
       attr_reader :raw_config, :mode
+
+      def delayed_jobs_scheduler
+        SolidQueue::Scheduler::DelayedJobsScheduler.new(**scheduler_options)
+      end
+
+      def recurring_jobs_scheduler
+        if scheduler_options[:recurring_jobs].any?
+          SolidQueue::Scheduler::RecurringJobsScheduler.new(**scheduler_options)
+        end
+      end
 
       DEFAULT_CONFIG_FILE_PATH = "config/solid_queue.yml"
 
