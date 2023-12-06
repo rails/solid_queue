@@ -66,9 +66,9 @@ class JobsLifecycleTest < ActiveSupport::TestCase
 
   private
     def deleting_finished_jobs
-      previous, SolidQueue.delete_finished_jobs = SolidQueue.delete_finished_jobs, true
+      previous, SolidQueue.preserve_finished_jobs = SolidQueue.preserve_finished_jobs, false
       yield
     ensure
-      SolidQueue.delete_finished_jobs = previous
+      SolidQueue.preserve_finished_jobs = previous
     end
 end
