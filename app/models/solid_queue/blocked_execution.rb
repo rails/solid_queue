@@ -21,7 +21,9 @@ module SolidQueue
       end
 
       def release_one(concurrency_key)
-        ordered.where(concurrency_key: concurrency_key).limit(1).lock("FOR UPDATE SKIP LOCKED").each(&:release)
+        transaction do
+          ordered.where(concurrency_key: concurrency_key).limit(1).lock("FOR UPDATE SKIP LOCKED").each(&:release)
+        end
       end
 
       private
