@@ -14,6 +14,9 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
   teardown do
     terminate_process(@pid) if process_exists?(@pid)
+
+    SolidQueue::Process.destroy_all
+    SolidQueue::Job.destroy_all
   end
 
   test "enqueue jobs in multiple queues" do

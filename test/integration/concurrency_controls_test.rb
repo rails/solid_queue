@@ -5,8 +5,6 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    SolidQueue::Job.delete_all
-
     @result = JobResult.create!(queue_name: "default", status: "seq: ")
 
     default_worker = { queues: "default", polling_interval: 1, processes: 3, threads: 2 }
@@ -19,6 +17,10 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   teardown do
     terminate_process(@pid) if process_exists?(@pid)
+
+    SolidQueue::Job.destroy_all
+    SolidQueue::Process.destroy_all
+    SolidQueue::Semaphore.delete_all
   end
 
   test "run several conflicting jobs over the same record sequentially" do

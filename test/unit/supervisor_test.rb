@@ -12,6 +12,8 @@ class SupervisorTest < ActiveSupport::TestCase
   teardown do
     SolidQueue.supervisor_pidfile = @previous_pidfile
     File.delete(@pidfile) if File.exist?(@pidfile)
+
+    SolidQueue::Process.destroy_all
   end
 
   test "start in work mode (default)" do
