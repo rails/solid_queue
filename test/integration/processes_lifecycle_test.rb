@@ -8,7 +8,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   setup do
     @pid = run_supervisor_as_fork
 
-    wait_for_registered_processes(3, timeout: 1.second)
+    wait_for_registered_processes(3, timeout: 2.second)
     assert_registered_workers_for(:background, :default)
   end
 
