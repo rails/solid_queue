@@ -24,9 +24,9 @@ class SolidQueue::Job < SolidQueue::Record
 
     def enqueue(**kwargs)
       with_separate_database_connection do
-        create!(**kwargs.compact.with_defaults(defaults)).tap do
-          SolidQueue.logger.debug "[SolidQueue] Enqueued job #{kwargs}"
-        end
+        create!(**kwargs.compact.with_defaults(defaults))
+      end.tap do
+        SolidQueue.logger.debug "[SolidQueue] Enqueued job #{kwargs}"
       end
     end
 
