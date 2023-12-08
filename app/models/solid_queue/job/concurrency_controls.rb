@@ -15,6 +15,10 @@ module SolidQueue
         end
       end
 
+      def concurrency_limited?
+        concurrency_key.present?
+      end
+
       private
         def acquire_concurrency_lock
           return true unless concurrency_limited?
@@ -34,10 +38,6 @@ module SolidQueue
 
         def release_next_blocked_job
           BlockedExecution.release_one(concurrency_key)
-        end
-
-        def concurrency_limited?
-          concurrency_key.present? && concurrency_limit.to_i > 0
         end
 
         def job_class
