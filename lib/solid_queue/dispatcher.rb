@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Scheduler
+  class Dispatcher
     include Runner
 
     attr_accessor :batch_size, :polling_interval, :concurrency_maintenance_interval
@@ -10,7 +10,7 @@ module SolidQueue
     set_callback :shutdown, :before, :stop_concurrency_maintenance
 
     def initialize(**options)
-      options = options.dup.with_defaults(SolidQueue::Configuration::SCHEDULER_DEFAULTS)
+      options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
 
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
@@ -19,7 +19,7 @@ module SolidQueue
 
     private
       def run
-        batch = prepare_next_batch
+        batch = dispatch_next_batch
 
         unless batch.size > 0
           procline "waiting"
@@ -27,9 +27,9 @@ module SolidQueue
         end
       end
 
-      def prepare_next_batch
+      def dispatch_next_batch
         with_polling_volume do
-          SolidQueue::ScheduledExecution.prepare_next_batch(batch_size)
+          SolidQueue::ScheduledExecution.dispatch_next_batch(batch_size)
         end
       end
 

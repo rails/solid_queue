@@ -8,11 +8,11 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     @result = JobResult.create!(queue_name: "default", status: "seq: ")
 
     default_worker = { queues: "default", polling_interval: 1, processes: 3, threads: 2 }
-    scheduler = { polling_interval: 1, batch_size: 200, concurrency_maintenance_interval: 1 }
+    dispatcher = { polling_interval: 1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
-    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], scheduler: scheduler })
+    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], dispatcher: dispatcher })
 
-    wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + scheduler + supervisor
+    wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + dispatcher + supervisor
   end
 
   teardown do
@@ -84,7 +84,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
   end
 
-  test "rely on scheduler to unblock blocked executions with an available semaphore" do
+  test "rely on dispatcher to unblock blocked executions with an available semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
 
@@ -109,7 +109,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
     assert SolidQueue::Semaphore.signal(job)
 
-    # And wait for the scheduler to release the jobs
+    # And wait for the dispatcher to release the jobs
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 
@@ -118,7 +118,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
   end
 
-  test "rely on scheduler to unblock blocked executions with an expired semaphore" do
+  test "rely on dispatcher to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
     wait_for_jobs_to_finish_for(3.seconds)
@@ -141,7 +141,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     SolidQueue::Semaphore.where(key: job.concurrency_key).update_all(expires_at: 15.minutes.ago)
     SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
 
-    # And wait for scheduler to release the jobs
+    # And wait for dispatcher to release the jobs
     wait_for_jobs_to_finish_for(3.seconds)
     assert_no_pending_jobs
 

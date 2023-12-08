@@ -15,7 +15,7 @@ require "solid_queue/queue_selector"
 require "solid_queue/runner"
 require "solid_queue/process_registration"
 require "solid_queue/worker"
-require "solid_queue/scheduler"
+require "solid_queue/dispatcher"
 require "solid_queue/supervisor"
 
 module SolidQueue

@@ -6,15 +6,14 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
   assume_attributes_from_job :scheduled_at
 
   class << self
-    def prepare_next_batch(batch_size)
+    def dispatch_next_batch(batch_size)
       transaction do
-        batch = next_batch(batch_size).lock("FOR UPDATE SKIP LOCKED").tap(&:load)
-        prepare_batch batch
+        dispatch_batch next_batch(batch_size).lock("FOR UPDATE SKIP LOCKED").tap(&:load)
       end
     end
 
     private
-      def prepare_batch(batch)
+      def dispatch_batch(batch)
         if batch.empty? then []
         else
           promote_batch_to_ready(batch)
@@ -28,7 +27,7 @@ class SolidQueue::ScheduledExecution < SolidQueue::Execution
         SolidQueue::ReadyExecution.where(job_id: batch.map(&:job_id)).pluck(:job_id).tap do |enqueued_job_ids|
           where(job_id: enqueued_job_ids).delete_all
 
-          SolidQueue.logger.info("[SolidQueue] Prepared scheduled batch with #{enqueued_job_ids.size} jobs")
+          SolidQueue.logger.info("[SolidQueue] Dispatched scheduled batch with #{enqueued_job_ids.size} jobs")
         end
       end
 

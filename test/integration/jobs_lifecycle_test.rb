@@ -4,12 +4,12 @@ require "test_helper"
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.5)
-    @scheduler = SolidQueue::Scheduler.new(batch_size: 10, polling_interval: 1)
+    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 1)
   end
 
   teardown do
     @worker.stop
-    @scheduler.stop
+    @dispatcher.stop
 
     JobBuffer.clear
   end
@@ -18,7 +18,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later "hey"
     AddToBufferJob.perform_later "ho"
 
-    @scheduler.start(mode: :async)
+    @dispatcher.start(mode: :async)
     @worker.start(mode: :async)
 
     wait_for_jobs_to_finish_for(2.seconds)
@@ -31,7 +31,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     AddToBufferJob.set(wait: 1.day).perform_later("I'm scheduled")
     AddToBufferJob.set(wait: 3.days).perform_later("I'm scheduled later")
 
-    @scheduler.start(mode: :async)
+    @dispatcher.start(mode: :async)
     @worker.start(mode: :async)
 
     assert_equal 2, SolidQueue::ScheduledExecution.count

@@ -5,7 +5,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(mode: :all)
     assert 3, configuration.runners.count
     assert_equal 2, configuration.workers.count
-    assert configuration.scheduler.present?
+    assert configuration.dispatcher.present?
   end
 
   test "provide configuration as a hash and fill defaults" do
@@ -13,7 +13,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     config_as_hash = { workers: [ background_worker, background_worker ] }
     configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
 
-    assert_equal SolidQueue::Configuration::SCHEDULER_DEFAULTS[:polling_interval], configuration.scheduler.polling_interval
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], configuration.dispatcher.polling_interval
     assert_equal 2, configuration.workers.count
     assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
     assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq

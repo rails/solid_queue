@@ -28,12 +28,12 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
-  test "start in schedule mode" do
-    pid = run_supervisor_as_fork(mode: :schedule)
+  test "start in dispatch mode" do
+    pid = run_supervisor_as_fork(mode: :dispatch)
     wait_for_registered_processes(0.3)
 
     assert_registered_supervisor(pid: pid, supervisor_pid: nil)
-    assert_registered_scheduler(supervisor_pid: pid)
+    assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
 
@@ -97,9 +97,9 @@ class SupervisorTest < ActiveSupport::TestCase
       end
     end
 
-    def assert_registered_scheduler(**metadata)
+    def assert_registered_dispatcher(**metadata)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Scheduler")
+        processes = find_processes_registered_as("Dispatcher")
         assert_equal 1, processes.count
         assert metadata < processes.first.metadata.symbolize_keys
       end
