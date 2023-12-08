@@ -10,7 +10,7 @@ module SolidQueue
 
     SCHEDULER_DEFAULTS = {
       batch_size: 500,
-      polling_interval: 300,
+      polling_interval: 5,
       concurrency_maintenance_interval: 600
     }
 
