@@ -35,7 +35,7 @@ class ActiveSupport::TestCase
   end
 
   def target_db
-    ENV["TARGET_DB"].inquiry
+    ENV.fetch("TARGET_DB", "mysql").inquiry
   end
 
   private
