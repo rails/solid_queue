@@ -4,7 +4,7 @@ default: &default
       threads: 3
     - queues: default
       threads: 5
-  scheduler:
+  dispatcher:
     polling_interval: 1
     batch_size: 500
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2023_12_06_150233) do
+ActiveRecord::Schema[7.1].define(version: 2023_12_08_215544) do
   create_table "job_results", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "queue_name"
     t.string "status"
@@ -94,7 +94,7 @@ ActiveRecord::Schema[7.1].define(version: 2023_12_06_150233) do
     t.datetime "scheduled_at", null: false
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
-    t.index ["scheduled_at", "priority"], name: "index_solid_queue_scheduled_executions"
+    t.index ["scheduled_at", "priority", "job_id"], name: "index_solid_queue_dispatch_all"
   end
 
   create_table "solid_queue_semaphores", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|

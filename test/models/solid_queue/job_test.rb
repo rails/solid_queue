@@ -61,6 +61,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert Time.now < execution.scheduled_at
   end
 
+  test "enqueue jobs without concurrency controls" do
+    active_job = AddToBufferJob.perform_later(1)
+    assert_nil active_job.concurrency_limit
+    assert_nil active_job.concurrency_key
+
+    job = SolidQueue::Job.last
+    assert_nil job.concurrency_limit
+    assert_not job.concurrency_limited?
+  end
+
   test "enqueue jobs with concurrency controls" do
     active_job = NonOverlappingJob.perform_later(@result, name: "A")
     assert_equal 1, active_job.concurrency_limit

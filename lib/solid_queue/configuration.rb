@@ -8,9 +8,9 @@ module SolidQueue
       polling_interval: 0.1
     }
 
-    SCHEDULER_DEFAULTS = {
+    DISPATCHER_DEFAULTS = {
       batch_size: 500,
-      polling_interval: 300,
+      polling_interval: 5,
       concurrency_maintenance_interval: 600
     }
 
@@ -21,9 +21,9 @@ module SolidQueue
 
     def runners
       case mode
-      when :schedule then scheduler
+      when :dispatch then dispatcher
       when :work     then workers
-      when :all      then [ scheduler ] + workers
+      when :all      then [ dispatcher ] + workers
       else           raise "Invalid mode #{mode}"
       end
     end
@@ -39,9 +39,9 @@ module SolidQueue
       end
     end
 
-    def scheduler
-      if mode.in? %i[ schedule all]
-        SolidQueue::Scheduler.new(**scheduler_options)
+    def dispatcher
+      if mode.in? %i[ dispatch all]
+        SolidQueue::Dispatcher.new(**dispatcher_options)
       end
     end
 
@@ -64,8 +64,8 @@ module SolidQueue
         @workers_options ||= (raw_config[:workers] || {}).map { |options| options.dup.symbolize_keys }
       end
 
-      def scheduler_options
-        (raw_config[:scheduler] || {}).with_defaults(SCHEDULER_DEFAULTS)
+      def dispatcher_options
+        (raw_config[:dispatcher] || {}).with_defaults(DISPATCHER_DEFAULTS)
       end
 
       def load_config_from(file_or_hash)

@@ -10,7 +10,7 @@ module ActiveJob
       class_attribute :concurrency_key, instance_accessor: false
       class_attribute :concurrency_group, default: DEFAULT_CONCURRENCY_GROUP, instance_accessor: false
 
-      class_attribute :concurrency_limit, default: 0 # No limit
+      class_attribute :concurrency_limit
       class_attribute :concurrency_duration, default: SolidQueue.default_concurrency_control_period
     end
 
@@ -24,14 +24,16 @@ module ActiveJob
     end
 
     def concurrency_key
-      param = compute_concurrency_parameter(self.class.concurrency_key)
+      if self.class.concurrency_key
+        param = compute_concurrency_parameter(self.class.concurrency_key)
 
-      case param
-      when ActiveRecord::Base
-        [ concurrency_group, param.class.name, param.id ]
-      else
-        [ concurrency_group, param ]
-      end.compact.join("/")
+        case param
+        when ActiveRecord::Base
+          [ concurrency_group, param.class.name, param.id ]
+        else
+          [ concurrency_group, param ]
+        end.compact.join("/")
+      end
     end
 
     private
