@@ -38,6 +38,23 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, ("A".."K").to_a
   end
 
+  test "schedule several conflicting jobs over the same record sequentially" do
+    UpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
+
+    ("A".."F").each do |name|
+      SequentialUpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: name, pause: 0.2.seconds)
+    end
+
+    ("G".."K").each do |name|
+      SequentialUpdateResultJob.set(wait: 0.4.seconds).perform_later(@result, name: name)
+    end
+
+    wait_for_jobs_to_finish_for(4.seconds)
+    assert_no_pending_jobs
+
+    assert_stored_sequence @result, ("A".."K").to_a
+  end
+
   test "run several jobs over the same record limiting concurrency" do
     incr = 0
     # C is the last one to update the record

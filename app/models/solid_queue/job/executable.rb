@@ -28,6 +28,13 @@ module SolidQueue
         end
       end
 
+      def dispatch
+        if acquire_concurrency_lock then ready
+        else
+          block
+        end
+      end
+
       def finished!
         if preserve_finished_jobs?
           touch(:finished_at)
@@ -59,13 +66,6 @@ module SolidQueue
       private
         def due?
           scheduled_at.nil? || scheduled_at <= Time.current
-        end
-
-        def dispatch
-          if acquire_concurrency_lock then ready
-          else
-            block
-          end
         end
 
         def schedule

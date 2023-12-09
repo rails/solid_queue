@@ -58,5 +58,9 @@ module SolidQueue
       def promote_to_ready
         ReadyExecution.create!(ready_attributes)
       end
+
+      def ready_attributes
+        attributes.slice("job_id", "queue_name", "priority")
+      end
   end
 end
