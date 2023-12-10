@@ -1,6 +1,8 @@
 module SolidQueue
   class Record < ActiveRecord::Base
     self.abstract_class = true
+
+    connects_to **SolidQueue.connects_to if SolidQueue.connects_to
   end
 end
 
