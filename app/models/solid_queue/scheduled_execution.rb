@@ -1,5 +1,5 @@
 module SolidQueue
-  class ScheduledExecution < SolidQueue::Execution
+  class ScheduledExecution < Execution
     scope :due, -> { where(scheduled_at: ..Time.current) }
     scope :ordered, -> { order(scheduled_at: :asc, priority: :asc) }
     scope :next_batch, ->(batch_size) { due.ordered.limit(batch_size) }

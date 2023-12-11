@@ -5,7 +5,7 @@ class SolidQueue::Process < SolidQueue::Record
   has_many :forks, class_name: "SolidQueue::Process", inverse_of: :supervisor, foreign_key: :supervisor_id, dependent: :destroy
   has_many :claimed_executions
 
-  store :metadata, accessors: [ :kind, :pid ], coder: JSON
+  store :metadata, coder: JSON
 
   after_destroy -> { claimed_executions.release_all }
 

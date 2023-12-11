@@ -63,7 +63,7 @@ class ActiveSupport::TestCase
 
     def find_processes_registered_as(kind)
       skip_active_record_query_cache do
-        SolidQueue::Process.all.select { |process| process.metadata["kind"] == kind }
+        SolidQueue::Process.where(kind: kind)
       end
     end
 

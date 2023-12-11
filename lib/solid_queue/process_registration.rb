@@ -32,7 +32,12 @@ module SolidQueue
       attr_accessor :process
 
       def register
-        @process = SolidQueue::Process.register(supervisor: supervisor, metadata: metadata)
+        @process = SolidQueue::Process.register \
+          kind: self.class.name.demodulize,
+          pid: process_pid,
+          supervisor: supervisor,
+          hostname: hostname,
+          metadata: metadata
       end
 
       def deregister
@@ -65,7 +70,7 @@ module SolidQueue
       end
 
       def metadata
-        { kind: self.class.name.demodulize, hostname: hostname, pid: process_pid, supervisor_pid: supervisor&.pid }
+        {}
       end
   end
 end

@@ -20,7 +20,7 @@ class SupervisorTest < ActiveSupport::TestCase
     pid = run_supervisor_as_fork
     wait_for_registered_processes(0.3)
 
-    assert_registered_supervisor(pid: pid, supervisor_pid: nil)
+    assert_registered_supervisor(pid)
     assert_registered_workers(2, supervisor_pid: pid)
 
     terminate_process(pid)
@@ -32,7 +32,7 @@ class SupervisorTest < ActiveSupport::TestCase
     pid = run_supervisor_as_fork(mode: :dispatch)
     wait_for_registered_processes(0.3)
 
-    assert_registered_supervisor(pid: pid, supervisor_pid: nil)
+    assert_registered_supervisor(pid)
     assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -86,30 +86,33 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def assert_registered_workers(count, **metadata)
+    def assert_registered_workers(count, supervisor_pid:, **metadata)
       skip_active_record_query_cache do
         workers = find_processes_registered_as("Worker")
         assert_equal count, workers.count
 
         workers.each do |process|
+          assert_equal supervisor_pid, process.supervisor.pid
           assert metadata < process.metadata.symbolize_keys
         end
       end
     end
 
-    def assert_registered_dispatcher(**metadata)
+    def assert_registered_dispatcher(supervisor_pid:, **metadata)
       skip_active_record_query_cache do
         processes = find_processes_registered_as("Dispatcher")
         assert_equal 1, processes.count
+        assert_equal supervisor_pid, processes.first.supervisor.pid
         assert metadata < processes.first.metadata.symbolize_keys
       end
     end
 
-    def assert_registered_supervisor(**metadata)
+    def assert_registered_supervisor(pid)
       skip_active_record_query_cache do
         processes = find_processes_registered_as("Supervisor")
         assert_equal 1, processes.count
-        assert metadata < processes.first.metadata.symbolize_keys
+        assert_nil processes.first.supervisor
+        assert_equal pid, processes.first.pid
       end
     end
 end

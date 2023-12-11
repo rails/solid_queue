@@ -1,5 +1,5 @@
 module SolidQueue
-  class Execution < SolidQueue::Record
+  class Execution < Record
     include JobAttributes
 
     self.abstract_class = true

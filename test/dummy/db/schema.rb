@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2023_12_08_215544) do
+ActiveRecord::Schema[7.1].define(version: 2023_12_11_200639) do
   create_table "job_results", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "queue_name"
     t.string "status"
@@ -73,6 +73,9 @@ ActiveRecord::Schema[7.1].define(version: 2023_12_08_215544) do
     t.datetime "created_at", null: false
     t.datetime "last_heartbeat_at", null: false
     t.bigint "supervisor_id"
+    t.string "kind", null: false
+    t.string "hostname"
+    t.integer "pid", null: false
     t.index ["last_heartbeat_at"], name: "index_solid_queue_processes_on_last_heartbeat_at"
     t.index ["supervisor_id"], name: "index_solid_queue_processes_on_supervisor_id"
   end
