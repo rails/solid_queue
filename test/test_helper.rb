@@ -122,6 +122,6 @@ class ActiveSupport::TestCase
     # by the cached queries might have been updated, created or deleted in the forked
     # processes.
     def skip_active_record_query_cache(&block)
-      ActiveRecord::Base.uncached(&block)
+      SolidQueue::Record.uncached(&block)
     end
 end

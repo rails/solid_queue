@@ -28,5 +28,9 @@ module Dummy
     # config.eager_load_paths << Rails.root.join("extras")
 
     config.active_job.queue_adapter = :solid_queue
+
+    if ENV["SEPARATE_CONNECTION"]
+      config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
+    end
   end
 end
