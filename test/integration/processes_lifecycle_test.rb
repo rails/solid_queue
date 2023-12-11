@@ -194,13 +194,13 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       workers = find_processes_registered_as("Worker")
       registered_queues = workers.map { |process| process.metadata["queues"] }.compact
       assert_equal queues.map(&:to_s).sort, registered_queues.sort
-      assert_equal [ @pid ], workers.map { |process| process.metadata["supervisor_pid"] }.uniq
+      assert_equal [ @pid ], workers.map { |process| process.supervisor.pid }.uniq
     end
 
     def assert_registered_supervisor
       processes = find_processes_registered_as("Supervisor")
       assert_equal 1, processes.count
-      assert_equal @pid, processes.first.metadata["pid"]
+      assert_equal @pid, processes.first.pid
     end
 
     def assert_no_registered_workers

@@ -1,5 +1,5 @@
 module SolidQueue
-  class BlockedExecution < SolidQueue::Execution
+  class BlockedExecution < Execution
     assume_attributes_from_job :concurrency_key
     before_create :set_expires_at
 

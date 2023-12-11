@@ -2,7 +2,7 @@ require "test_helper"
 
 class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   setup do
-    @process = SolidQueue::Process.register(metadata: { queue: "background" })
+    @process = SolidQueue::Process.register(kind: "Worker", pid: 42, metadata: { queue: "background" })
   end
 
   test "perform job successfully" do
