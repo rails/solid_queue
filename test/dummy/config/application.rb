@@ -29,7 +29,7 @@ module Dummy
 
     config.active_job.queue_adapter = :solid_queue
 
-    if ENV["SEPARATE_CONNECTION"]
+    if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
       config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
     end
   end
