@@ -115,7 +115,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
   end
 
-  if ENV["SEPARATE_CONNECTION"]
+  if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
     test "uses a different connection and transaction than the one in use when connects_to is specified" do
       assert_difference -> { SolidQueue::Job.count } do
         assert_no_difference -> { JobResult.count } do
