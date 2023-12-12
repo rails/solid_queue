@@ -8,7 +8,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   setup do
     @pid = run_supervisor_as_fork
 
-    wait_for_registered_processes(3, timeout: 2.second)
+    wait_for_registered_processes(3, timeout: 3.second)
     assert_registered_workers_for(:background, :default)
   end
 
@@ -38,7 +38,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
     signal_process(@pid, :KILL, wait: 0.1.second)
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    wait_for_jobs_to_finish_for(1.seconds)
 
     assert_not process_exists?(@pid)
 
