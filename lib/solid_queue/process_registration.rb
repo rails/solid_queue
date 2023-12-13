@@ -54,7 +54,7 @@ module SolidQueue
       end
 
       def stop_heartbeat
-        @heartbeat_task.shutdown
+        @heartbeat_task&.shutdown
       end
 
       def heartbeat
