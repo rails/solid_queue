@@ -9,7 +9,7 @@ class DispatcherTest < ActiveSupport::TestCase
   end
 
   teardown do
-    @dispatcher.stop if @dispatcher.running?
+    @dispatcher.stop
   end
 
   test "polling queries are logged" do

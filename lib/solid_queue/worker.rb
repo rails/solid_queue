@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Worker
-    include Runner
+  class Worker < Processes::Base
+    include Processes::Runnable
 
     attr_accessor :queues, :polling_interval, :pool
 

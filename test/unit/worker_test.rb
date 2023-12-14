@@ -9,7 +9,7 @@ class WorkerTest < ActiveSupport::TestCase
   end
 
   teardown do
-    @worker.stop if @worker.running?
+    @worker.stop
     JobBuffer.clear
   end
 

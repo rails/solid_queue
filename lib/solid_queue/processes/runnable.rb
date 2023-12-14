@@ -1,52 +1,29 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  module Runner
-    extend ActiveSupport::Concern
+  module Processes
+    module Runnable
+      def start(mode: :supervised)
+        @mode = mode.to_s.inquiry
+        @stopping = false
 
-    included do
-      include AppExecutor, Procline
-      include ProcessRegistration, Interruptible
-    end
+        observe_initial_delay
+        run_callbacks(:boot) { boot }
 
-    def start(mode: :supervised)
-      boot_in mode
-      observe_starting_delay
-
-      run_callbacks(:start) do
-        if mode == :async
-          @thread = Thread.new { start_loop }
-        else
-          start_loop
-        end
+        start_loop
       end
-    end
 
-    def stop
-      @stopping = true
-      @thread&.join
-    end
-
-    def running?
-      !stopping?
-    end
+      def stop
+        @stopping = true
+        @thread&.join
+      end
 
     private
       attr_reader :mode
 
-      def boot_in(mode)
-        @mode = mode.to_s.inquiry
-        @stopping = false
-
-        procline "starting in mode #{mode}"
-
+      def boot
         register_signal_handlers
-
         SolidQueue.logger.info("[SolidQueue] Starting #{self}")
-      end
-
-      def observe_starting_delay
-        interruptible_sleep(initial_jitter)
       end
 
       def register_signal_handlers
@@ -63,12 +40,20 @@ module SolidQueue
       end
 
       def start_loop
+        if mode.async?
+          @thread = Thread.new { do_start_loop }
+        else
+          do_start_loop
+        end
+      end
+
+      def do_start_loop
         procline "started"
 
         loop do
           break if shutting_down?
 
-          run_callbacks(:run) { run }
+          run
         end
       ensure
         run_callbacks(:shutdown) { shutdown }
@@ -84,10 +69,7 @@ module SolidQueue
 
       def shutdown
         procline "shutting down"
-      end
 
-      def initial_jitter
-        0
       end
 
       def stopping?
@@ -121,5 +103,6 @@ module SolidQueue
           yield
         end
       end
+    end
   end
 end
