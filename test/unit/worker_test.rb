@@ -5,7 +5,7 @@ class WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
   setup do
-    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 4)
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
   end
 
   teardown do
@@ -25,7 +25,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     @worker.start(mode: :async)
 
-    wait_for_jobs_to_finish_for(0.5.second)
+    wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
 
     assert_equal 1, subscriber.errors.count
@@ -46,7 +46,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     @worker.start(mode: :async)
 
-    wait_for_jobs_to_finish_for(2.3.seconds) # 3 jobs of 1 second in parallel + 2 jobs 1 second in parallel + 3 immediate jobs
+    wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
 
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
@@ -59,7 +59,7 @@ class WorkerTest < ActiveSupport::TestCase
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, false
 
     @worker.start(mode: :async)
-    sleep 0.5
+    sleep 0.2
 
     assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
@@ -73,7 +73,7 @@ class WorkerTest < ActiveSupport::TestCase
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, true
 
     @worker.start(mode: :async)
-    sleep 0.5
+    sleep 0.2
 
     assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
