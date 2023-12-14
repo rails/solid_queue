@@ -1,52 +1,57 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Supervisor
-    include AppExecutor, ProcessRegistration, Signals, Procline
+  class Supervisor < Processes::Base
+    include Signals
+
+    set_callback :boot, :after, :launch_process_prune
 
     class << self
       def start(mode: :work, load_configuration_from: nil)
         SolidQueue.supervisor = true
         configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
 
-        new(configuration.runners).start
+        new(*configuration.runners).start
       end
     end
 
-    def initialize(runners)
+    def initialize(*runners)
       @runners = Array(runners)
       @forks = {}
     end
 
     def start
-      run_callbacks(:start) do
-        procline "starting"
+      run_callbacks(:boot) { boot }
 
-        sync_std_streams
-        setup_pidfile
-        register_signal_handlers
-        start_process_prune
-
-        start_runners
-
-        procline "started"
-
-        supervise
-      end
-    rescue GracefulShutdownRequested
-      graceful_shutdown
-    rescue ImmediateShutdownRequested
-      immediate_shutdown
+      supervise
+    rescue GracefulTerminationRequested
+      graceful_termination
+    rescue ImmediateTerminationRequested
+      immediate_termination
     ensure
-      run_callbacks(:shutdown) do
-        stop_process_prune
-        restore_default_signal_handlers
-        delete_pidfile
-      end
+      run_callbacks(:shutdown) { shutdown }
     end
 
     private
       attr_reader :runners, :forks
+
+      def boot
+        sync_std_streams
+        setup_pidfile
+        register_signal_handlers
+      end
+
+      def supervise
+        start_runners
+
+        loop do
+          procline "supervising #{forks.keys.join(", ")}"
+
+          process_signal_queue
+          reap_and_replace_terminated_runners
+          interruptible_sleep(1.second)
+        end
+      end
 
       def sync_std_streams
         STDOUT.sync = STDERR.sync = true
@@ -58,7 +63,7 @@ module SolidQueue
         end
       end
 
-      def start_process_prune
+      def launch_process_prune
         @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
         @prune_task.execute
       end
@@ -67,31 +72,25 @@ module SolidQueue
         runners.each { |runner| start_runner(runner) }
       end
 
-      def supervise
-        loop do
-          procline "supervising #{forks.keys.join(", ")}"
-
-          process_signal_queue
-          reap_and_replace_terminated_runners
-          interruptible_sleep(1.second)
-        end
+      def shutdown
+        stop_process_prune
+        restore_default_signal_handlers
+        delete_pidfile
       end
 
-      def graceful_shutdown
-        procline "shutting down gracefully"
-
+      def graceful_termination
+        procline "terminating gracefully"
         term_runners
 
         wait_until(SolidQueue.shutdown_timeout, -> { all_runners_terminated? }) do
           reap_terminated_runners
         end
 
-        immediate_shutdown unless all_runners_terminated?
+        immediate_termination unless all_runners_terminated?
       end
 
-      def immediate_shutdown
-        procline "shutting down immediately"
-
+      def immediate_termination
+        procline "terminating immediately"
         quit_runners
       end
 
@@ -163,6 +162,7 @@ module SolidQueue
       def wait_until(timeout, condition, &block)
         if timeout > 0
           deadline = monotonic_time_now + timeout
+
           while monotonic_time_now < deadline && !condition.call
             sleep 0.1
             block.call

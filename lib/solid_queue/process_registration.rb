@@ -5,13 +5,8 @@ module SolidQueue
     extend ActiveSupport::Concern
 
     included do
-      include ActiveSupport::Callbacks
-      define_callbacks :start, :run, :shutdown
-
-      set_callback :start, :before, :register
-      set_callback :start, :before, :launch_heartbeat
-
-      set_callback :run, :after, -> { stop unless registered? }
+      set_callback :boot, :after, :register
+      set_callback :boot, :after, :launch_heartbeat
 
       set_callback :shutdown, :before, :stop_heartbeat
       set_callback :shutdown, :after, :deregister
@@ -20,7 +15,7 @@ module SolidQueue
     end
 
     def inspect
-      metadata.inspect
+      "#{kind}(pid=#{process_pid}, hostname=#{hostname}, metadata=#{metadata})"
     end
     alias to_s inspect
 
@@ -41,11 +36,11 @@ module SolidQueue
       end
 
       def deregister
-        process.deregister
+        process.deregister if registered?
       end
 
       def registered?
-        process.persisted?
+        process&.persisted?
       end
 
       def launch_heartbeat
@@ -59,6 +54,10 @@ module SolidQueue
 
       def heartbeat
         process.heartbeat
+      end
+
+      def kind
+        self.class.name.demodulize
       end
 
       def hostname
