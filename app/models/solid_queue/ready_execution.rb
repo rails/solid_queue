@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module SolidQueue
   class ReadyExecution < Execution
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }

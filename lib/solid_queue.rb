@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "solid_queue/version"
 require "solid_queue/engine"
 

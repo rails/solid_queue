@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module SolidQueue
   class ScheduledExecution < Execution
     scope :due, -> { where(scheduled_at: ..Time.current) }

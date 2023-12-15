@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module SolidQueue
   class BlockedExecution < Execution
     assume_attributes_from_job :concurrency_key
