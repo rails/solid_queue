@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module SolidQueue
+module SolidQueue::Processes
   class GracefulTerminationRequested < Interrupt; end
   class ImmediateTerminationRequested < Interrupt; end
 

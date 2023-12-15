@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Signals
+    include Processes::Signals
 
     set_callback :boot, :after, :launch_process_prune
 
@@ -24,9 +24,9 @@ module SolidQueue
       run_callbacks(:boot) { boot }
 
       supervise
-    rescue GracefulTerminationRequested
+    rescue Processes::GracefulTerminationRequested
       graceful_termination
-    rescue ImmediateTerminationRequested
+    rescue Processes::ImmediateTerminationRequested
       immediate_termination
     ensure
       run_callbacks(:shutdown) { shutdown }
