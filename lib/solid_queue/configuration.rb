@@ -3,6 +3,7 @@
 module SolidQueue
   class Configuration
     WORKER_DEFAULTS = {
+      queues: "*",
       threads: 5,
       processes: 1,
       polling_interval: 0.1
@@ -10,7 +11,7 @@ module SolidQueue
 
     DISPATCHER_DEFAULTS = {
       batch_size: 500,
-      polling_interval: 5,
+      polling_interval: 1,
       concurrency_maintenance_interval: 600
     }
 
@@ -61,7 +62,7 @@ module SolidQueue
       end
 
       def workers_options
-        @workers_options ||= (raw_config[:workers] || {}).map { |options| options.dup.symbolize_keys }
+        @workers_options ||= (raw_config[:workers] || [ WORKER_DEFAULTS ]).map { |options| options.dup.symbolize_keys }
       end
 
       def dispatcher_options
