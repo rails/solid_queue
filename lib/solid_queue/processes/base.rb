@@ -8,11 +8,8 @@ module SolidQueue
 
       include AppExecutor, ProcessRegistration, Interruptible, Procline
 
-      def initialize(mode:, **)
+      def start(mode:)
         @mode = mode.to_s.inquiry
-      end
-
-      def start
         @stopping = false
 
         observe_initial_delay
