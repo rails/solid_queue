@@ -1,6 +1,17 @@
 require "test_helper"
 
 class ConfigurationTest < ActiveSupport::TestCase
+  test "default configuration to process all queues and dispatch" do
+    configuration = SolidQueue::Configuration.new(mode: :all, load_from: {})
+    assert_equal 2, configuration.processes.count
+
+    assert_equal 1, configuration.workers.count
+    assert configuration.dispatcher.present?
+
+    assert_equal [ "*" ], configuration.workers.first.queues
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size], configuration.dispatcher.batch_size
+  end
+
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new(mode: :all)
     assert 3, configuration.processes.count
