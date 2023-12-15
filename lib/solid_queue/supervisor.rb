@@ -59,7 +59,7 @@ module SolidQueue
 
       def setup_pidfile
         @pidfile = if SolidQueue.supervisor_pidfile
-          Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
+          Processes::Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
         end
       end
 

@@ -7,10 +7,6 @@ module SolidQueue
   module Signals
     extend ActiveSupport::Concern
 
-    included do
-      include Interruptible
-    end
-
     private
       SIGNALS = %i[ QUIT INT TERM ]
 
