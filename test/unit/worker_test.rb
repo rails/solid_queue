@@ -23,7 +23,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     AddToBufferJob.perform_later "hey!"
 
-    @worker.start(mode: :async)
+    @worker.start
 
     wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
@@ -44,7 +44,7 @@ class WorkerTest < ActiveSupport::TestCase
       StoreResultJob.perform_later(:immediate)
     end
 
-    @worker.start(mode: :async)
+    @worker.start
 
     wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
@@ -58,7 +58,7 @@ class WorkerTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, false
 
-    @worker.start(mode: :async)
+    @worker.start
     sleep 0.2
 
     assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
@@ -72,7 +72,7 @@ class WorkerTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, true
 
-    @worker.start(mode: :async)
+    @worker.start
     sleep 0.2
 
     assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
