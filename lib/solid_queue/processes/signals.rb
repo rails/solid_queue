@@ -1,15 +1,11 @@
 # frozen_string_literal: true
 
-module SolidQueue
-  class GracefulShutdownRequested < Interrupt; end
-  class ImmediateShutdownRequested < Interrupt; end
+module SolidQueue::Processes
+  class GracefulTerminationRequested < Interrupt; end
+  class ImmediateTerminationRequested < Interrupt; end
 
   module Signals
     extend ActiveSupport::Concern
-
-    included do
-      include Interruptible
-    end
 
     private
       SIGNALS = %i[ QUIT INT TERM ]
@@ -38,20 +34,20 @@ module SolidQueue
       def handle_signal(signal)
         case signal
         when :TERM, :INT
-          request_graceful_shutdown
+          request_graceful_termination
         when :QUIT
-          request_immediate_shutdown
+          request_immediate_termination
         else
           SolidQueue.logger.warn "Received unhandled signal #{signal}"
         end
       end
 
-      def request_graceful_shutdown
-        raise GracefulShutdownRequested
+      def request_graceful_termination
+        raise GracefulTerminationRequested
       end
 
-      def request_immediate_shutdown
-        raise ImmediateShutdownRequested
+      def request_immediate_termination
+        raise ImmediateTerminationRequested
       end
 
       def signal_processes(pids, signal)

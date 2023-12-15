@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module SolidQueue
+module SolidQueue::Processes
   module Procline
     # Sets the procline ($0)
     # solid-queue-supervisor(0.1.0): <string>

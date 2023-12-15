@@ -9,7 +9,16 @@ class DispatcherTest < ActiveSupport::TestCase
   end
 
   teardown do
-    @dispatcher.stop if @dispatcher.running?
+    @dispatcher.stop
+  end
+
+  test "dispatcher is registered as process" do
+    @dispatcher.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
+    assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
   end
 
   test "polling queries are logged" do
@@ -17,7 +26,7 @@ class DispatcherTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, false
 
-    @dispatcher.start(mode: :async)
+    @dispatcher.start
     sleep 0.5
 
     assert_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
@@ -31,7 +40,7 @@ class DispatcherTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, true
 
-    @dispatcher.start(mode: :async)
+    @dispatcher.start
     sleep 0.5
 
     assert_no_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
@@ -47,8 +56,8 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 15, SolidQueue::ScheduledExecution.count
 
     another_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10)
-    @dispatcher.start(mode: :async)
-    another_dispatcher.start(mode: :async)
+    @dispatcher.start
+    another_dispatcher.start
 
     sleep 0.5
 

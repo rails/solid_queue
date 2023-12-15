@@ -1,52 +1,57 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Supervisor
-    include AppExecutor, ProcessRegistration, Signals, Procline
+  class Supervisor < Processes::Base
+    include Processes::Signals
+
+    set_callback :boot, :after, :launch_process_prune
 
     class << self
       def start(mode: :work, load_configuration_from: nil)
         SolidQueue.supervisor = true
         configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
 
-        new(configuration.runners).start
+        new(*configuration.processes).start
       end
     end
 
-    def initialize(runners)
-      @runners = Array(runners)
+    def initialize(*configured_processes)
+      @configured_processes = Array(configured_processes)
       @forks = {}
     end
 
     def start
-      run_callbacks(:start) do
-        procline "starting"
+      run_callbacks(:boot) { boot }
 
-        sync_std_streams
-        setup_pidfile
-        register_signal_handlers
-        start_process_prune
-
-        start_runners
-
-        procline "started"
-
-        supervise
-      end
-    rescue GracefulShutdownRequested
-      graceful_shutdown
-    rescue ImmediateShutdownRequested
-      immediate_shutdown
+      supervise
+    rescue Processes::GracefulTerminationRequested
+      graceful_termination
+    rescue Processes::ImmediateTerminationRequested
+      immediate_termination
     ensure
-      run_callbacks(:shutdown) do
-        stop_process_prune
-        restore_default_signal_handlers
-        delete_pidfile
-      end
+      run_callbacks(:shutdown) { shutdown }
     end
 
     private
-      attr_reader :runners, :forks
+      attr_reader :configured_processes, :forks
+
+      def boot
+        sync_std_streams
+        setup_pidfile
+        register_signal_handlers
+      end
+
+      def supervise
+        start_forks
+
+        loop do
+          procline "supervising #{forks.keys.join(", ")}"
+
+          process_signal_queue
+          reap_and_replace_terminated_forks
+          interruptible_sleep(1.second)
+        end
+      end
 
       def sync_std_streams
         STDOUT.sync = STDERR.sync = true
@@ -54,52 +59,46 @@ module SolidQueue
 
       def setup_pidfile
         @pidfile = if SolidQueue.supervisor_pidfile
-          Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
+          Processes::Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
         end
       end
 
-      def start_process_prune
+      def launch_process_prune
         @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
         @prune_task.execute
       end
 
-      def start_runners
-        runners.each { |runner| start_runner(runner) }
+      def start_forks
+        configured_processes.each { |configured_process| start_fork(configured_process) }
       end
 
-      def supervise
-        loop do
-          procline "supervising #{forks.keys.join(", ")}"
-
-          process_signal_queue
-          reap_and_replace_terminated_runners
-          interruptible_sleep(1.second)
-        end
+      def shutdown
+        stop_process_prune
+        restore_default_signal_handlers
+        delete_pidfile
       end
 
-      def graceful_shutdown
-        procline "shutting down gracefully"
+      def graceful_termination
+        procline "terminating gracefully"
+        term_forks
 
-        term_runners
-
-        wait_until(SolidQueue.shutdown_timeout, -> { all_runners_terminated? }) do
-          reap_terminated_runners
+        wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
+          reap_terminated_forks
         end
 
-        immediate_shutdown unless all_runners_terminated?
+        immediate_termination unless all_forks_terminated?
       end
 
-      def immediate_shutdown
-        procline "shutting down immediately"
-
-        quit_runners
+      def immediate_termination
+        procline "terminating immediately"
+        quit_forks
       end
 
-      def term_runners
+      def term_forks
         signal_processes(forks.keys, :TERM)
       end
 
-      def quit_runners
+      def quit_forks
         signal_processes(forks.keys, :QUIT)
       end
 
@@ -117,26 +116,26 @@ module SolidQueue
         end
       end
 
-      def start_runner(runner)
-        runner.supervised_by process
+      def start_fork(configured_process)
+        configured_process.supervised_by process
 
         pid = fork do
-          runner.start
+          configured_process.start
         end
 
-        forks[pid] = runner
+        forks[pid] = configured_process
       end
 
-      def reap_and_replace_terminated_runners
+      def reap_and_replace_terminated_forks
         loop do
           pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
           break unless pid
 
-          replace_runner(pid, status)
+          replace_fork(pid, status)
         end
       end
 
-      def reap_terminated_runners
+      def reap_terminated_forks
         loop do
           pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
           break unless pid
@@ -147,22 +146,23 @@ module SolidQueue
         # All children already reaped
       end
 
-      def replace_runner(pid, status)
-        if runner = forks.delete(pid)
-          SolidQueue.logger.info "[SolidQueue] Restarting worker[#{status.pid}] (status: #{status.exitstatus})"
-          start_runner(runner)
+      def replace_fork(pid, status)
+        if supervised_fork = forks.delete(pid)
+          SolidQueue.logger.info "[SolidQueue] Restarting fork[#{status.pid}] (status: #{status.exitstatus})"
+          start_fork(supervised_fork)
         else
-          SolidQueue.logger.info "[SolidQueue] Tried to replace worker[#{pid}] (status: #{status.exitstatus}, runner[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
+          SolidQueue.logger.info "[SolidQueue] Tried to replace fork[#{pid}] (status: #{status.exitstatus}, fork[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
         end
       end
 
-      def all_runners_terminated?
+      def all_forks_terminated?
         forks.empty?
       end
 
       def wait_until(timeout, condition, &block)
         if timeout > 0
           deadline = monotonic_time_now + timeout
+
           while monotonic_time_now < deadline && !condition.call
             sleep 0.1
             block.call

@@ -18,8 +18,8 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later "hey"
     AddToBufferJob.perform_later "ho"
 
-    @dispatcher.start(mode: :async)
-    @worker.start(mode: :async)
+    @dispatcher.start
+    @worker.start
 
     wait_for_jobs_to_finish_for(2.seconds)
 
@@ -31,8 +31,8 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     AddToBufferJob.set(wait: 1.day).perform_later("I'm scheduled")
     AddToBufferJob.set(wait: 3.days).perform_later("I'm scheduled later")
 
-    @dispatcher.start(mode: :async)
-    @worker.start(mode: :async)
+    @dispatcher.start
+    @worker.start
 
     assert_equal 2, SolidQueue::ScheduledExecution.count
 
@@ -56,7 +56,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
   test "delete finished jobs after they run" do
     deleting_finished_jobs do
       AddToBufferJob.perform_later "hey"
-      @worker.start(mode: :async)
+      @worker.start
 
       wait_for_jobs_to_finish_for(2.seconds)
     end

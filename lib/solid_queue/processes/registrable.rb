@@ -1,32 +1,21 @@
 # frozen_string_literal: true
 
-module SolidQueue
-  module ProcessRegistration
+module SolidQueue::Processes
+  module Registrable
     extend ActiveSupport::Concern
 
     included do
-      include ActiveSupport::Callbacks
-      define_callbacks :start, :run, :shutdown
-
-      set_callback :start, :before, :register
-      set_callback :start, :before, :launch_heartbeat
-
-      set_callback :run, :after, -> { stop unless registered? }
+      set_callback :boot, :after, :register
+      set_callback :boot, :after, :launch_heartbeat
 
       set_callback :shutdown, :before, :stop_heartbeat
       set_callback :shutdown, :after, :deregister
-
-      attr_reader :supervisor
     end
 
     def inspect
-      metadata.inspect
+      "#{kind}(pid=#{process_pid}, hostname=#{hostname}, metadata=#{metadata})"
     end
     alias to_s inspect
-
-    def supervised_by(process)
-      @supervisor = process
-    end
 
     private
       attr_accessor :process
@@ -35,17 +24,17 @@ module SolidQueue
         @process = SolidQueue::Process.register \
           kind: self.class.name.demodulize,
           pid: process_pid,
-          supervisor: supervisor,
           hostname: hostname,
+          supervisor: try(:supervisor),
           metadata: metadata
       end
 
       def deregister
-        process.deregister
+        process.deregister if registered?
       end
 
       def registered?
-        process.persisted?
+        process&.persisted?
       end
 
       def launch_heartbeat
@@ -59,6 +48,10 @@ module SolidQueue
 
       def heartbeat
         process.heartbeat
+      end
+
+      def kind
+        self.class.name.demodulize
       end
 
       def hostname

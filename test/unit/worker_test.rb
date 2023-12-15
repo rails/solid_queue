@@ -5,12 +5,21 @@ class WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
   setup do
-    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 4)
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
   end
 
   teardown do
-    @worker.stop if @worker.running?
+    @worker.stop
     JobBuffer.clear
+  end
+
+  test "worker is registered as process" do
+    @worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Worker", process.kind
+    assert_equal({ "queues" => "background", "polling_interval" => 0.2, "thread_pool_size" => 3 }, process.metadata)
   end
 
   test "errors on claiming executions are reported via Rails error subscriber regardless of on_thread_error setting" do
@@ -23,9 +32,9 @@ class WorkerTest < ActiveSupport::TestCase
 
     AddToBufferJob.perform_later "hey!"
 
-    @worker.start(mode: :async)
+    @worker.start
 
-    wait_for_jobs_to_finish_for(0.5.second)
+    wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
 
     assert_equal 1, subscriber.errors.count
@@ -44,9 +53,9 @@ class WorkerTest < ActiveSupport::TestCase
       StoreResultJob.perform_later(:immediate)
     end
 
-    @worker.start(mode: :async)
+    @worker.start
 
-    wait_for_jobs_to_finish_for(2.3.seconds) # 3 jobs of 1 second in parallel + 2 jobs 1 second in parallel + 3 immediate jobs
+    wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
 
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
@@ -58,8 +67,8 @@ class WorkerTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, false
 
-    @worker.start(mode: :async)
-    sleep 0.5
+    @worker.start
+    sleep 0.2
 
     assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
@@ -72,8 +81,8 @@ class WorkerTest < ActiveSupport::TestCase
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
     old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, true
 
-    @worker.start(mode: :async)
-    sleep 0.5
+    @worker.start
+    sleep 0.2
 
     assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   ensure
