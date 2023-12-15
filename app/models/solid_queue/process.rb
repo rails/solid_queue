@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SolidQueue::Process < SolidQueue::Record
   include Prunable
 

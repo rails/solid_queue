@@ -1,0 +1,9 @@
+Description:
+    Installs solid_queue as the Active Job's queue adapter
+
+Example:
+    bin/rails generate solid_queue:install
+
+    This will create:
+        Installs solid_queue migrations
+        Replaces Active Job's adapter in envionment configuration

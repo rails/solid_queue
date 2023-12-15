@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SolidQueue::Semaphore < SolidQueue::Record
   scope :available, -> { where("value > 0") }
   scope :expired, -> { where(expires_at: ...Time.current) }

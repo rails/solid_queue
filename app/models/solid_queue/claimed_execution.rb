@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
   belongs_to :process
 
