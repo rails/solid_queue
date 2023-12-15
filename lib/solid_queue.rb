@@ -26,6 +26,8 @@ module SolidQueue
   mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
   mattr_accessor :app_executor, :on_thread_error, :connects_to
 
+  mattr_accessor :use_skip_locked, default: true
+
   mattr_accessor :process_heartbeat_interval, default: 60.seconds
   mattr_accessor :process_alive_threshold, default: 5.minutes
 

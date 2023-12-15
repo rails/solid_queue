@@ -5,6 +5,14 @@ module SolidQueue
     self.abstract_class = true
 
     connects_to **SolidQueue.connects_to if SolidQueue.connects_to
+
+    def self.lock(...)
+      if SolidQueue.use_skip_locked
+        super(Arel.sql("FOR UPDATE SKIP LOCKED"))
+      else
+        super
+      end
+    end
   end
 end
 

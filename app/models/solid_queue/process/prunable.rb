@@ -9,7 +9,7 @@ module SolidQueue::Process::Prunable
 
   class_methods do
     def prune
-      prunable.lock("FOR UPDATE SKIP LOCKED").find_in_batches(batch_size: 50) do |batch|
+      prunable.lock.find_in_batches(batch_size: 50) do |batch|
         batch.each do |process|
           SolidQueue.logger.info("[SolidQueue] Pruning dead process #{process.id} - #{process.metadata}")
           process.deregister
