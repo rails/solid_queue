@@ -19,7 +19,7 @@ module SolidQueue
       @raw_config = config_from(load_from)
     end
 
-    def runners
+    def processes
       case mode
       when :dispatch then dispatcher
       when :work     then workers

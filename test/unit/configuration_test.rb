@@ -3,7 +3,7 @@ require "test_helper"
 class ConfigurationTest < ActiveSupport::TestCase
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new(mode: :all)
-    assert 3, configuration.runners.count
+    assert 3, configuration.processes.count
     assert_equal 2, configuration.workers.count
     assert configuration.dispatcher.present?
   end
