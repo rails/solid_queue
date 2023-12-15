@@ -6,7 +6,7 @@ module SolidQueue
       include ActiveSupport::Callbacks
       define_callbacks :boot, :shutdown
 
-      include AppExecutor, ProcessRegistration, Interruptible, Procline
+      include AppExecutor, Registrable, Interruptible, Procline
 
       private
         def observe_initial_delay

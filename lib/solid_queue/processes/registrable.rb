@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-module SolidQueue
-  module ProcessRegistration
+module SolidQueue::Processes
+  module Registrable
     extend ActiveSupport::Concern
 
     included do
