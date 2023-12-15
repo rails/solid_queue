@@ -2,9 +2,9 @@
 
 module SolidQueue
   class Dispatcher < Processes::Base
-    include Processes::Runnable
+    include Processes::Runnable, Processes::Poller
 
-    attr_accessor :batch_size, :polling_interval, :concurrency_maintenance_interval
+    attr_accessor :batch_size, :concurrency_maintenance_interval
 
     set_callback :boot, :after, :launch_concurrency_maintenance
     set_callback :shutdown, :before, :stop_concurrency_maintenance
@@ -67,7 +67,7 @@ module SolidQueue
       end
 
       def metadata
-        super.merge(batch_size: batch_size, polling_interval: polling_interval)
+        super.merge(batch_size: batch_size)
       end
   end
 end

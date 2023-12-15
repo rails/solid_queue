@@ -13,6 +13,15 @@ class WorkerTest < ActiveSupport::TestCase
     JobBuffer.clear
   end
 
+  test "worker is registered as process" do
+    @worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Worker", process.kind
+    assert_equal({ "queues" => "background", "polling_interval" => 0.2, "thread_pool_size" => 3 }, process.metadata)
+  end
+
   test "errors on claiming executions are reported via Rails error subscriber regardless of on_thread_error setting" do
     original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, nil
 

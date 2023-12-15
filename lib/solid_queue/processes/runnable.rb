@@ -73,13 +73,5 @@ module SolidQueue::Processes
     def running_inline?
       mode.inline?
     end
-
-    def with_polling_volume
-      if SolidQueue.silence_polling?
-        ActiveRecord::Base.logger.silence { yield }
-      else
-        yield
-      end
-    end
   end
 end

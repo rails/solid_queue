@@ -2,9 +2,9 @@
 
 module SolidQueue
   class Worker < Processes::Base
-    include Processes::Runnable
+    include Processes::Runnable, Processes::Poller
 
-    attr_accessor :queues, :polling_interval, :pool
+    attr_accessor :queues, :pool
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
@@ -48,7 +48,7 @@ module SolidQueue
       end
 
       def metadata
-        super.merge(queues: queues.join(","), thread_pool_size: pool.size, idle_threads: pool.idle_threads, polling_interval: polling_interval)
+        super.merge(queues: queues.join(","), thread_pool_size: pool.size)
       end
   end
 end

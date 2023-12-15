@@ -12,6 +12,15 @@ class DispatcherTest < ActiveSupport::TestCase
     @dispatcher.stop
   end
 
+  test "dispatcher is registered as process" do
+    @dispatcher.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
+    assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
+  end
+
   test "polling queries are logged" do
     log = StringIO.new
     old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
