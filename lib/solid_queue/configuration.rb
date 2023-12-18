@@ -22,9 +22,9 @@ module SolidQueue
 
     def processes
       case mode
-      when :dispatch then dispatcher
+      when :dispatch then dispatchers
       when :work     then workers
-      when :all      then [ dispatcher ] + workers
+      when :all      then dispatchers + workers
       else           raise "Invalid mode #{mode}"
       end
     end
@@ -40,9 +40,11 @@ module SolidQueue
       end
     end
 
-    def dispatcher
+    def dispatchers
       if mode.in? %i[ dispatch all]
-        SolidQueue::Dispatcher.new(**dispatcher_options)
+        dispatchers_options.flat_map do |dispatcher_options|
+          SolidQueue::Dispatcher.new(**dispatcher_options)
+        end
       end
     end
 
@@ -62,11 +64,13 @@ module SolidQueue
       end
 
       def workers_options
-        @workers_options ||= (raw_config[:workers] || [ WORKER_DEFAULTS ]).map { |options| options.dup.symbolize_keys }
+        @workers_options ||= (raw_config[:workers] || [ WORKER_DEFAULTS ])
+          .map { |options| options.dup.symbolize_keys }
       end
 
-      def dispatcher_options
-        (raw_config[:dispatcher] || {}).with_defaults(DISPATCHER_DEFAULTS)
+      def dispatchers_options
+        @dispatchers_options ||= (raw_config[:dispatchers] || [ DISPATCHER_DEFAULTS ])
+          .map { |options| options.dup.symbolize_keys }
       end
 
       def load_config_from(file_or_hash)
