@@ -72,7 +72,7 @@ production:
     - polling_interval: 1
       batch_size: 500
   workers:
-    - queues: *
+    - queues: "*"
       threads: 3
       polling_interval: 2
     - queues: real_time,background
