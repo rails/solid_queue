@@ -197,6 +197,20 @@ Note that the `duration` setting depends indirectly on the value for `concurrenc
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for gaining the lock, and whenever they get it, they'll be run. It doesn't matter if they had gained the lock already in the past.
 
+## Failed jobs and retries
+
+Solid Queue doesn't include any automatic retry mechanism, it [relies on Active Job for this](https://edgeguides.rubyonrails.org/active_job_basics.html#retrying-or-discarding-failed-jobs). Jobs that fail will be kept in the system, and a _failed execution_ (a record in the `solid_queue_failed_executions` table) will be created for these. The job will stay there until manually discarded or re-enqueued. You can do this in a console as:
+```ruby
+failed_execution = SolidQueue::FailedExecution.find(...) # Find the failed execution related to your job
+failed_execution.error # inspect the error
+
+failed_execution.retry # This will re-enqueue the job as if it was enqueued for the first time
+failed_execution.discard # This will delete the job from the system
+```
+
+We're planning to release a dashboard called _Mission Control_, where, among other things, you'll be able to examine and retry/discard failed jobs, one by one, or in bulk.
+
+
 ## Puma plugin
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
 ```ruby
