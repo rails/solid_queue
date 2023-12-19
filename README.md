@@ -41,14 +41,24 @@ Or install it yourself as:
 $ gem install solid_queue
 ```
 
-Add the migration to your app and run it:
+Install Migrations and Set Up Active Job Adapter
+Now, you need to install the necessary migrations and configure the Active Job's adapter. Run the following commands:
+```bash
+$ bin/rails generate solid_queue:install
 ```
+
+or add the only the migration to your app and run it:
+```bash
 $ bin/rails solid_queue:install:migrations
+```
+
+Run the Migrations (required after either of the above steps):
+```bash
 $ bin/rails db:migrate
 ```
 
 With this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
-```
+```bash
 $ bundle exec rake solid_queue:start
 ```
 
