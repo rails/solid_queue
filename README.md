@@ -75,7 +75,7 @@ production:
     - queues: "*"
       threads: 3
       polling_interval: 2
-    - queues: real_time,background
+    - queues: [ real_time, background ]
       threads: 5
       polling_interval: 0.1
       processes: 3
@@ -85,7 +85,7 @@ Everything is optional. If no configuration is provided, Solid Queue will run wi
 
 - `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
 - `batch_size`: the dispatcher will dispatch jobs in batches of this size.
-- `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a comma-separated list of queues. Jobs will be polled from those queues in order, so for example, with `real_time,background`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
+- `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a single queue, or a list of queues as an array. Jobs will be polled from those queues in order, so for example, with `[ real_time, background ]`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
 ```yml
 staging:
   workers:
@@ -96,7 +96,7 @@ staging:
 ```
 This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
 
-Finally, you can combine prefixes with exact names, like `staging*, background`, and the behaviour with respect to order will be the same as with only exact names.
+Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `5`. Only workers have this setting.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 
