@@ -88,17 +88,19 @@ Everything is optional. If no configuration is provided, Solid Queue will run wi
 - `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
 - `batch_size`: the dispatcher will dispatch jobs in batches of this size. The default is 500.
 - `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a single queue, or a list of queues as an array. Jobs will be polled from those queues in order, so for example, with `[ real_time, background ]`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
-```yml
-staging:
-  workers:
-    - queues: staging*
-      threads: 3
-      polling_interval: 5
 
-```
-This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
+  ```yml
+  staging:
+    workers:
+      - queues: staging*
+        threads: 3
+        polling_interval: 5
 
-Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
+  ```
+
+  This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
+
+  Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `5`. Only workers have this setting.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 
@@ -131,14 +133,16 @@ There are several settings that control how Solid Queue works that you can set a
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
 - `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
 - `on_thread_error`: custom lambda/Proc to call when there's an error within a thread that takes the exception raised as argument. Defaults to
-```ruby
--> (exception) { Rails.error.report(exception, handled: false) }
-```
+
+  ```ruby
+  -> (exception) { Rails.error.report(exception, handled: false) }
+  ```
 - `connects_to`: a custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model. This is required to use a different database than the main app. For example:
-```ruby
+
+  ```ruby
   # Use a separate DB for Solid Queue
   config.solid_queue.connects_to = { database: { writing: :solid_queue_primary, reading: :solid_queue_replica } }
-```
+  ```
 - `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
 - `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
@@ -227,16 +231,17 @@ to your `puma.rb` configuration.
 If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
 - Your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
 - Or, to opt out completely from this behaviour, configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
-```ruby
-class ApplicationRecord < ActiveRecord::Base
-  self.abstract_class = true
 
-  connects_to database: { writing: :primary, reading: :replica }
-```
+  ```ruby
+  class ApplicationRecord < ActiveRecord::Base
+    self.abstract_class = true
 
-```ruby
+    connects_to database: { writing: :primary, reading: :replica }
+  ```
+
+  ```ruby
   solid_queue.config.connects_to { database: { writing: :primary, reading: :replica } }
-```
+  ```
 
 ## Inspiration
 
