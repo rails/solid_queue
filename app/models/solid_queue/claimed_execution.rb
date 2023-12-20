@@ -46,7 +46,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   private
     def execute
-      SolidQueue.logger.info("[SolidQueue] Performing job #{job.id} - #{job.active_job_id}")
       ActiveJob::Base.execute(job.arguments)
       Result.new(true, nil)
     rescue Exception => e
@@ -58,8 +57,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         job.finished!
         destroy!
       end
-
-      SolidQueue.logger.info("[SolidQueue] Performed job #{job.id} - #{job.active_job_id}")
     end
 
     def failed_with(error)
@@ -67,7 +64,5 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         job.failed_with(error)
         destroy!
       end
-
-      SolidQueue.logger.info("[SolidQueue] Failed job #{job.id} - #{job.active_job_id}")
     end
 end
