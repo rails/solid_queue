@@ -86,7 +86,7 @@ production:
 Everything is optional. If no configuration is provided, Solid Queue will run with one dispatcher and one worker with default settings.
 
 - `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
-- `batch_size`: the dispatcher will dispatch jobs in batches of this size.
+- `batch_size`: the dispatcher will dispatch jobs in batches of this size. The default is 500.
 - `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a single queue, or a list of queues as an array. Jobs will be polled from those queues in order, so for example, with `[ real_time, background ]`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
 ```yml
 staging:
