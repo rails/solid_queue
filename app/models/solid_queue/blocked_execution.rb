@@ -24,7 +24,7 @@ module SolidQueue
 
       def release_one(concurrency_key)
         transaction do
-          ordered.where(concurrency_key: concurrency_key).limit(1).lock.each(&:release)
+          ordered.where(concurrency_key: concurrency_key).limit(1).non_blocking_lock.each(&:release)
         end
       end
 

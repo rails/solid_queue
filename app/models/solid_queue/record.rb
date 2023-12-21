@@ -6,11 +6,11 @@ module SolidQueue
 
     connects_to **SolidQueue.connects_to if SolidQueue.connects_to
 
-    def self.lock(...)
+    def self.non_blocking_lock
       if SolidQueue.use_skip_locked
-        super(Arel.sql("FOR UPDATE SKIP LOCKED"))
+        lock(Arel.sql("FOR UPDATE SKIP LOCKED"))
       else
-        super
+        lock
       end
     end
   end

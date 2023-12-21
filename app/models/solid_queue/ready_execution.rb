@@ -26,7 +26,7 @@ module SolidQueue
         end
 
         def select_candidates(queue_relation, limit)
-          queue_relation.ordered.limit(limit).lock.pluck(:job_id)
+          queue_relation.ordered.limit(limit).non_blocking_lock.pluck(:job_id)
         end
 
         def lock_candidates(job_ids, process_id)
