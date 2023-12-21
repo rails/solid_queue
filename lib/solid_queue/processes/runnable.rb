@@ -44,7 +44,9 @@ module SolidQueue::Processes
       loop do
         break if shutting_down?
 
-        run
+        wrap_in_app_executor do
+          run
+        end
       end
     ensure
       run_callbacks(:shutdown) { shutdown }
