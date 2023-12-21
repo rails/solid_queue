@@ -240,7 +240,7 @@ If you prefer not to rely on this, or avoid relying on it unintentionally, you s
   ```
 
   ```ruby
-  solid_queue.config.connects_to { database: { writing: :primary, reading: :replica } }
+  config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
   ```
 
 ## Inspiration
