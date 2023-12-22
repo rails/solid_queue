@@ -17,6 +17,7 @@ module SolidQueue
         after_create :prepare_for_execution
 
         scope :finished, -> { where.not(finished_at: nil) }
+        scope :failed, -> { includes(:failed_execution).where.not(failed_execution: {id: nil}) }
       end
 
       %w[ ready claimed failed scheduled ].each do |status|
