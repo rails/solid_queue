@@ -131,6 +131,8 @@ GEM
     nokogiri (1.15.4-x86_64-linux)
       racc (~> 1.4)
     pg (1.5.4)
+    puma (6.4.0)
+      nio4r (~> 2.0)
     racc (1.7.1)
     rack (3.0.8)
     rack-session (2.0.0)
@@ -194,6 +196,7 @@ DEPENDENCIES
   mocha
   mysql2
   pg
+  puma
   solid_queue!
   sqlite3
 
