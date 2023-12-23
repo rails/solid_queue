@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    solid_queue (0.1.1)
+    solid_queue (0.1.2)
       rails (>= 7.0.3.1)
 
 GEM
