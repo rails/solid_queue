@@ -9,7 +9,7 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version: [3.2.2]
-        database: [mysql, postgres, sqlite]
+        database: [mysql, postgres, sqlite, mssql]
     services:
       mysql:
         image: mysql:8.0.31
@@ -24,6 +24,13 @@ jobs:
           POSTGRES_HOST_AUTH_METHOD: "trust"
         ports:
           - 55432:5432
+      mssql:
+        image: mcr.microsoft.com/azure-sql-edge:1.0.4
+        env:
+          SA_PASSWORD: yourStrongPassword123
+          ACCEPT_EULA: Y
+        ports:
+          - 11433:1433
     env:
       TARGET_DB: ${{ matrix.database }}
     steps:

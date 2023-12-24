@@ -7,3 +7,4 @@ gemspec
 gem "mysql2"
 gem "pg"
 gem "sqlite3"
+gem "activerecord-sqlserver-adapter"

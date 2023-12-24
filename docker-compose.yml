@@ -10,11 +10,19 @@ services:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
     volumes:
       - db:/var/lib/mysql
-    ports: [ "127.0.0.1:33060:3306" ]
+    ports: ["127.0.0.1:33060:3306"]
   postgres:
     image: postgres:15.1
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
     volumes:
       - db:/var/lib/postgres
-    ports: [ "127.0.0.1:55432:5432" ]
+    ports: ["127.0.0.1:55432:5432"]
+  mssql:
+    image: mcr.microsoft.com/azure-sql-edge:1.0.4
+    environment:
+      SA_PASSWORD: yourStrongPassword123
+      ACCEPT_EULA: Y
+    volumes:
+      - db:/var/lib/mssql
+    ports: ["127.0.0.1:11430:1430"]

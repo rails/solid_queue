@@ -64,6 +64,7 @@ GEM
       activemodel (= 7.1.0)
       activesupport (= 7.1.0)
       timeout (>= 0.4.0)
+    activerecord-sqlserver-adapter (2.3.8)
     activestorage (7.1.0)
       actionpack (= 7.1.0)
       activejob (= 7.1.0)
@@ -110,7 +111,6 @@ GEM
       net-smtp
     marcel (1.0.2)
     mini_mime (1.1.5)
-    mini_portile2 (2.8.1)
     minitest (5.20.0)
     mocha (2.1.0)
       ruby2_keywords (>= 0.0.5)
@@ -173,8 +173,8 @@ GEM
     reline (0.3.2)
       io-console (~> 0.5)
     ruby2_keywords (0.0.5)
-    sqlite3 (1.5.4)
-      mini_portile2 (~> 2.8.0)
+    sqlite3 (1.5.4-arm64-darwin)
+    sqlite3 (1.5.4-x86_64-linux)
     thor (1.2.2)
     timeout (0.4.0)
     tzinfo (2.0.6)
@@ -186,10 +186,12 @@ GEM
     zeitwerk (2.6.12)
 
 PLATFORMS
+  arm64-darwin-21
   arm64-darwin-22
   x86_64-linux
 
 DEPENDENCIES
+  activerecord-sqlserver-adapter
   debug
   mocha
   mysql2

@@ -23,6 +23,15 @@ default: &default
   port: 55432
   gssencmode: disable # https://github.com/ged/ruby-pg/issues/311
 
+<% elsif ENV["TARGET_DB"] == "mssql" %>
+default: &default
+  adapter: sqlserver
+  username: sa
+  password: "yourStrongPassword123"
+  pool: 5
+  host: "127.0.0.1"
+  port: 11433
+
 <% else %>
 default: &default
   adapter: mysql2
