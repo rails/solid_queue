@@ -102,6 +102,24 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueue multiple jobs" do
+    active_jobs = [
+      AddToBufferJob.new(2),
+      AddToBufferJob.new(6).set(wait: 2.minutes),
+      NonOverlappingJob.new(@result),
+      StoreResultJob.new(42),
+      AddToBufferJob.new(4),
+      NonOverlappingGroupedJob1.new(@result),
+      AddToBufferJob.new(6).set(wait: 3.minutes),
+      NonOverlappingJob.new(@result),
+      NonOverlappingGroupedJob2.new(@result)
+    ]
+
+    assert_multi(ready: 5, scheduled: 2, blocked: 2) do
+      ActiveJob.perform_all_later(active_jobs)
+    end
+  end
+
   test "block jobs when concurrency limits are reached" do
     assert_ready do
       NonOverlappingJob.perform_later(@result, name: "A")
@@ -146,6 +164,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     def assert_blocked(&block)
       assert_no_difference -> { SolidQueue::ReadyExecution.count } do
         assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::BlockedExecution.count } => +1, &block
+      end
+    end
+
+    def assert_multi(ready: 0, scheduled: 0, blocked: 0, &block)
+      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked) do
+        assert_difference -> { SolidQueue::ReadyExecution.count }, +ready do
+          assert_difference -> { SolidQueue::ScheduledExecution.count }, +scheduled do
+            assert_difference -> { SolidQueue::BlockedExecution.count }, +blocked, &block
+          end
+        end
       end
     end
 end

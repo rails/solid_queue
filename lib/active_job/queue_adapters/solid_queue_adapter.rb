@@ -19,6 +19,10 @@ module ActiveJob
           active_job.provider_job_id = job.id
         end
       end
+
+      def enqueue_all(active_jobs) # :nodoc:
+        SolidQueue::Job.enqueue_active_jobs(active_jobs)
+      end
     end
   end
 end
