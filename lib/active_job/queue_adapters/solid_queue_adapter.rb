@@ -21,7 +21,7 @@ module ActiveJob
       end
 
       def enqueue_all(active_jobs) # :nodoc:
-        SolidQueue::Job.enqueue_active_jobs(active_jobs)
+        SolidQueue::Job.enqueue_all_active_jobs(active_jobs)
       end
     end
   end
