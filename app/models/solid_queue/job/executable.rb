@@ -20,6 +20,16 @@ module SolidQueue
         scope :failed, -> { includes(:failed_execution).where.not(failed_execution: { id: nil }) }
       end
 
+      class_methods do
+        def dispatch_all_at_once(jobs)
+          ReadyExecution.create_all_from_jobs(jobs)
+        end
+
+        def schedule_all(jobs)
+          ScheduledExecution.create_all_from_jobs(jobs)
+        end
+      end
+
       %w[ ready claimed failed scheduled ].each do |status|
         define_method("#{status}?") { public_send("#{status}_execution").present? }
       end

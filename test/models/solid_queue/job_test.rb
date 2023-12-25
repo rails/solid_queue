@@ -31,7 +31,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
     assert_ready do
-      SolidQueue::Job.enqueue_active_job(active_job)
+      SolidQueue::Job.enqueue(active_job)
     end
 
     solid_queue_job = SolidQueue::Job.last
@@ -51,7 +51,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
     assert_scheduled do
-      SolidQueue::Job.enqueue_active_job(active_job, scheduled_at: 5.minutes.from_now)
+      SolidQueue::Job.enqueue(active_job, scheduled_at: 5.minutes.from_now)
     end
 
     solid_queue_job = SolidQueue::Job.last
