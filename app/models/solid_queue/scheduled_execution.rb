@@ -42,10 +42,8 @@ module SolidQueue
         end
 
         def ready_rows_from_batch(jobs)
-          prepared_at = Time.current
-
           jobs.map do |job|
-            { job_id: job.id, queue_name: job.queue_name, priority: job.priority, created_at: prepared_at }
+            { job_id: job.id, queue_name: job.queue_name, priority: job.priority }
           end
         end
 
