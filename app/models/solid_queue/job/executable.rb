@@ -50,10 +50,6 @@ module SolidQueue
         finished_at.present?
       end
 
-      def failed_with(exception)
-        FailedExecution.create_or_find_by!(job_id: id, exception: exception)
-      end
-
       def discard
         destroy unless claimed?
       end
