@@ -65,7 +65,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job, execution.job
     assert_equal "test", execution.queue_name
     assert_equal 8, execution.priority
-    assert Time.now < execution.scheduled_at
+    assert_equal solid_queue_job.scheduled_at, execution.scheduled_at
   end
 
   test "enqueue jobs without concurrency controls" do

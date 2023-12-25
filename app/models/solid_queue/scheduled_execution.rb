@@ -6,7 +6,7 @@ module SolidQueue
     scope :ordered, -> { order(scheduled_at: :asc, priority: :asc) }
     scope :next_batch, ->(batch_size) { due.ordered.limit(batch_size) }
 
-    assume_attributes_from_job :scheduled_at
+    assumes_attributes_from_job :scheduled_at
 
     class << self
       def dispatch_next_batch(batch_size)
@@ -34,17 +34,11 @@ module SolidQueue
         end
 
         def dispatch_at_once(jobs)
-          ReadyExecution.insert_all ready_rows_from_batch(jobs)
+          ReadyExecution.create_all_from_jobs jobs
         end
 
         def dispatch_one_by_one(jobs)
           jobs.each(&:dispatch)
-        end
-
-        def ready_rows_from_batch(jobs)
-          jobs.map do |job|
-            { job_id: job.id, queue_name: job.queue_name, priority: job.priority }
-          end
         end
 
         def successfully_dispatched(job_ids)
