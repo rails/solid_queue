@@ -2,29 +2,11 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, and priorities by queue order. _Proper support for `perform_all_later`, improvements to logging and instrumentation, a better CLI tool, a way to run within an existing process in "async" mode, unique jobs and recurring, cron-like tasks are coming very soon._
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, and priorities by queue order. _Improvements to logging and instrumentation, a better CLI tool, a way to run within an existing process in "async" mode, unique jobs and recurring, cron-like tasks are coming very soon._
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
 
-## Usage
-To set Solid Queue as your Active Job's queue backend, you should add this to your environment config:
-```ruby
-# config/environments/production.rb
-config.active_job.queue_adapter = :solid_queue
-```
-
-Alternatively, you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
-
-```ruby
-# app/jobs/my_job.rb
-
-class MyJob < ApplicationJob
-  self.queue_adapter = :solid_queue
-  # ...
-end
-```
-
-## Installation
+## Installation and usage
 Add this line to your application's Gemfile:
 
 ```ruby
@@ -41,23 +23,43 @@ Or install it yourself as:
 $ gem install solid_queue
 ```
 
-Install Migrations and Set Up Active Job Adapter
-Now, you need to install the necessary migrations and configure the Active Job's adapter. Run the following commands:
+Now, you need to install the necessary migrations and configure the Active Job's adapter. You can do both at once using the provided generator:
+
 ```bash
 $ bin/rails generate solid_queue:install
 ```
 
-or add the only the migration to your app and run it:
+This will set `solid_queue` as the Active Job's adapter in production, and will copy the required migration over to your app.
+
+Alternatively, you can add the only the migration to your app:
 ```bash
 $ bin/rails solid_queue:install:migrations
 ```
 
-Run the Migrations (required after either of the above steps):
+And set Solid Queue as your Active Job's queue backend manually, in your environment config:
+```ruby
+# config/environments/production.rb
+config.active_job.queue_adapter = :solid_queue
+```
+
+Alternatively, you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
+
+```ruby
+# app/jobs/my_job.rb
+
+class MyJob < ApplicationJob
+  self.queue_adapter = :solid_queue
+  # ...
+end
+```
+
+Finally, you need to run the migrations:
+
 ```bash
 $ bin/rails db:migrate
 ```
 
-With this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
+After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
 ```bash
 $ bundle exec rake solid_queue:start
 ```
@@ -83,6 +85,7 @@ production:
   dispatchers:
     - polling_interval: 1
       batch_size: 500
+      concurrency_maintenance_interval: 300
   workers:
     - queues: "*"
       threads: 3
@@ -97,6 +100,7 @@ Everything is optional. If no configuration is provided, Solid Queue will run wi
 
 - `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
 - `batch_size`: the dispatcher will dispatch jobs in batches of this size. The default is 500.
+- `concurrency_maintenance_interval`: the time interval in seconds that the dispatcher will wait before checking for blocked jobs that can be unblocked. Read more about [concurrency controls](#concurrency-controls) to learn more about this setting. It defaults to `600` seconds.
 - `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a single queue, or a list of queues as an array. Jobs will be polled from those queues in order, so for example, with `[ real_time, background ]`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
 
   ```yml
