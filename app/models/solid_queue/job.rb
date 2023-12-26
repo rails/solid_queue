@@ -1,38 +1,62 @@
 # frozen_string_literal: true
 
-class SolidQueue::Job < SolidQueue::Record
-  include Executable
+module SolidQueue
+  class Job < Record
+    include Executable
 
-  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
-    serialize :arguments, coder: JSON
-  else
-    serialize :arguments, JSON
-  end
-
-  DEFAULT_PRIORITY = 0
-  DEFAULT_QUEUE_NAME = "default"
-
-  class << self
-    def enqueue_active_job(active_job, scheduled_at: Time.current)
-      enqueue \
-        queue_name: active_job.queue_name,
-        active_job_id: active_job.job_id,
-        priority: active_job.priority,
-        scheduled_at: scheduled_at,
-        class_name: active_job.class.name,
-        arguments: active_job.serialize,
-        concurrency_key: active_job.try(:concurrency_key)
+    if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
+      serialize :arguments, coder: JSON
+    else
+      serialize :arguments, JSON
     end
 
-    def enqueue(**kwargs)
-      create!(**kwargs.compact.with_defaults(defaults)).tap do
-        SolidQueue.logger.debug "[SolidQueue] Enqueued job #{kwargs}"
-      end
-    end
+    class << self
+      def enqueue_all(active_jobs)
+        active_jobs_by_job_id = active_jobs.index_by(&:job_id)
 
-    private
-      def defaults
-        { queue_name: DEFAULT_QUEUE_NAME, priority: DEFAULT_PRIORITY }
+        transaction do
+          jobs = create_all_from_active_jobs(active_jobs)
+          prepare_all_for_execution(jobs).tap do |enqueued_jobs|
+            enqueued_jobs.each do |enqueued_job|
+              active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
+            end
+          end
+        end
       end
+
+      def enqueue(active_job, scheduled_at: Time.current)
+        active_job.scheduled_at = scheduled_at
+
+        create_from_active_job(active_job).tap do |enqueued_job|
+          active_job.provider_job_id = enqueued_job.id
+        end
+      end
+
+      private
+        DEFAULT_PRIORITY = 0
+        DEFAULT_QUEUE_NAME = "default"
+
+        def create_from_active_job(active_job)
+          create!(**attributes_from_active_job(active_job))
+        end
+
+        def create_all_from_active_jobs(active_jobs)
+          job_rows = active_jobs.map { |job| attributes_from_active_job(job) }
+          insert_all(job_rows)
+          where(active_job_id: active_jobs.map(&:job_id))
+        end
+
+        def attributes_from_active_job(active_job)
+          {
+            queue_name: active_job.queue_name || DEFAULT_QUEUE_NAME,
+            active_job_id: active_job.job_id,
+            priority: active_job.priority || DEFAULT_PRIORITY,
+            scheduled_at: active_job.scheduled_at,
+            class_name: active_job.class.name,
+            arguments: active_job.serialize,
+            concurrency_key: active_job.concurrency_key
+          }
+        end
+    end
   end
 end

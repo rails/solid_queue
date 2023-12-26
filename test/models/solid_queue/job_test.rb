@@ -31,10 +31,11 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
     assert_ready do
-      SolidQueue::Job.enqueue_active_job(active_job)
+      SolidQueue::Job.enqueue(active_job)
     end
 
     solid_queue_job = SolidQueue::Job.last
+    assert_equal solid_queue_job.id, active_job.provider_job_id
     assert_equal 8, solid_queue_job.priority
     assert_equal "test", solid_queue_job.queue_name
     assert_equal "AddToBufferJob", solid_queue_job.class_name
@@ -51,7 +52,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
     assert_scheduled do
-      SolidQueue::Job.enqueue_active_job(active_job, scheduled_at: 5.minutes.from_now)
+      SolidQueue::Job.enqueue(active_job, scheduled_at: 5.minutes.from_now)
     end
 
     solid_queue_job = SolidQueue::Job.last
@@ -65,7 +66,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job, execution.job
     assert_equal "test", execution.queue_name
     assert_equal 8, execution.priority
-    assert Time.now < execution.scheduled_at
+    assert_equal solid_queue_job.scheduled_at, execution.scheduled_at
   end
 
   test "enqueue jobs without concurrency controls" do
@@ -100,6 +101,27 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       assert_equal 1, active_job.concurrency_limit
       assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
     end
+  end
+
+  test "enqueue multiple jobs" do
+    active_jobs = [
+      AddToBufferJob.new(2),
+      AddToBufferJob.new(6).set(wait: 2.minutes),
+      NonOverlappingJob.new(@result),
+      StoreResultJob.new(42),
+      AddToBufferJob.new(4),
+      NonOverlappingGroupedJob1.new(@result),
+      AddToBufferJob.new(6).set(wait: 3.minutes),
+      NonOverlappingJob.new(@result),
+      NonOverlappingGroupedJob2.new(@result)
+    ]
+
+    assert_multi(ready: 5, scheduled: 2, blocked: 2) do
+      ActiveJob.perform_all_later(active_jobs)
+    end
+
+    jobs = SolidQueue::Job.last(9)
+    assert_equal active_jobs.map(&:provider_job_id).sort, jobs.pluck(:id).sort
   end
 
   test "block jobs when concurrency limits are reached" do
@@ -146,6 +168,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     def assert_blocked(&block)
       assert_no_difference -> { SolidQueue::ReadyExecution.count } do
         assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::BlockedExecution.count } => +1, &block
+      end
+    end
+
+    def assert_multi(ready: 0, scheduled: 0, blocked: 0, &block)
+      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked) do
+        assert_difference -> { SolidQueue::ReadyExecution.count }, +ready do
+          assert_difference -> { SolidQueue::ScheduledExecution.count }, +scheduled do
+            assert_difference -> { SolidQueue::BlockedExecution.count }, +blocked, &block
+          end
+        end
       end
     end
 end

@@ -4,7 +4,7 @@ module SolidQueue
   class ReadyExecution < Execution
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
 
-    assume_attributes_from_job
+    assumes_attributes_from_job
 
     class << self
       def claim(queue_list, limit, process_id)

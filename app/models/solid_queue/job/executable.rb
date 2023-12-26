@@ -6,21 +6,56 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include Clearable, ConcurrencyControls
+        include Clearable, ConcurrencyControls, Schedulable
 
         has_one :ready_execution, dependent: :destroy
         has_one :claimed_execution, dependent: :destroy
         has_one :failed_execution, dependent: :destroy
 
-        has_one :scheduled_execution, dependent: :destroy
-
         after_create :prepare_for_execution
 
         scope :finished, -> { where.not(finished_at: nil) }
-        scope :failed, -> { includes(:failed_execution).where.not(failed_execution: {id: nil}) }
+        scope :failed, -> { includes(:failed_execution).where.not(failed_execution: { id: nil }) }
       end
 
-      %w[ ready claimed failed scheduled ].each do |status|
+      class_methods do
+        def prepare_all_for_execution(jobs)
+          due, not_yet_due = jobs.partition(&:due?)
+          dispatch_all(due) + schedule_all(not_yet_due)
+        end
+
+        def dispatch_all(jobs)
+          with_concurrency_limits, without_concurrency_limits = jobs.partition(&:concurrency_limited?)
+
+          dispatch_all_at_once(without_concurrency_limits)
+          dispatch_all_one_by_one(with_concurrency_limits)
+
+          successfully_dispatched(jobs)
+        end
+
+        private
+          def dispatch_all_at_once(jobs)
+            ReadyExecution.create_all_from_jobs jobs
+          end
+
+          def dispatch_all_one_by_one(jobs)
+            jobs.each(&:dispatch)
+          end
+
+          def successfully_dispatched(jobs)
+            dispatched_and_ready(jobs) + dispatched_and_blocked(jobs)
+          end
+
+          def dispatched_and_ready(jobs)
+            where(id: ReadyExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          end
+
+          def dispatched_and_blocked(jobs)
+            where(id: BlockedExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          end
+      end
+
+      %w[ ready claimed failed ].each do |status|
         define_method("#{status}?") { public_send("#{status}_execution").present? }
       end
 
@@ -50,6 +85,10 @@ module SolidQueue
         finished_at.present?
       end
 
+      def due?
+        scheduled_at.nil? || scheduled_at <= Time.current
+      end
+
       def discard
         destroy unless claimed?
       end
@@ -63,14 +102,6 @@ module SolidQueue
       end
 
       private
-        def due?
-          scheduled_at.nil? || scheduled_at <= Time.current
-        end
-
-        def schedule
-          ScheduledExecution.create_or_find_by!(job_id: id)
-        end
-
         def ready
           ReadyExecution.create_or_find_by!(job_id: id)
         end
