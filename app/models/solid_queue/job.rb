@@ -4,11 +4,7 @@ module SolidQueue
   class Job < Record
     include Executable
 
-    if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
-      serialize :arguments, coder: JSON
-    else
-      serialize :arguments, JSON
-    end
+    serialize :arguments, coder: JSON
 
     class << self
       def enqueue_all(active_jobs)
