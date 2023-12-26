@@ -17,6 +17,8 @@ class PumaPluginTest < ActiveSupport::TestCase
     @pid = fork do
       exec(*cmd)
     end
+
+    wait_for_registered_processes(4, timeout: 3.second)
   end
 
   teardown do
