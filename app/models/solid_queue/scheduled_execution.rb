@@ -22,23 +22,12 @@ module SolidQueue
       private
         def dispatch_batch(job_ids)
           jobs = Job.where(id: job_ids)
-          with_concurrency_limits, without_concurrency_limits = jobs.partition(&:concurrency_limited?)
-
-          dispatch_at_once(without_concurrency_limits)
-          dispatch_one_by_one(with_concurrency_limits)
+          Job.dispatch_all(jobs)
 
           successfully_dispatched(job_ids).tap do |dispatched_job_ids|
             where(job_id: dispatched_job_ids).delete_all
             SolidQueue.logger.info("[SolidQueue] Dispatched scheduled batch with #{dispatched_job_ids.size} jobs")
           end
-        end
-
-        def dispatch_at_once(jobs)
-          ReadyExecution.create_all_from_jobs jobs
-        end
-
-        def dispatch_one_by_one(jobs)
-          jobs.each(&:dispatch)
         end
 
         def successfully_dispatched(job_ids)

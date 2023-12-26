@@ -21,13 +21,32 @@ module SolidQueue
       end
 
       class_methods do
-        def dispatch_all_at_once(jobs)
-          ReadyExecution.create_all_from_jobs(jobs)
+        def prepare_all_for_execution(jobs)
+          due, not_yet_due = jobs.partition(&:due?)
+
+          dispatch_all(due)
+          schedule_all(not_yet_due)
+        end
+
+        def dispatch_all(jobs)
+          with_concurrency_limits, without_concurrency_limits = jobs.partition(&:concurrency_limited?)
+
+          dispatch_all_at_once(without_concurrency_limits)
+          dispatch_all_one_by_one(with_concurrency_limits)
         end
 
         def schedule_all(jobs)
           ScheduledExecution.create_all_from_jobs(jobs)
         end
+
+        private
+          def dispatch_all_at_once(jobs)
+            ReadyExecution.create_all_from_jobs jobs
+          end
+
+          def dispatch_all_one_by_one(jobs)
+            jobs.each(&:dispatch)
+          end
       end
 
       %w[ ready claimed failed scheduled ].each do |status|
@@ -60,6 +79,10 @@ module SolidQueue
         finished_at.present?
       end
 
+      def due?
+        scheduled_at.nil? || scheduled_at <= Time.current
+      end
+
       def discard
         destroy unless claimed?
       end
@@ -73,10 +96,6 @@ module SolidQueue
       end
 
       private
-        def due?
-          scheduled_at.nil? || scheduled_at <= Time.current
-        end
-
         def schedule
           ScheduledExecution.create_or_find_by!(job_id: id)
         end

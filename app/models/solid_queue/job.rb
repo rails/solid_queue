@@ -12,34 +12,16 @@ module SolidQueue
 
     class << self
       def enqueue_all(active_jobs)
-        scheduled_jobs, immediate_jobs = active_jobs.partition(&:scheduled_at)
-        with_concurrency_limits, without_concurrency_limits = immediate_jobs.partition(&:concurrency_limited?)
-
-        schedule_all_at_once(scheduled_jobs)
-        enqueue_all_at_once(without_concurrency_limits)
-        enqueue_one_by_one(with_concurrency_limits)
-      end
-
-      def schedule_all_at_once(active_jobs)
         transaction do
-          inserted_jobs = create_all_from_active_jobs(active_jobs)
-          schedule_all(inserted_jobs)
+          jobs = create_all_from_active_jobs(active_jobs)
+          prepare_all_for_execution(jobs)
         end
-      end
-
-      def enqueue_all_at_once(active_jobs)
-        transaction do
-          inserted_jobs = create_all_from_active_jobs(active_jobs)
-          dispatch_all_at_once(inserted_jobs)
-        end
-      end
-
-      def enqueue_one_by_one(active_jobs)
-        active_jobs.each { |active_job| enqueue(active_job) }
       end
 
       def enqueue(active_job, scheduled_at: Time.current)
-        create!(**attributes_from_active_job(active_job).reverse_merge(scheduled_at: scheduled_at)).tap do |job|
+        active_job.scheduled_at = scheduled_at
+
+        create_from_active_job(active_job).tap do |job|
           active_job.provider_job_id = job.id
         end
       end
@@ -47,6 +29,10 @@ module SolidQueue
       private
         DEFAULT_PRIORITY = 0
         DEFAULT_QUEUE_NAME = "default"
+
+        def create_from_active_job(active_job)
+          create!(**attributes_from_active_job(active_job))
+        end
 
         def create_all_from_active_jobs(active_jobs)
           job_rows = active_jobs.map { |job| attributes_from_active_job(job) }
@@ -56,18 +42,14 @@ module SolidQueue
 
         def attributes_from_active_job(active_job)
           {
-            queue_name: active_job.queue_name,
+            queue_name: active_job.queue_name || DEFAULT_QUEUE_NAME,
             active_job_id: active_job.job_id,
-            priority: active_job.priority,
+            priority: active_job.priority || DEFAULT_PRIORITY,
             scheduled_at: active_job.scheduled_at,
             class_name: active_job.class.name,
             arguments: active_job.serialize,
             concurrency_key: active_job.concurrency_key
-          }.compact.with_defaults(defaults)
-        end
-
-        def defaults
-          { queue_name: DEFAULT_QUEUE_NAME, priority: DEFAULT_PRIORITY }
+          }
         end
     end
   end
