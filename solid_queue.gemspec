@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
   end
 
-  spec.add_dependency "rails", ">= 7.1"
+  spec.add_dependency "rails", "~> 7.1"
   spec.add_development_dependency "debug"
   spec.add_development_dependency "mocha"
   spec.add_development_dependency "puma"
