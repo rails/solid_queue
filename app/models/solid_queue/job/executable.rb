@@ -6,13 +6,11 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include Clearable, ConcurrencyControls
+        include Clearable, ConcurrencyControls, Schedulable
 
         has_one :ready_execution, dependent: :destroy
         has_one :claimed_execution, dependent: :destroy
         has_one :failed_execution, dependent: :destroy
-
-        has_one :scheduled_execution, dependent: :destroy
 
         after_create :prepare_for_execution
 
@@ -35,18 +33,9 @@ module SolidQueue
           successfully_dispatched(jobs)
         end
 
-        def schedule_all(jobs)
-          schedule_all_at_once(jobs)
-          successfully_scheduled(jobs)
-        end
-
         private
           def dispatch_all_at_once(jobs)
             ReadyExecution.create_all_from_jobs jobs
-          end
-
-          def schedule_all_at_once(jobs)
-            ScheduledExecution.create_all_from_jobs(jobs)
           end
 
           def dispatch_all_one_by_one(jobs)
@@ -64,13 +53,9 @@ module SolidQueue
           def dispatched_and_blocked(jobs)
             where(id: BlockedExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
           end
-
-          def successfully_scheduled(jobs)
-            where(id: ScheduledExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
-          end
       end
 
-      %w[ ready claimed failed scheduled ].each do |status|
+      %w[ ready claimed failed ].each do |status|
         define_method("#{status}?") { public_send("#{status}_execution").present? }
       end
 
@@ -117,10 +102,6 @@ module SolidQueue
       end
 
       private
-        def schedule
-          ScheduledExecution.create_or_find_by!(job_id: id)
-        end
-
         def ready
           ReadyExecution.create_or_find_by!(job_id: id)
         end
