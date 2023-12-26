@@ -5,6 +5,8 @@ class PumaPluginTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
+    FileUtils.mkdir_p Rails.root.join("tmp", "pids")
+
     cmd = %w[
       bundle exec puma
         -b tcp://127.0.0.1:9222
@@ -22,7 +24,10 @@ class PumaPluginTest < ActiveSupport::TestCase
   end
 
   teardown do
-    Process.kill :INT, @pid
+    terminate_process(@pid, signal: :INT)
+    wait_for_registered_processes 0, timeout: 0.2.second
+
+    JobResult.delete_all
   end
 
   test "perform jobs inside puma's process" do
