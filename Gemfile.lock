@@ -2,7 +2,7 @@ PATH
   remote: .
   specs:
     solid_queue (0.1.2)
-      rails (>= 7.0.3.1)
+      rails (>= 7.1)
 
 GEM
   remote: https://rubygems.org/

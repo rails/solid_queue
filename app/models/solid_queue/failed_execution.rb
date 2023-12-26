@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::FailedExecution < SolidQueue::Execution
-  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
-    serialize :error, coder: JSON
-  else
-    serialize :error, JSON
-  end
+  serialize :error, coder: JSON
 
   before_create :expand_error_details_from_exception
 
