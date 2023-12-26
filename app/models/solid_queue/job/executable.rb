@@ -23,9 +23,7 @@ module SolidQueue
       class_methods do
         def prepare_all_for_execution(jobs)
           due, not_yet_due = jobs.partition(&:due?)
-
-          dispatch_all(due)
-          schedule_all(not_yet_due)
+          dispatch_all(due) + schedule_all(not_yet_due)
         end
 
         def dispatch_all(jobs)
@@ -33,10 +31,13 @@ module SolidQueue
 
           dispatch_all_at_once(without_concurrency_limits)
           dispatch_all_one_by_one(with_concurrency_limits)
+
+          successfully_dispatched(jobs)
         end
 
         def schedule_all(jobs)
-          ScheduledExecution.create_all_from_jobs(jobs)
+          schedule_all_at_once(jobs)
+          successfully_scheduled(jobs)
         end
 
         private
@@ -44,8 +45,28 @@ module SolidQueue
             ReadyExecution.create_all_from_jobs jobs
           end
 
+          def schedule_all_at_once(jobs)
+            ScheduledExecution.create_all_from_jobs(jobs)
+          end
+
           def dispatch_all_one_by_one(jobs)
             jobs.each(&:dispatch)
+          end
+
+          def successfully_dispatched(jobs)
+            dispatched_and_ready(jobs) + dispatched_and_blocked(jobs)
+          end
+
+          def dispatched_and_ready(jobs)
+            where(id: ReadyExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          end
+
+          def dispatched_and_blocked(jobs)
+            where(id: BlockedExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          end
+
+          def successfully_scheduled(jobs)
+            where(id: ScheduledExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
           end
       end
 

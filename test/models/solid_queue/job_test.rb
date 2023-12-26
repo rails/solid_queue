@@ -35,6 +35,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
 
     solid_queue_job = SolidQueue::Job.last
+    assert_equal solid_queue_job.id, active_job.provider_job_id
     assert_equal 8, solid_queue_job.priority
     assert_equal "test", solid_queue_job.queue_name
     assert_equal "AddToBufferJob", solid_queue_job.class_name
@@ -118,6 +119,9 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_multi(ready: 5, scheduled: 2, blocked: 2) do
       ActiveJob.perform_all_later(active_jobs)
     end
+
+    jobs = SolidQueue::Job.last(9)
+    assert_equal active_jobs.map(&:provider_job_id).sort, jobs.pluck(:id).sort
   end
 
   test "block jobs when concurrency limits are reached" do

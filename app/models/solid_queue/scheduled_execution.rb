@@ -22,24 +22,11 @@ module SolidQueue
       private
         def dispatch_batch(job_ids)
           jobs = Job.where(id: job_ids)
-          Job.dispatch_all(jobs)
 
-          successfully_dispatched(job_ids).tap do |dispatched_job_ids|
+          Job.dispatch_all(jobs).map(&:id).tap do |dispatched_job_ids|
             where(job_id: dispatched_job_ids).delete_all
             SolidQueue.logger.info("[SolidQueue] Dispatched scheduled batch with #{dispatched_job_ids.size} jobs")
           end
-        end
-
-        def successfully_dispatched(job_ids)
-          dispatched_and_ready(job_ids) + dispatched_and_blocked(job_ids)
-        end
-
-        def dispatched_and_ready(job_ids)
-          ReadyExecution.where(job_id: job_ids).pluck(:job_id)
-        end
-
-        def dispatched_and_blocked(job_ids)
-          BlockedExecution.where(job_id: job_ids).pluck(:job_id)
         end
     end
   end
