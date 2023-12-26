@@ -15,9 +15,12 @@ module SolidQueue
           prepare_all_for_execution(jobs).tap do |enqueued_jobs|
             enqueued_jobs.each do |enqueued_job|
               active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
+              active_jobs_by_job_id[enqueued_job.active_job_id].successfully_enqueued = true
             end
           end
         end
+
+        active_jobs.count(&:successfully_enqueued?)
       end
 
       def enqueue(active_job, scheduled_at: Time.current)

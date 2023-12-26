@@ -122,6 +122,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     jobs = SolidQueue::Job.last(9)
     assert_equal active_jobs.map(&:provider_job_id).sort, jobs.pluck(:id).sort
+    assert active_jobs.all?(&:successfully_enqueued?)
   end
 
   test "block jobs when concurrency limits are reached" do
