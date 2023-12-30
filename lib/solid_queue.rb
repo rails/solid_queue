@@ -6,6 +6,9 @@ require "solid_queue/engine"
 require "active_job/queue_adapters/solid_queue_adapter"
 require "active_job/concurrency_controls"
 
+require "active_support/deprecator"
+require "active_support/core_ext/numeric/time"
+
 require "solid_queue/app_executor"
 require "solid_queue/processes/supervised"
 require "solid_queue/processes/registrable"
