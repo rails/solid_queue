@@ -31,7 +31,7 @@ $ bin/rails generate solid_queue:install
 
 This will set `solid_queue` as the Active Job's adapter in production, and will copy the required migration over to your app.
 
-Alternatively, you can add the only the migration to your app:
+Alternatively, you can add only the migration to your app:
 ```bash
 $ bin/rails solid_queue:install:migrations
 ```
