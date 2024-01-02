@@ -4,6 +4,6 @@ Description:
 Example:
     bin/rails generate solid_queue:install
 
-    This will create:
+    This will perform the following:
         Installs solid_queue migrations
-        Replaces Active Job's adapter in envionment configuration
+        Replaces Active Job's adapter in environment configuration
