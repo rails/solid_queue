@@ -10,3 +10,9 @@
 
 # Folder for JetBrains IDEs
 /.idea/
+
+# Folder for Visual Studio Code
+/.vscode/
+
+# misc
+.DS_Store
