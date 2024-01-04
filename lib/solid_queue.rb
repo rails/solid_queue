@@ -19,6 +19,7 @@ require "solid_queue/processes/signals"
 require "solid_queue/configuration"
 require "solid_queue/pool"
 require "solid_queue/worker"
+require "solid_queue/concurrency_clerk"
 require "solid_queue/dispatcher"
 require "solid_queue/supervisor"
 

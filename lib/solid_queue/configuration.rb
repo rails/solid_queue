@@ -12,6 +12,7 @@ module SolidQueue
     DISPATCHER_DEFAULTS = {
       batch_size: 500,
       polling_interval: 1,
+      concurrency_clerk: true,
       concurrency_maintenance_interval: 600
     }
 

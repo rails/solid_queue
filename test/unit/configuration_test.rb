@@ -28,8 +28,10 @@ class ConfigurationTest < ActiveSupport::TestCase
     config_as_hash = { workers: [ background_worker, background_worker ], dispatchers: [ dispatcher ] }
     configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
 
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], configuration.dispatchers.first.polling_interval
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:concurrency_maintenance_interval], configuration.dispatchers.first.concurrency_maintenance_interval
+    assert_equal 1, configuration.dispatchers.count
+    dispatcher = configuration.dispatchers.first
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], dispatcher.polling_interval
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:concurrency_maintenance_interval], dispatcher.concurrency_clerk.interval
 
     assert_equal 2, configuration.workers.count
     assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq

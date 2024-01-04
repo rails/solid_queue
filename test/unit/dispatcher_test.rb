@@ -20,6 +20,17 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
+    assert_equal({ "polling_interval" => 0.1, "batch_size" => 10, "concurrency_maintenance_interval" => 600 }, process.metadata)
+  end
+
+  test "concurrency maintenance is optional" do
+    no_concurrency_clerk = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, concurrency_clerk: false)
+    no_concurrency_clerk.start
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
     assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
   end
 

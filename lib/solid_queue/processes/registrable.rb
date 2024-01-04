@@ -26,7 +26,7 @@ module SolidQueue::Processes
           pid: process_pid,
           hostname: hostname,
           supervisor: try(:supervisor),
-          metadata: metadata
+          metadata: metadata.compact
       end
 
       def deregister

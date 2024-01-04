@@ -4,17 +4,18 @@ module SolidQueue
   class Dispatcher < Processes::Base
     include Processes::Runnable, Processes::Poller
 
-    attr_accessor :batch_size, :concurrency_maintenance_interval
+    attr_accessor :batch_size, :concurrency_clerk
 
-    set_callback :boot, :after, :launch_concurrency_maintenance
-    set_callback :shutdown, :before, :stop_concurrency_maintenance
+    set_callback :boot, :after, :launch_concurrency_maintenance, if: :concurrency_clerk?
+    set_callback :shutdown, :before, :stop_concurrency_maintenance, if: :concurrency_clerk?
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
 
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
-      @concurrency_maintenance_interval = options[:concurrency_maintenance_interval]
+
+      @concurrency_clerk = ConcurrencyClerk.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_clerk]
     end
 
     private
@@ -33,33 +34,16 @@ module SolidQueue
         end
       end
 
+      def concurrency_clerk?
+        concurrency_clerk.present?
+      end
+
       def launch_concurrency_maintenance
-        @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: concurrency_maintenance_interval) do
-          expire_semaphores
-          unblock_blocked_executions
-        end
-
-        @concurrency_maintenance_task.add_observer do |_, _, error|
-          handle_thread_error(error) if error
-        end
-
-        @concurrency_maintenance_task.execute
+        concurrency_clerk.start
       end
 
       def stop_concurrency_maintenance
-        @concurrency_maintenance_task.shutdown
-      end
-
-      def expire_semaphores
-        wrap_in_app_executor do
-          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
-        end
-      end
-
-      def unblock_blocked_executions
-        wrap_in_app_executor do
-          BlockedExecution.unblock(batch_size)
-        end
+        concurrency_clerk.stop
       end
 
       def initial_jitter
@@ -67,7 +51,7 @@ module SolidQueue
       end
 
       def metadata
-        super.merge(batch_size: batch_size)
+        super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_clerk&.interval)
       end
   end
 end
