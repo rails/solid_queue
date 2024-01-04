@@ -43,7 +43,7 @@ module SolidQueue
     def dispatchers
       if mode.in? %i[ dispatch all]
         dispatchers_options.flat_map do |dispatcher_options|
-          SolidQueue::Dispatcher.new(**dispatcher_options)
+          SolidQueue::Dispatcher.new(**dispatcher_options.with_defaults(DISPATCHER_DEFAULTS))
         end
       end
     end
