@@ -4,6 +4,9 @@ default: &default
       threads: 3
     - queues: default
       threads: 5
+    - queues: [default, background]
+      threads: 2
+      processes: 0 # async
   dispatchers:
     - polling_interval: 1
       batch_size: 500

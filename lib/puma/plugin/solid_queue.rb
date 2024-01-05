@@ -1,5 +1,13 @@
 require "puma/plugin"
 
+module Puma
+  class DSL
+    def solid_queue_mode(mode = :fork)
+      @options[:solid_queue_mode] = mode.to_sym
+    end
+  end
+end
+
 Puma::Plugin.create do
   attr_reader :puma_pid, :solid_queue_pid, :log_writer
 
@@ -7,21 +15,37 @@ Puma::Plugin.create do
     @log_writer = launcher.log_writer
     @puma_pid = $$
 
-    launcher.events.on_booted do
-      @solid_queue_pid = fork do
-        Thread.new { monitor_puma }
-        SolidQueue::Supervisor.start(mode: :all)
-      end
 
-      in_background do
-        monitor_solid_queue
-      end
+    if launcher.options[:solid_queue_mode] == :async
+      start_async(launcher)
+    else
+      start_forked(launcher)
     end
-
-    launcher.events.on_stopped { stop_solid_queue }
   end
 
   private
+    def start_forked(launcher)
+      launcher.events.on_booted do
+        @solid_queue_pid = fork do
+          Thread.new { monitor_puma }
+          SolidQueue::Supervisor.start(mode: :all)
+        end
+
+        in_background do
+          monitor_solid_queue
+        end
+      end
+
+      launcher.events.on_stopped { stop_solid_queue }
+    end
+
+    def start_async(launcher)
+      supervisor = SolidQueue::AsyncSupervisor.load
+      launcher.events.on_booted { supervisor.start }
+      launcher.events.on_stopped { supervisor.stop }
+      launcher.events.on_restart { supervisor.stop; supervisor.start }
+    end
+
     def stop_solid_queue
       Process.waitpid(solid_queue_pid, Process::WNOHANG)
       log "Stopping Solid Queue..."

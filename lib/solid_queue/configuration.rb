@@ -25,6 +25,7 @@ module SolidQueue
       when :dispatch then dispatchers
       when :work     then workers
       when :all      then dispatchers + workers
+      when :async    then dispatchers + async_workers
       else           raise "Invalid mode #{mode}"
       end
     end
@@ -40,8 +41,16 @@ module SolidQueue
       end
     end
 
+    def async_workers
+      workers_options.select do |worker_options|
+        worker_options.fetch(:processes, WORKER_DEFAULTS[:processes]) == 0
+      end.map do |worker_options|
+        SolidQueue::Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS))
+      end
+    end
+
     def dispatchers
-      if mode.in? %i[ dispatch all]
+      if mode.in? %i[ dispatch all async]
         dispatchers_options.flat_map do |dispatcher_options|
           SolidQueue::Dispatcher.new(**dispatcher_options)
         end

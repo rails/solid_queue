@@ -238,6 +238,18 @@ plugin :solid_queue
 ```
 to your `puma.rb` configuration.
 
+### Forking or asynchronous workers
+
+By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage.
+
+Alternatively, workers and dispatchers can be run within the same Puma process(s). To do so, 
+
+1. Configure the plugin as:
+  ```ruby
+  plugin :solid_queue
+  solid_queue_mode :async
+  ````
+2. Opt-in specific worker configurations with `processes: 0` in `config/solid_queue.yml`
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
