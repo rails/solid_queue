@@ -51,4 +51,6 @@ Rails.application.configure do
   logger = ActiveSupport::Logger.new(STDOUT)
   config.solid_queue.on_thread_error = ->(exception) { logger.error("#{exception.class.name}: #{exception.message}\n#{exception.backtrace.join("\n")}") }
   config.solid_queue.logger = ActiveSupport::Logger.new(nil)
+
+  config.solid_queue.shutdown_timeout = 2.seconds
 end

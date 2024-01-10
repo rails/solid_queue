@@ -7,8 +7,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   setup do
     @result = JobResult.create!(queue_name: "default", status: "seq: ")
 
-    default_worker = { queues: "default", polling_interval: 1, processes: 3, threads: 2 }
-    dispatcher = { polling_interval: 1, batch_size: 200, concurrency_maintenance_interval: 1 }
+    default_worker = { queues: "default", polling_interval: 0.1, processes: 3, threads: 2 }
+    dispatcher = { polling_interval: 0.1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
     @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
 
@@ -165,6 +165,21 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
     assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
+  end
+
+  test "don't block claimed executions that get released" do
+    SequentialUpdateResultJob.perform_later(@result, name: name, pause: SolidQueue.shutdown_timeout + 3.seconds)
+    job = SolidQueue::Job.last
+
+    sleep(0.2)
+    assert job.claimed?
+
+    # This won't leave time to the job to finish
+    signal_process(@pid, :TERM, wait: 0.1.second)
+    sleep(SolidQueue.shutdown_timeout + 0.2.seconds)
+
+    assert_not job.reload.finished?
+    assert job.reload.ready?
   end
 
   private
