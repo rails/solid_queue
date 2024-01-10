@@ -48,7 +48,7 @@ module SolidQueue::Processes
           run
         end
       end
-    ensure
+
       run_callbacks(:shutdown) { shutdown }
     end
 
