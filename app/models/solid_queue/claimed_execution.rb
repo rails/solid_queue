@@ -39,7 +39,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   def release
     transaction do
-      job.prepare_for_execution
+      job.dispatch_bypassing_concurrency_limits
       destroy!
     end
   end
