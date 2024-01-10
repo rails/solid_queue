@@ -21,8 +21,5 @@ class SolidQueue::Process < SolidQueue::Record
 
   def deregister
     destroy!
-  rescue Exception
-    SolidQueue.logger.error("[SolidQueue] Error deregistering process #{id} - #{metadata}")
-    raise
   end
 end

@@ -163,7 +163,7 @@ module SolidQueue
         if timeout > 0
           deadline = monotonic_time_now + timeout
 
-          while monotonic_time_now < deadline && !condition.call
+          while monotonic_time_now <= deadline && !condition.call
             sleep 0.1
             block.call
           end

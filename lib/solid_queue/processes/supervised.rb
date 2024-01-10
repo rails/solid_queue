@@ -31,7 +31,7 @@ module SolidQueue::Processes
         end
 
         trap(:QUIT) do
-          exit!
+          exit
         end
       end
   end
