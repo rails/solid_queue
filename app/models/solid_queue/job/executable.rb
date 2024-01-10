@@ -73,6 +73,10 @@ module SolidQueue
         end
       end
 
+      def dispatch_bypassing_concurrency_limits
+        ready
+      end
+
       def finished!
         if preserve_finished_jobs?
           touch(:finished_at)
