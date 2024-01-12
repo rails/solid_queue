@@ -89,10 +89,6 @@ module SolidQueue
         finished_at.present?
       end
 
-      def due?
-        scheduled_at.nil? || scheduled_at <= Time.current
-      end
-
       def discard
         destroy unless claimed?
       end
