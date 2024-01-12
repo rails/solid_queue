@@ -21,6 +21,10 @@ module SolidQueue
         concurrency_key.present?
       end
 
+      def blocked?
+        blocked_execution.present?
+      end
+
       private
         def acquire_concurrency_lock
           return true unless concurrency_limited?

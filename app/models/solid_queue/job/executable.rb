@@ -90,7 +90,9 @@ module SolidQueue
       end
 
       def discard
-        destroy unless claimed?
+        unless claimed?
+          try_to_discard_while_ready || destroy
+        end
       end
 
       def retry
@@ -104,6 +106,14 @@ module SolidQueue
       private
         def ready
           ReadyExecution.create_or_find_by!(job_id: id)
+        end
+
+        def try_to_discard_while_ready
+          # Prevent the job from being polled while being discarded
+          ready_execution&.with_lock do
+            unblock_next_blocked_job
+            destroy
+          end
         end
 
 

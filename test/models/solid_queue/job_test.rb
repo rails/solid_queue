@@ -116,7 +116,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       NonOverlappingGroupedJob2.new(@result)
     ]
 
-    assert_multi(ready: 5, scheduled: 2, blocked: 2) do
+    assert_job_counts(ready: 5, scheduled: 2, blocked: 2) do
       ActiveJob.perform_all_later(active_jobs)
     end
 
@@ -138,6 +138,73 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
   end
 
+  test "discard ready job" do
+    AddToBufferJob.perform_later(1)
+    job = SolidQueue::Job.last
+
+    assert_job_counts ready: -1 do
+      job.discard
+    end
+  end
+
+  test "discard blocked job" do
+    NonOverlappingJob.perform_later(@result, name: "ready")
+    NonOverlappingJob.perform_later(@result, name: "blocked")
+    ready_job, blocked_job = SolidQueue::Job.last(2)
+    semaphore = SolidQueue::Semaphore.last
+
+    travel_to 10.minutes.from_now
+
+    assert_no_changes -> { semaphore.value }, -> { semaphore.expires_at } do
+      assert_job_counts blocked: -1 do
+        blocked_job.discard
+      end
+    end
+  end
+
+  test "try to discard claimed job" do
+    StoreResultJob.perform_later(42, pause: 2.seconds)
+    job = SolidQueue::Job.last
+
+    worker = SolidQueue::Worker.new(queues: "background").tap(&:start)
+    sleep(0.2)
+
+    assert_no_difference -> { SolidQueue::Job.count }, -> { SolidQueue::ClaimedExecution.count } do
+      job.discard
+    end
+
+    worker.stop
+  end
+
+  test "discard scheduled job" do
+    AddToBufferJob.set(wait: 5.minutes).perform_later
+    job = SolidQueue::Job.last
+
+    assert_job_counts scheduled: -1 do
+      job.discard
+    end
+  end
+
+  test "release blocked locks when discarding a ready job" do
+    NonOverlappingJob.perform_later(@result, name: "ready")
+    NonOverlappingJob.perform_later(@result, name: "blocked")
+    ready_job, blocked_job = SolidQueue::Job.last(2)
+    semaphore = SolidQueue::Semaphore.last
+
+    assert ready_job.ready?
+    assert blocked_job.blocked?
+
+    travel_to 10.minutes.from_now
+
+    assert_changes -> { semaphore.reload.expires_at } do
+      assert_job_counts blocked: -1 do
+        ready_job.discard
+      end
+    end
+
+    assert blocked_job.reload.ready?
+  end
+
   if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
     test "uses a different connection and transaction than the one in use when connects_to is specified" do
       assert_difference -> { SolidQueue::Job.count } do
@@ -157,22 +224,18 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
   private
     def assert_ready(&block)
-      assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ReadyExecution.count } => +1, &block
+      assert_job_counts(ready: 1, &block)
     end
 
     def assert_scheduled(&block)
-      assert_no_difference -> { SolidQueue::ReadyExecution.count } do
-        assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::ScheduledExecution.count } => +1, &block
-      end
+      assert_job_counts(scheduled: 1, &block)
     end
 
     def assert_blocked(&block)
-      assert_no_difference -> { SolidQueue::ReadyExecution.count } do
-        assert_difference -> { SolidQueue::Job.count } => +1, -> { SolidQueue::BlockedExecution.count } => +1, &block
-      end
+      assert_job_counts(blocked: 1, &block)
     end
 
-    def assert_multi(ready: 0, scheduled: 0, blocked: 0, &block)
+    def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, &block)
       assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked) do
         assert_difference -> { SolidQueue::ReadyExecution.count }, +ready do
           assert_difference -> { SolidQueue::ScheduledExecution.count }, +scheduled do
