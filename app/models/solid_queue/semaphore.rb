@@ -34,7 +34,7 @@ module SolidQueue
       end
 
       private
-        attr_reader :job, :retries
+        attr_accessor :job, :retries
 
         def attempt_creation
           Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
