@@ -44,6 +44,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
   end
 
+  def discard
+    raise UndiscardableError, "Can't discard a job in progress"
+  end
+
   private
     def execute
       ActiveJob::Base.execute(job.arguments)

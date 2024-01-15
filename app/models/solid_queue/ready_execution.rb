@@ -37,5 +37,12 @@ module SolidQueue
           end
         end
     end
+
+    def discard
+      with_lock do
+        job.destroy
+        destroy
+      end
+    end
   end
 end

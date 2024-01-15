@@ -8,9 +8,9 @@ module SolidQueue
       included do
         include Clearable, ConcurrencyControls, Schedulable
 
-        has_one :ready_execution, dependent: :destroy
-        has_one :claimed_execution, dependent: :destroy
-        has_one :failed_execution, dependent: :destroy
+        has_one :ready_execution
+        has_one :claimed_execution
+        has_one :failed_execution
 
         after_create :prepare_for_execution
 
@@ -89,12 +89,12 @@ module SolidQueue
         finished_at.present?
       end
 
-      def discard
-        destroy unless claimed?
-      end
-
       def retry
         failed_execution&.retry
+      end
+
+      def discard
+        execution.discard
       end
 
       def failed_with(exception)
@@ -106,6 +106,9 @@ module SolidQueue
           ReadyExecution.create_or_find_by!(job_id: id)
         end
 
+        def execution
+          %w[ ready claimed failed ].reduce(nil) { |acc, status| acc || public_send("#{status}_execution") }
+        end
 
         def preserve_finished_jobs?
           SolidQueue.preserve_finished_jobs

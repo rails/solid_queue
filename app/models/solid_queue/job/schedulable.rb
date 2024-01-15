@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :scheduled_execution, dependent: :destroy
+        has_one :scheduled_execution
 
         scope :scheduled, -> { where.not(finished_at: nil) }
       end
@@ -34,6 +34,10 @@ module SolidQueue
       private
         def schedule
           ScheduledExecution.create_or_find_by!(job_id: id)
+        end
+
+        def execution
+          super || scheduled_execution
         end
     end
   end
