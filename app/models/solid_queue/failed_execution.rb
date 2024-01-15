@@ -10,12 +10,9 @@ module SolidQueue
 
     attr_accessor :exception
 
-    class << self
-      def retry_all(jobs)
-        transaction do
-          retriable_job_ids = where(job_id: jobs.map(&:id)).order(:job_id).lock.pluck(:job_id)
-          dispatch_batch(retriable_job_ids)
-        end
+    def self.retry_all(jobs)
+      transaction do
+        dispatch_jobs lock_all_from_jobs(jobs)
       end
     end
 

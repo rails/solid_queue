@@ -22,6 +22,24 @@ module SolidQueue
           attributes_from_job(job).merge(job_id: job.id)
         end
       end
+
+      def discard_all_from_jobs(jobs)
+        transaction do
+          job_ids = lock_all_from_jobs(jobs)
+
+          discard_jobs job_ids
+          where(job_id: job_ids).delete_all
+        end
+      end
+
+      private
+        def lock_all_from_jobs(jobs)
+          where(job_id: jobs.map(&:id)).order(:job_id).lock.pluck(:job_id)
+        end
+
+        def discard_jobs(job_ids)
+          Job.where(id: job_ids).delete_all
+        end
     end
 
     def discard

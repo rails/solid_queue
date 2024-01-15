@@ -207,6 +207,36 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert blocked_job.reload.ready?
   end
 
+  test "discard jobs by execution type in bulk" do
+    active_jobs = [
+      AddToBufferJob.new(2),
+      AddToBufferJob.new(6).set(wait: 2.minutes),
+      NonOverlappingJob.new(@result),
+      StoreResultJob.new(42),
+      AddToBufferJob.new(4),
+      NonOverlappingGroupedJob1.new(@result),
+      AddToBufferJob.new(6).set(wait: 3.minutes),
+      NonOverlappingJob.new(@result),
+      NonOverlappingGroupedJob2.new(@result)
+    ]
+
+    assert_job_counts(ready: 5, scheduled: 2, blocked: 2) do
+      ActiveJob.perform_all_later(active_jobs)
+    end
+
+    assert_job_counts(ready: -5) do
+      SolidQueue::ReadyExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+
+    assert_job_counts(scheduled: -2) do
+      SolidQueue::ScheduledExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+
+    assert_job_counts(blocked: -2) do
+      SolidQueue::BlockedExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+  end
+
   if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
     test "uses a different connection and transaction than the one in use when connects_to is specified" do
       assert_difference -> { SolidQueue::Job.count } do

@@ -16,7 +16,7 @@ module SolidQueue
           job_ids = next_batch(batch_size).non_blocking_lock.pluck(:job_id)
           if job_ids.empty? then []
           else
-            dispatch_batch(job_ids)
+            dispatch_jobs(job_ids)
           end
         end
       end

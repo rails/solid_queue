@@ -13,6 +13,12 @@ module SolidQueue
         before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
 
+      class_methods do
+        def release_all_concurrency_locks(jobs)
+          Semaphore.signal_all(jobs.select(&:concurrency_limited?))
+        end
+      end
+
       def unblock_next_blocked_job
         if release_concurrency_lock
           release_next_blocked_job
