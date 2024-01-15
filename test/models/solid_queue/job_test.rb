@@ -170,7 +170,9 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     sleep(0.2)
 
     assert_no_difference -> { SolidQueue::Job.count }, -> { SolidQueue::ClaimedExecution.count } do
-      job.discard
+      assert_raises SolidQueue::Execution::UndiscardableError do
+        job.discard
+      end
     end
 
     worker.stop
@@ -225,6 +227,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   private
     def assert_ready(&block)
       assert_job_counts(ready: 1, &block)
+      assert SolidQueue::Job.last.ready?
     end
 
     def assert_scheduled(&block)
@@ -233,6 +236,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     def assert_blocked(&block)
       assert_job_counts(blocked: 1, &block)
+      assert SolidQueue::Job.last.blocked?
     end
 
     def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, &block)

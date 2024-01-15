@@ -2,6 +2,8 @@
 
 module SolidQueue
   class Execution < Record
+    class UndiscardableError < StandardError; end
+
     include JobAttributes
 
     self.abstract_class = true
@@ -9,8 +11,6 @@ module SolidQueue
     scope :ordered, -> { order(priority: :asc, job_id: :asc) }
 
     belongs_to :job
-
-    alias_method :discard, :destroy
 
     class << self
       def create_all_from_jobs(jobs)
@@ -21,6 +21,13 @@ module SolidQueue
         jobs.collect do |job|
           attributes_from_job(job).merge(job_id: job.id)
         end
+      end
+    end
+
+    def discard
+      with_lock do
+        job.destroy
+        destroy
       end
     end
   end

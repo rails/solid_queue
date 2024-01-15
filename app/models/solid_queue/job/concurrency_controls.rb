@@ -6,9 +6,11 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :blocked_execution, dependent: :destroy
+        has_one :blocked_execution
 
         delegate :concurrency_limit, :concurrency_duration, to: :job_class
+
+        before_destroy :unblock_next_blocked_job, if: :ready?
       end
 
       def unblock_next_blocked_job
@@ -48,6 +50,10 @@ module SolidQueue
 
         def job_class
           @job_class ||= class_name.safe_constantize
+        end
+
+        def execution
+          super || blocked_execution
         end
     end
   end
