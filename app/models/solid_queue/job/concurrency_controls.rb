@@ -10,7 +10,7 @@ module SolidQueue
 
         delegate :concurrency_limit, :concurrency_duration, to: :job_class
 
-        before_destroy :unblock_next_blocked_job, if: :ready?
+        before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
 
       def unblock_next_blocked_job
