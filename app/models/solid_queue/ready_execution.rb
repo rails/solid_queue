@@ -15,6 +15,10 @@ module SolidQueue
         end
       end
 
+      def aggregated_count_across(queue_list)
+        QueueSelector.new(queue_list, self).scoped_relations.map(&:count).sum
+      end
+
       private
         def select_and_lock(queue_relation, process_id, limit)
           return [] if limit <= 0
