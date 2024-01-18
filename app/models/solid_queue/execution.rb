@@ -23,6 +23,23 @@ module SolidQueue
         end
       end
 
+      def discard_all_in_batches(batch_size: 500)
+        pending = count
+        discarded = 0
+
+        loop do
+          transaction do
+            job_ids = limit(batch_size).order(:job_id).lock.pluck(:job_id)
+
+            discard_jobs job_ids
+            discarded = where(job_id: job_ids).delete_all
+            pending -= discarded
+          end
+
+          break if pending <= 0 || discarded == 0
+        end
+      end
+
       def discard_all_from_jobs(jobs)
         transaction do
           job_ids = lock_all_from_jobs(jobs)
