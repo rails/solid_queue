@@ -94,7 +94,7 @@ module SolidQueue
       end
 
       def discard
-        execution.discard
+        execution&.discard
       end
 
       def failed_with(exception)

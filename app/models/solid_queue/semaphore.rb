@@ -13,9 +13,17 @@ module SolidQueue
       def signal(job)
         Proxy.new(job).signal
       end
+
+      def signal_all(jobs)
+        Proxy.signal_all(jobs)
+      end
     end
 
     class Proxy
+      def self.signal_all(jobs)
+        Semaphore.where(key: jobs.map(&:concurrency_key)).update_all("value = value + 1")
+      end
+
       def initialize(job)
         @job = job
         @retries = 0

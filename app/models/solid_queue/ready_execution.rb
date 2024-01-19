@@ -40,13 +40,12 @@ module SolidQueue
             where(job_id: claimed.pluck(:job_id)).delete_all
           end
         end
-    end
 
-    def discard
-      with_lock do
-        job.destroy
-        destroy
-      end
+
+        def discard_jobs(job_ids)
+          Job.release_all_concurrency_locks Job.where(id: job_ids)
+          super
+        end
     end
   end
 end

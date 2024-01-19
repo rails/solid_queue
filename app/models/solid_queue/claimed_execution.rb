@@ -23,6 +23,14 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def release_all
       includes(:job).each(&:release)
     end
+
+    def discard_all_in_batches(*)
+      raise UndiscardableError, "Can't discard jobs in progress"
+    end
+
+    def discard_all_from_jobs(*)
+      raise UndiscardableError, "Can't discard jobs in progress"
+    end
   end
 
   def perform
