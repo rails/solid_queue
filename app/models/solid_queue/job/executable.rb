@@ -89,6 +89,14 @@ module SolidQueue
         finished_at.present?
       end
 
+      def status
+        if finished?
+          :finished
+        elsif execution.present?
+          execution.model_name.element.sub("_execution", "").to_sym
+        end
+      end
+
       def retry
         failed_execution&.retry
       end
