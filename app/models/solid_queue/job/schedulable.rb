@@ -31,6 +31,10 @@ module SolidQueue
         scheduled_at.nil? || scheduled_at <= Time.current
       end
 
+      def scheduled?
+        scheduled_execution.present?
+      end
+
       private
         def schedule
           ScheduledExecution.create_or_find_by!(job_id: id)
