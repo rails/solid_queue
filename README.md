@@ -151,6 +151,9 @@ There are several settings that control how Solid Queue works that you can set a
   ```ruby
   -> (exception) { Rails.error.report(exception, handled: false) }
   ```
+
+  Note: `on_thread_error` is intended for errors in the thread that is executing the job and not for errors encountered in the job. For errors in the job itself, [refer here](#exceptions)
+
 - `connects_to`: a custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model. This is required to use a different database than the main app. For example:
 
   ```ruby
@@ -230,6 +233,42 @@ failed_execution.discard # This will delete the job from the system
 
 We're planning to release a dashboard called _Mission Control_, where, among other things, you'll be able to examine and retry/discard failed jobs, one by one, or in bulk.
 
+### Exceptions
+
+For errors encountered in the job, you could try to hook into [Active Job](https://guides.rubyonrails.org/active_job_basics.html#exceptions) and report the errors to your exception monitoring service.
+
+Let's see an example implementation to handle exceptions.
+
+```ruby
+# application_job.rb
+class ApplicationJob < ActiveJob::Base
+  around_perform do |job, block|
+    capture_and_record_errors(job, block)
+  end
+
+  def capture_and_record_errors(job, block)
+    block.call
+  rescue => exception
+    Rails.error.report(exception)
+    raise exception
+  end
+end
+```
+
+Note that, you will have to duplicate the above logic on `ActionMailer::MailDeliveryJob` too. That is because `ActionMailer` doesn't inherit from `ApplicationJob` but instead uses `ActionMailer::MailDeliveryJob` which inherits from `ActiveJob::Base`.
+
+```ruby
+# application_mailer.rb
+
+class ApplicationMailer < ActionMailer::Base
+  ActionMailer::MailDeliveryJob.around_perform do |job, block|
+    block.call
+  rescue => exception
+    Rails.error.report(exception)
+    raise exception
+  end
+end
+```
 
 ## Puma plugin
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
