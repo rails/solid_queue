@@ -30,6 +30,7 @@ module SolidQueue
       def dispatch_next_batch
         with_polling_volume do
           ScheduledExecution.dispatch_next_batch(batch_size)
+          SolidQueue::JobBatch.dispatch_finished_batches
         end
       end
 
