@@ -584,6 +584,17 @@ class ApplicationMailer < ActionMailer::Base
     Rails.error.report(exception)
     raise exception
   end
+```
+
+## Batch jobs
+
+```rb
+SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) do
+  5.times.map { |i| SleepyJob.perform_later(i) }
+end
+
+SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) do
+  5.times.map { |i| SleepyJob.perform_later(i) }
 end
 ```
 

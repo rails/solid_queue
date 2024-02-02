@@ -8,6 +8,8 @@ module SolidQueue
 
     serialize :arguments, coder: JSON
 
+    belongs_to :job_batch, foreign_key: :batch_id, optional: true
+
     class << self
       def enqueue_all(active_jobs)
         active_jobs.each { |job| job.scheduled_at ||= Time.current }
@@ -55,6 +57,7 @@ module SolidQueue
         end
 
         def attributes_from_active_job(active_job)
+          active_job.batch_id = JobBatch.current_batch_id || active_job.batch_id
           {
             queue_name: active_job.queue_name || DEFAULT_QUEUE_NAME,
             active_job_id: active_job.job_id,
@@ -62,7 +65,8 @@ module SolidQueue
             scheduled_at: active_job.scheduled_at,
             class_name: active_job.class.name,
             arguments: active_job.serialize,
-            concurrency_key: active_job.concurrency_key
+            concurrency_key: active_job.concurrency_key,
+            batch_id: active_job.batch_id
           }
         end
     end

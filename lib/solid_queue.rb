@@ -5,6 +5,7 @@ require "solid_queue/engine"
 
 require "active_job"
 require "active_job/queue_adapters"
+require "active_job/job_batch_id"
 
 require "active_support"
 require "active_support/core_ext/numeric/time"
