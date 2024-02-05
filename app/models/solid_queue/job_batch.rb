@@ -11,7 +11,7 @@ module SolidQueue
 
     class << self
       def current_batch_id
-        Thread.current[:current_batch_id]
+        ActiveSupport::IsolatedExecutionState[:current_batch_id]
       end
 
       def enqueue(attributes = {})
@@ -20,13 +20,13 @@ module SolidQueue
         job_batch = nil
         transaction do
           job_batch = create!(batch_attributes(attributes))
-          Thread.current[:current_batch_id] = job_batch.id
+          ActiveSupport::IsolatedExecutionState[:current_batch_id] = job_batch.id
           yield
         end
 
         job_batch
       ensure
-        Thread.current[:current_batch_id] = previous_batch_id
+        ActiveSupport::IsolatedExecutionState[:current_batch_id] = previous_batch_id
       end
 
       def dispatch_finished_batches
