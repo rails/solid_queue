@@ -18,5 +18,9 @@ module ActiveJob
       super
       self.batch_id = job_data['batch_id']
     end
+
+    def batch
+      @batch ||= SolidQueue::JobBatch.find_by(id: batch_id)
+    end
   end
 end
