@@ -242,15 +242,8 @@ Let's see an example implementation to handle exceptions.
 ```ruby
 # application_job.rb
 class ApplicationJob < ActiveJob::Base
-  around_perform do |job, block|
-    capture_and_record_errors(job, block)
-  end
-
-  def capture_and_record_errors(job, block)
-    block.call
-  rescue => exception
+  rescue_from(Exception) do |exception|
     Rails.error.report(exception)
-    raise exception
   end
 end
 ```
@@ -261,11 +254,8 @@ Note that, you will have to duplicate the above logic on `ActionMailer::MailDeli
 # application_mailer.rb
 
 class ApplicationMailer < ActionMailer::Base
-  ActionMailer::MailDeliveryJob.around_perform do |job, block|
-    block.call
-  rescue => exception
+  ActionMailer::MailDeliveryJob.rescue_from(Exception) do |exception|
     Rails.error.report(exception)
-    raise exception
   end
 end
 ```
