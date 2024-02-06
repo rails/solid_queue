@@ -142,6 +142,7 @@ When receiving a `QUIT` signal, if workers still have jobs in-flight, these will
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats, which will release any claimed jobs back to their queues. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
 
 ### Other configuration settings
+_Note_: The settings in this section should be set in your `config/application.rb` or one of the `config/environments` like this: `config.solid_queue.silence_polling = true`
 
 There are several settings that control how Solid Queue works that you can set as well:
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
