@@ -141,6 +141,17 @@ When receiving a `QUIT` signal, if workers still have jobs in-flight, these will
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats, which will release any claimed jobs back to their queues. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
 
+### Database Connections
+
+Solid Queue uses the application database connection pool (configured in
+`config/database.yml`) by default.
+
+Solid Queue workers use one database connection per thread plus 2 extra
+connections for internal mechanisms. Make sure that the number of threads you
+use for configuring Solid Queue workers is lesser than the number of available
+database connections by 2. For example, if your app has a database connection
+pool of 5 connections, you should configure workers to use 3 threads.
+
 ### Other configuration settings
 
 There are several settings that control how Solid Queue works that you can set as well:
