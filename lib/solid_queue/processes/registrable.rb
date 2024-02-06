@@ -55,7 +55,7 @@ module SolidQueue::Processes
       end
 
       def hostname
-        @hostname ||= Socket.gethostname
+        @hostname ||= Socket.gethostname.force_encoding(Encoding::UTF_8)
       end
 
       def process_pid
