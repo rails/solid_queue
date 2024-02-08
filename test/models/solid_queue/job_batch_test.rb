@@ -8,6 +8,12 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
     SolidQueue::JobBatch.destroy_all
   end
 
+  class BatchWithArgumentsJob < ApplicationJob
+    def perform(batch, arg1, arg2)
+      Rails.logger.info "Hi #{batch.id}, #{arg1}, #{arg2}!"
+    end
+  end
+
   class NiceJob < ApplicationJob
     retry_on Exception, wait: 1.second
 
@@ -18,14 +24,14 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
 
   test "batch will be completed on success" do
     batch = SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) {}
-    assert_equal "success", batch.completion_type
-    assert_equal BatchCompletionJob.name, batch.job_class
+    assert_not_nil batch.on_finish_active_job
+    assert_equal BatchCompletionJob.name, batch.on_finish_active_job["job_class"]
   end
 
   test "batch will be completed on finish" do
     batch = SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) {}
-    assert_equal "success", batch.completion_type
-    assert_equal BatchCompletionJob.name, batch.job_class
+    assert_not_nil batch.on_success_active_job
+    assert_equal BatchCompletionJob.name, batch.on_success_active_job["job_class"]
   end
 
   test "sets the batch_id on jobs created inside of the enqueue block" do
@@ -44,5 +50,17 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
       assert_not_nil SolidQueue::JobBatch.current_batch_id
     end
     assert_nil SolidQueue::JobBatch.current_batch_id
+  end
+
+  test "allow arguments and options for callbacks" do
+    SolidQueue::JobBatch.enqueue(
+      on_finish: BatchWithArgumentsJob.new(1, 2).set(queue: :batch),
+    ) do
+      NiceJob.perform_later("world")
+    end
+
+    assert_not_nil SolidQueue::JobBatch.last.on_finish_active_job["arguments"]
+    assert_equal SolidQueue::JobBatch.last.on_finish_active_job["arguments"], [1, 2]
+    assert_equal SolidQueue::JobBatch.last.on_finish_active_job["queue_name"], "batch"
   end
 end
