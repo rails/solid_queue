@@ -48,8 +48,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_19_165045) do
 
   create_table "solid_queue_job_batches", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "job_id"
-    t.string "job_class"
-    t.string "completion_type"
+    t.string "on_finish_active_job"
+    t.string "on_success_active_job"
     t.datetime "finished_at"
     t.datetime "changed_at"
     t.datetime "last_changed_at"
