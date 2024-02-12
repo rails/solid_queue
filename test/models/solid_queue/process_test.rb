@@ -22,7 +22,10 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
     Socket.stub :gethostname, hostname.force_encoding("ASCII-8BIT") do
       worker.start
       wait_for_registered_processes(1, timeout: 1.second)
+
       assert_equal hostname, SolidQueue::Process.last.hostname
+
+      worker.stop
     end
   end
 end
