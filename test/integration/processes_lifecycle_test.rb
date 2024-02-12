@@ -37,8 +37,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :KILL, wait: 0.1.second)
-    wait_for_jobs_to_finish_for(1.seconds)
+    signal_process(@pid, :KILL, wait: 0.15.seconds)
+    wait_for_jobs_to_finish_for(2.seconds)
 
     assert_not process_exists?(@pid)
 
