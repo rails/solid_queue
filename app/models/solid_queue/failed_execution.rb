@@ -1,31 +1,37 @@
 # frozen_string_literal: true
 
-class SolidQueue::FailedExecution < SolidQueue::Execution
-  if Gem::Version.new(Rails.version) >= Gem::Version.new("7.1")
+module SolidQueue
+  class FailedExecution < Execution
+    include Dispatching
+
     serialize :error, coder: JSON
-  else
-    serialize :error, JSON
-  end
 
-  before_create :expand_error_details_from_exception
+    before_create :expand_error_details_from_exception
 
-  attr_accessor :exception
+    attr_accessor :exception
 
-  def retry
-    transaction do
-      job.prepare_for_execution
-      destroy!
+    def self.retry_all(jobs)
+      transaction do
+        dispatch_jobs lock_all_from_jobs(jobs)
+      end
     end
-  end
 
-  %i[ exception_class message backtrace ].each do |attribute|
-    define_method(attribute) { error.with_indifferent_access[attribute] }
-  end
+    def retry
+      with_lock do
+        job.prepare_for_execution
+        destroy!
+      end
+    end
 
-  private
-    def expand_error_details_from_exception
-      if exception
-        self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace }
+    %i[ exception_class message backtrace ].each do |attribute|
+      define_method(attribute) { error.with_indifferent_access[attribute] }
+    end
+
+    private
+      def expand_error_details_from_exception
+        if exception
+          self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace }
+        end
       end
     end
 end

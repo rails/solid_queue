@@ -2,27 +2,11 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`). _Improvements to logging and instrumentation, a better CLI tool, a way to run within an existing process in "async" mode, unique jobs and recurring, cron-like tasks are coming very soon._
+
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
 
-## Usage
-To set Solid Queue as your Active Job's queue backend, you should add this to your environment config:
-```ruby
-# config/environments/production.rb
-config.active_job.queue_adapter = :solid_queue
-```
-
-Alternatively, you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
-
-```ruby
-# app/jobs/my_job.rb
-
-class MyJob < ApplicationJob
-  self.queue_adapter = :solid_queue
-  # ...
-end
-```
-
-## Installation
+## Installation and usage
 Add this line to your application's Gemfile:
 
 ```ruby
@@ -39,21 +23,51 @@ Or install it yourself as:
 $ gem install solid_queue
 ```
 
-Add the migration to your app and run it:
+Now, you need to install the necessary migrations and configure the Active Job's adapter. You can do both at once using the provided generator:
+
+```bash
+$ bin/rails generate solid_queue:install
 ```
+
+This will set `solid_queue` as the Active Job's adapter in production, and will copy the required migration over to your app.
+
+Alternatively, you can add only the migration to your app:
+```bash
 $ bin/rails solid_queue:install:migrations
+```
+
+And set Solid Queue as your Active Job's queue backend manually, in your environment config:
+```ruby
+# config/environments/production.rb
+config.active_job.queue_adapter = :solid_queue
+```
+
+Alternatively, you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
+
+```ruby
+# app/jobs/my_job.rb
+
+class MyJob < ApplicationJob
+  self.queue_adapter = :solid_queue
+  # ...
+end
+```
+
+Finally, you need to run the migrations:
+
+```bash
 $ bin/rails db:migrate
 ```
 
-With this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
-```
+After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
+```bash
 $ bundle exec rake solid_queue:start
 ```
 
 This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
 
 ## Requirements
-Besides Rails 7, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
+Besides Rails 7.1, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
 
 ## Configuration
 
@@ -61,7 +75,7 @@ Besides Rails 7, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as the
 
 We have three types of processes in Solid Queue:
 - _Workers_ are in charge of picking jobs ready to run from queues and processing them. They work off the `solid_queue_ready_executions` table.
-- _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_jobs` table over to the `solid_queue_ready_executions` table so that workers can pick them up. They also do some maintenance work related to concurrency controls.
+- _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. They also do some maintenance work related to concurrency controls.
 - The _supervisor_ forks workers and dispatchers according to the configuration, controls their heartbeats, and sends them signals to stop and start them when needed.
 
 By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG`. This is what this configuration looks like:
@@ -71,11 +85,12 @@ production:
   dispatchers:
     - polling_interval: 1
       batch_size: 500
+      concurrency_maintenance_interval: 300
   workers:
     - queues: "*"
       threads: 3
       polling_interval: 2
-    - queues: real_time,background
+    - queues: [ real_time, background ]
       threads: 5
       polling_interval: 0.1
       processes: 3
@@ -83,20 +98,23 @@ production:
 
 Everything is optional. If no configuration is provided, Solid Queue will run with one dispatcher and one worker with default settings.
 
-- `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `5` seconds for dispatchers and `1` second for workers.
-- `batch_size`: the dispatcher will dispatch jobs in batches of this size.
-- `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a comma-separated list of queues. Jobs will be polled from those queues in order, so for example, with `real_time,background`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
-```yml
-staging:
-  workers:
-    - queues: staging*
-      threads: 3
-      polling_interval: 5
+- `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
+- `batch_size`: the dispatcher will dispatch jobs in batches of this size. The default is 500.
+- `concurrency_maintenance_interval`: the time interval in seconds that the dispatcher will wait before checking for blocked jobs that can be unblocked. Read more about [concurrency controls](#concurrency-controls) to learn more about this setting. It defaults to `600` seconds.
+- `queues`: the list of queues that workers will pick jobs from. You can use `*` to indicate all queues (which is also the default and the behaviour you'll get if you omit this). You can provide a single queue, or a list of queues as an array. Jobs will be polled from those queues in order, so for example, with `[ real_time, background ]`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`. You can also provide a prefix with a wildcard to match queues starting with a prefix. For example:
 
-```
-This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
+  ```yml
+  staging:
+    workers:
+      - queues: staging*
+        threads: 3
+        polling_interval: 5
 
-Finally, you can combine prefixes with exact names, like `staging*, background`, and the behaviour with respect to order will be the same as with only exact names.
+  ```
+
+  This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
+
+  Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `5`. Only workers have this setting.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 
@@ -129,24 +147,25 @@ There are several settings that control how Solid Queue works that you can set a
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
 - `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
 - `on_thread_error`: custom lambda/Proc to call when there's an error within a thread that takes the exception raised as argument. Defaults to
-```ruby
--> (exception) { Rails.error.report(exception, handled: false) }
-```
+
+  ```ruby
+  -> (exception) { Rails.error.report(exception, handled: false) }
+  ```
 - `connects_to`: a custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model. This is required to use a different database than the main app. For example:
-```ruby
+
+  ```ruby
   # Use a separate DB for Solid Queue
   config.solid_queue.connects_to = { database: { writing: :solid_queue_primary, reading: :solid_queue_replica } }
-```
+  ```
 - `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
-- `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to to 60 seconds.
-- `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to to 5 minutes.
-- `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to to 5 seconds.
-- `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to to `true`.
+- `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
+- `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
+- `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
+- `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to `true`.
 - `supervisor_pidfile`: path to a pidfile that the supervisor will create when booting to prevent running more than one supervisor in the same host, or in case you want to use it for a health check. It's `nil` by default.
-- `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to to `true`.
-- `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
-- `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to to 3 minutes.
-
+- `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
+- `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
+- `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
 
 ## Concurrency controls
 Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs are never discarded or lost, only blocked.
@@ -197,6 +216,20 @@ Note that the `duration` setting depends indirectly on the value for `concurrenc
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for gaining the lock, and whenever they get it, they'll be run. It doesn't matter if they had gained the lock already in the past.
 
+## Failed jobs and retries
+
+Solid Queue doesn't include any automatic retry mechanism, it [relies on Active Job for this](https://edgeguides.rubyonrails.org/active_job_basics.html#retrying-or-discarding-failed-jobs). Jobs that fail will be kept in the system, and a _failed execution_ (a record in the `solid_queue_failed_executions` table) will be created for these. The job will stay there until manually discarded or re-enqueued. You can do this in a console as:
+```ruby
+failed_execution = SolidQueue::FailedExecution.find(...) # Find the failed execution related to your job
+failed_execution.error # inspect the error
+
+failed_execution.retry # This will re-enqueue the job as if it was enqueued for the first time
+failed_execution.discard # This will delete the job from the system
+```
+
+We're planning to release a dashboard called _Mission Control_, where, among other things, you'll be able to examine and retry/discard failed jobs, one by one, or in bulk.
+
+
 ## Puma plugin
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
 ```ruby
@@ -211,20 +244,21 @@ to your `puma.rb` configuration.
 If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
 - Your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
 - Or, to opt out completely from this behaviour, configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
-```ruby
-class ApplicationRecord < ActiveRecord::Base
-  self.abstract_class = true
 
-  connects_to database: { writing: :primary, reading: :replica }
-```
+  ```ruby
+  class ApplicationRecord < ActiveRecord::Base
+    self.abstract_class = true
 
-```ruby
-  solid_queue.config.connects_to { database: { writing: :primary, reading: :replica } }
-```
+    connects_to database: { writing: :primary, reading: :replica }
+  ```
+
+  ```ruby
+  config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
+  ```
 
 ## Inspiration
 
-Solid Queue has been inspired by [resque](https://github.com/resque/resque) and [GoodJob](https://github.com/bensheldon/good_job).
+Solid Queue has been inspired by [resque](https://github.com/resque/resque) and [GoodJob](https://github.com/bensheldon/good_job). We recommend checking out these projects as they're great examples from which we've learnt a lot.
 
 ## License
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).

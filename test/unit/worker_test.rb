@@ -89,4 +89,15 @@ class WorkerTest < ActiveSupport::TestCase
     ActiveRecord::Base.logger = old_logger
     SolidQueue.silence_polling = old_silence_polling
   end
+
+  test "run inline" do
+    worker = SolidQueue::Worker.new(queues: "*", threads: 3, polling_interval: 0.2)
+    worker.mode = :inline
+
+    5.times { |i| StoreResultJob.perform_later(:immediate) }
+
+    worker.start
+
+    assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
+  end
 end

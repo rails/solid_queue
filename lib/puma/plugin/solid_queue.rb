@@ -6,16 +6,19 @@ Puma::Plugin.create do
   def start(launcher)
     @log_writer = launcher.log_writer
     @puma_pid = $$
-    @solid_queue_pid = fork do
-      Thread.new { monitor_puma }
-      SolidQueue::Supervisor.start(mode: :all)
+
+    launcher.events.on_booted do
+      @solid_queue_pid = fork do
+        Thread.new { monitor_puma }
+        SolidQueue::Supervisor.start(mode: :all)
+      end
+
+      in_background do
+        monitor_solid_queue
+      end
     end
 
     launcher.events.on_stopped { stop_solid_queue }
-
-    in_background do
-      monitor_solid_queue
-    end
   end
 
   private

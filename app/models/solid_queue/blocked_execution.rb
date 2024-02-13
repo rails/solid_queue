@@ -2,7 +2,7 @@
 
 module SolidQueue
   class BlockedExecution < Execution
-    assume_attributes_from_job :concurrency_key
+    assumes_attributes_from_job :concurrency_key
     before_create :set_expires_at
 
     has_one :semaphore, foreign_key: :key, primary_key: :concurrency_key
@@ -24,7 +24,7 @@ module SolidQueue
 
       def release_one(concurrency_key)
         transaction do
-          ordered.where(concurrency_key: concurrency_key).limit(1).lock.each(&:release)
+          ordered.where(concurrency_key: concurrency_key).limit(1).non_blocking_lock.each(&:release)
         end
       end
 

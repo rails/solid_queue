@@ -3,8 +3,8 @@ require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
-    @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.5)
-    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 1)
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
+    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
   end
 
   teardown do
@@ -25,6 +25,54 @@ class JobsLifecycleTest < ActiveSupport::TestCase
 
     assert_equal [ "hey", "ho" ], JobBuffer.values.sort
     assert_equal 2, SolidQueue::Job.finished.count
+  end
+
+  test "enqueue and run jobs that fail without retries" do
+    RaisingJob.perform_later(RuntimeError, "A")
+    RaisingJob.perform_later(RuntimeError, "B")
+    jobs = SolidQueue::Job.last(2)
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    message = "raised RuntimeError for the 1st time"
+    assert_equal [ "A: #{message}", "B: #{message}" ], JobBuffer.values.sort
+
+    assert_empty SolidQueue::Job.finished
+  end
+
+  test "enqueue and run jobs that fail and succeed after retrying" do
+    RaisingJob.perform_later(RaisingJob::DefaultError, "A", 5) # this will fail after being retried
+    RaisingJob.perform_later(RaisingJob::DefaultError, "B")
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    messages_from_a = 1.upto(3).collect { |i| "A: raised RaisingJob::DefaultError for the #{i.ordinalize} time" }
+    messages_from_b = [ "B: raised RaisingJob::DefaultError for the 1st time", "Successfully completed job" ]
+
+    assert_equal messages_from_a + messages_from_b, JobBuffer.values.sort
+
+    assert_equal 4, SolidQueue::Job.finished.count # B + its retry + 2 retries of A
+    assert_equal 1, SolidQueue::FailedExecution.count
+  end
+
+  test "enqueue and run jobs that fail and it's discarded" do
+    RaisingJob.perform_later(RaisingJob::DiscardableError, "A")
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(1.seconds)
+
+    assert_equal [ "A: raised RaisingJob::DiscardableError for the 1st time" ], JobBuffer.values.sort
+
+    assert_equal 1, SolidQueue::Job.finished.count
+    assert_equal 0, SolidQueue::FailedExecution.count
   end
 
   test "schedule and run jobs" do

@@ -18,7 +18,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   end
 
   test "perform job that fails" do
-    claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, 2)
+    claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "A")
     job = claimed_execution.job
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
@@ -38,7 +38,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
 
     with_error_subscriber(subscriber) do
-      claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, 2)
+      claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "B")
 
       claimed_execution.perform
     end

@@ -4,6 +4,8 @@ module SolidQueue::Processes
   module Runnable
     include Supervised
 
+    attr_writer :mode
+
     def start
       @stopping = false
 
@@ -19,8 +21,6 @@ module SolidQueue::Processes
     end
 
   private
-    attr_writer :mode
-
     DEFAULT_MODE = :async
 
     def mode
@@ -44,7 +44,9 @@ module SolidQueue::Processes
       loop do
         break if shutting_down?
 
-        run
+        wrap_in_app_executor do
+          run
+        end
       end
     ensure
       run_callbacks(:shutdown) { shutdown }

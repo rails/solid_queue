@@ -4,7 +4,7 @@ module SolidQueue
   class ReadyExecution < Execution
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
 
-    assume_attributes_from_job
+    assumes_attributes_from_job
 
     class << self
       def claim(queue_list, limit, process_id)
@@ -13,6 +13,10 @@ module SolidQueue
             limit -= locked.size
           end
         end
+      end
+
+      def aggregated_count_across(queue_list)
+        QueueSelector.new(queue_list, self).scoped_relations.map(&:count).sum
       end
 
       private
@@ -26,7 +30,7 @@ module SolidQueue
         end
 
         def select_candidates(queue_relation, limit)
-          queue_relation.ordered.limit(limit).lock.pluck(:job_id)
+          queue_relation.ordered.limit(limit).non_blocking_lock.pluck(:job_id)
         end
 
         def lock_candidates(job_ids, process_id)
@@ -35,6 +39,12 @@ module SolidQueue
           SolidQueue::ClaimedExecution.claiming(job_ids, process_id) do |claimed|
             where(job_id: claimed.pluck(:job_id)).delete_all
           end
+        end
+
+
+        def discard_jobs(job_ids)
+          Job.release_all_concurrency_locks Job.where(id: job_ids)
+          super
         end
     end
   end

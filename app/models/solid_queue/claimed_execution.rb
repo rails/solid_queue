@@ -23,6 +23,14 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def release_all
       includes(:job).each(&:release)
     end
+
+    def discard_all_in_batches(*)
+      raise UndiscardableError, "Can't discard jobs in progress"
+    end
+
+    def discard_all_from_jobs(*)
+      raise UndiscardableError, "Can't discard jobs in progress"
+    end
   end
 
   def perform
@@ -39,14 +47,17 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   def release
     transaction do
-      job.prepare_for_execution
+      job.dispatch_bypassing_concurrency_limits
       destroy!
     end
   end
 
+  def discard
+    raise UndiscardableError, "Can't discard a job in progress"
+  end
+
   private
     def execute
-      SolidQueue.logger.info("[SolidQueue] Performing job #{job.id} - #{job.active_job_id}")
       ActiveJob::Base.execute(job.arguments)
       Result.new(true, nil)
     rescue Exception => e
@@ -58,8 +69,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         job.finished!
         destroy!
       end
-
-      SolidQueue.logger.info("[SolidQueue] Performed job #{job.id} - #{job.active_job_id}")
     end
 
     def failed_with(error)
@@ -67,7 +76,5 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         job.failed_with(error)
         destroy!
       end
-
-      SolidQueue.logger.info("[SolidQueue] Failed job #{job.id} - #{job.active_job_id}")
     end
 end

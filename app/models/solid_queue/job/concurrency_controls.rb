@@ -6,9 +6,17 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :blocked_execution, dependent: :destroy
+        has_one :blocked_execution
 
         delegate :concurrency_limit, :concurrency_duration, to: :job_class
+
+        before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
+      end
+
+      class_methods do
+        def release_all_concurrency_locks(jobs)
+          Semaphore.signal_all(jobs.select(&:concurrency_limited?))
+        end
       end
 
       def unblock_next_blocked_job
@@ -19,6 +27,10 @@ module SolidQueue
 
       def concurrency_limited?
         concurrency_key.present?
+      end
+
+      def blocked?
+        blocked_execution.present?
       end
 
       private
@@ -44,6 +56,10 @@ module SolidQueue
 
         def job_class
           @job_class ||= class_name.safe_constantize
+        end
+
+        def execution
+          super || blocked_execution
         end
     end
   end

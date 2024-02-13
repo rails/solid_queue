@@ -2,7 +2,10 @@ require "test_helper"
 
 class ConfigurationTest < ActiveSupport::TestCase
   test "default configuration to process all queues and dispatch" do
-    configuration = SolidQueue::Configuration.new(mode: :all, load_from: {})
+    configuration = stub_const(SolidQueue::Configuration, :DEFAULT_CONFIG_FILE_PATH, "non/existent/path") do
+      SolidQueue::Configuration.new(mode: :all)
+    end
+
     assert_equal 2, configuration.processes.count
 
     assert_equal 1, configuration.workers.count

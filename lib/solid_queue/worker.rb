@@ -44,7 +44,7 @@ module SolidQueue
       end
 
       def all_work_completed?
-        SolidQueue::ReadyExecution.queued_as(queues).empty?
+        SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
       end
 
       def metadata

@@ -9,4 +9,4 @@ bundle
 
 echo "Creating databases..."
 
-rails db:setup
+rails db:reset

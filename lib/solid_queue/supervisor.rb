@@ -79,7 +79,7 @@ module SolidQueue
       end
 
       def graceful_termination
-        procline "terminating gracefully"
+        SolidQueue.logger.info("[SolidQueue] Terminating gracefully...")
         term_forks
 
         wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
@@ -90,7 +90,7 @@ module SolidQueue
       end
 
       def immediate_termination
-        procline "terminating immediately"
+        SolidQueue.logger.info("[SolidQueue] Terminating immediately...")
         quit_forks
       end
 

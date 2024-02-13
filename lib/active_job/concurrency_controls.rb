@@ -36,6 +36,10 @@ module ActiveJob
       end
     end
 
+    def concurrency_limited?
+      concurrency_key.present?
+    end
+
     private
       def concurrency_group
         compute_concurrency_parameter(self.class.concurrency_group)

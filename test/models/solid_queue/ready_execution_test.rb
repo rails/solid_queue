@@ -127,6 +127,26 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     end
   end
 
+  test "discard all" do
+    3.times { |i| AddToBufferJob.perform_later(i) }
+
+    assert_difference [ -> { SolidQueue::ReadyExecution.count }, -> { SolidQueue::Job.count } ], -8 do
+      SolidQueue::ReadyExecution.discard_all_in_batches
+    end
+  end
+
+  test "discard all by queue" do
+    3.times { |i| AddToBufferJob.perform_later(i) }
+
+    assert_difference [ -> { SolidQueue::ReadyExecution.count }, -> { SolidQueue::Job.count } ], -5 do
+      SolidQueue::ReadyExecution.queued_as(:backend).discard_all_in_batches
+    end
+
+    assert_no_difference [ -> { SolidQueue::ReadyExecution.count }, -> { SolidQueue::Job.count } ] do
+      SolidQueue::ReadyExecution.queued_as(:backend).discard_all_in_batches
+    end
+  end
+
   private
     def assert_claimed_jobs(count, &block)
       assert_difference -> { SolidQueue::ClaimedExecution.count } => +count, -> { SolidQueue::ReadyExecution.count } => -count do

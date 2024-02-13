@@ -73,29 +73,37 @@ module SolidQueue
           .map { |options| options.dup.symbolize_keys }
       end
 
+
       def load_config_from(file_or_hash)
         case file_or_hash
-        when Pathname then load_config_file file_or_hash
-        when String   then load_config_file Pathname.new(file_or_hash)
-        when NilClass then load_config_file default_config_file
-        when Hash     then file_or_hash.dup
-        else          raise "Solid Queue cannot be initialized with #{file_or_hash.inspect}"
+        when Hash
+          file_or_hash.dup
+        when Pathname, String
+          load_config_from_file Pathname.new(file_or_hash)
+        when NilClass
+          load_config_from_env_location || load_config_from_default_location
+        else
+          raise "Solid Queue cannot be initialized with #{file_or_hash.inspect}"
         end
       end
 
-      def load_config_file(file)
+      def load_config_from_env_location
+        if ENV["SOLID_QUEUE_CONFIG"].present?
+          load_config_from_file Rails.root.join(ENV["SOLID_QUEUE_CONFIG"])
+        end
+      end
+
+      def load_config_from_default_location
+        Rails.root.join(DEFAULT_CONFIG_FILE_PATH).then do |config_file|
+          config_file.exist? ? load_config_from_file(config_file) : {}
+        end
+      end
+
+      def load_config_from_file(file)
         if file.exist?
           ActiveSupport::ConfigurationFile.parse(file).deep_symbolize_keys
         else
-          raise "Configuration file not found in #{file}"
-        end
-      end
-
-      def default_config_file
-        path_to_file = ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH
-
-        Rails.root.join(path_to_file).tap do |config_file|
-          raise "Configuration for Solid Queue not found in #{config_file}" unless config_file.exist?
+          raise "Configuration file for Solid Queue not found in #{file}"
         end
       end
   end

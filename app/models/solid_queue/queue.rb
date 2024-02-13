@@ -33,7 +33,7 @@ module SolidQueue
     end
 
     def clear
-      Job.where(queue_name: name).each(&:discard)
+      ReadyExecution.queued_as(name).discard_all_in_batches
     end
 
     def size
