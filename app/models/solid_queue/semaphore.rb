@@ -26,7 +26,6 @@ module SolidQueue
 
       def initialize(job)
         @job = job
-        @retries = 0
       end
 
       def wait
@@ -42,40 +41,24 @@ module SolidQueue
       end
 
       private
-        attr_accessor :job, :retries
+        attr_accessor :job
 
         def attempt_creation
           Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
           true
         rescue ActiveRecord::RecordNotUnique
-          attempt_decrement
+          if limit == 1 then false
+          else
+            attempt_decrement
+          end
         end
 
         def attempt_decrement
           Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
-        rescue ActiveRecord::Deadlocked
-          if retriable? then attempt_retry
-          else
-            raise
-          end
         end
 
         def attempt_increment
           Semaphore.where(key: key, value: ...limit).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
-        end
-
-        def attempt_retry
-          self.retries += 1
-
-          if semaphore = Semaphore.find_by(key: key)
-            semaphore.value > 0 && attempt_decrement
-          end
-        end
-
-        MAX_RETRIES = 1
-
-        def retriable?
-          retries < MAX_RETRIES
         end
 
         def key
