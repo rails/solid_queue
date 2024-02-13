@@ -33,7 +33,7 @@ module SolidQueue
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
 
-  mattr_accessor :silence_polling, default: false
+  mattr_accessor :silence_polling, default: true
 
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
