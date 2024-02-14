@@ -32,15 +32,6 @@ default: &default
   port: 33060
 <% end %>
 
-# development:
-#   <<: *default
-#   database: <%= database_name_from("solid_queue_development") %>
-
-# test:
-#   <<: *default
-#   database: <%= database_name_from("solid_queue_development") %>
-
-
 development:
   primary:
     <<: *default
