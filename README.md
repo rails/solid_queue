@@ -244,6 +244,7 @@ Let's see an example implementation to handle exceptions.
 class ApplicationJob < ActiveJob::Base
   rescue_from(Exception) do |exception|
     Rails.error.report(exception)
+    raise exception
   end
 end
 ```
@@ -256,6 +257,7 @@ Note that, you will have to duplicate the above logic on `ActionMailer::MailDeli
 class ApplicationMailer < ActionMailer::Base
   ActionMailer::MailDeliveryJob.rescue_from(Exception) do |exception|
     Rails.error.report(exception)
+    raise exception
   end
 end
 ```
