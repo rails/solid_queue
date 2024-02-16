@@ -34,11 +34,17 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
-  def self.supervisor?
-    supervisor
-  end
+  class << self
+    def supervisor?
+      supervisor
+    end
 
-  def self.silence_polling?
-    silence_polling
+    def silence_polling?
+      silence_polling
+    end
+
+    def preserve_finished_jobs?
+      preserve_finished_jobs
+    end
   end
 end
