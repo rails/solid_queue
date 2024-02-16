@@ -6,8 +6,8 @@ module SolidQueue
 
     attr_accessor :batch_size, :concurrency_clerk
 
-    set_callback :boot, :after, :launch_concurrency_maintenance, if: :concurrency_clerk?
-    set_callback :shutdown, :before, :stop_concurrency_maintenance, if: :concurrency_clerk?
+    after_boot :launch_concurrency_maintenance, if: :concurrency_clerk?
+    before_shutdown :stop_concurrency_maintenance, if: :concurrency_clerk?
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)

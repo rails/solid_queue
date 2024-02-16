@@ -4,7 +4,7 @@ module SolidQueue
   class Supervisor < Processes::Base
     include Processes::Signals
 
-    set_callback :boot, :after, :launch_process_prune
+    after_boot :launch_process_prune
 
     class << self
       def start(mode: :work, load_configuration_from: nil)

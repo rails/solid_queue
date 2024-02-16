@@ -5,11 +5,10 @@ module SolidQueue::Processes
     extend ActiveSupport::Concern
 
     included do
-      set_callback :boot, :after, :register
-      set_callback :boot, :after, :launch_heartbeat
+      after_boot :register, :launch_heartbeat
 
-      set_callback :shutdown, :before, :stop_heartbeat
-      set_callback :shutdown, :after, :deregister
+      before_shutdown :stop_heartbeat
+      after_shutdown :deregister
     end
 
     def inspect
