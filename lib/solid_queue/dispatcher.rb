@@ -46,10 +46,6 @@ module SolidQueue
         concurrency_clerk.stop
       end
 
-      def initial_jitter
-        Kernel.rand(0...polling_interval)
-      end
-
       def metadata
         super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_clerk&.interval)
       end

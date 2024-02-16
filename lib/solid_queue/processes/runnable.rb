@@ -9,9 +9,7 @@ module SolidQueue::Processes
     def start
       @stopping = false
 
-      observe_initial_delay
       run_callbacks(:boot) { boot }
-
       start_loop
     end
 
