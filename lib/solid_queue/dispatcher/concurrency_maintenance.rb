@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Dispatcher::ConcurrencyClerk
+  class Dispatcher::ConcurrencyMaintenance
     include AppExecutor
 
     attr_reader :interval, :batch_size

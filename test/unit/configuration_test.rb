@@ -31,7 +31,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_equal 1, configuration.dispatchers.count
     dispatcher = configuration.dispatchers.first
     assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], dispatcher.polling_interval
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:concurrency_maintenance_interval], dispatcher.concurrency_clerk.interval
+    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:concurrency_maintenance_interval], dispatcher.concurrency_maintenance.interval
 
     assert_equal 2, configuration.workers.count
     assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq

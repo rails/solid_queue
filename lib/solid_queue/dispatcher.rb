@@ -4,10 +4,10 @@ module SolidQueue
   class Dispatcher < Processes::Base
     include Processes::Runnable, Processes::Poller
 
-    attr_accessor :batch_size, :concurrency_clerk
+    attr_accessor :batch_size, :concurrency_maintenance, :recurring_tasks
 
-    after_boot :launch_concurrency_maintenance, if: :concurrency_clerk?
-    before_shutdown :stop_concurrency_maintenance, if: :concurrency_clerk?
+    after_boot :start_concurrency_maintenance, :schedule_recurring_tasks
+    before_shutdown :stop_concurrency_maintenance, :unschedule_recurring_tasks
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
@@ -15,7 +15,8 @@ module SolidQueue
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
 
-      @concurrency_clerk = ConcurrencyClerk.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_clerk]
+      @concurrency_maintenance = ConcurrencyMaintenance.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_maintenance]
+      @recurring_tasks = RecurringTasks.new(options[:recurring_tasks])
     end
 
     private
@@ -34,20 +35,24 @@ module SolidQueue
         end
       end
 
-      def concurrency_clerk?
-        concurrency_clerk.present?
+      def start_concurrency_maintenance
+        concurrency_maintenance&.start
       end
 
-      def launch_concurrency_maintenance
-        concurrency_clerk.start
+      def schedule_recurring_tasks
+        recurring_tasks.schedule
       end
 
       def stop_concurrency_maintenance
-        concurrency_clerk.stop
+        concurrency_maintenance&.stop
+      end
+
+      def unschedule_recurring_tasks
+        recurring_tasks.unschedule
       end
 
       def metadata
-        super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_clerk&.interval)
+        super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval)
       end
   end
 end

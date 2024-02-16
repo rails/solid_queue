@@ -24,8 +24,8 @@ class DispatcherTest < ActiveSupport::TestCase
   end
 
   test "concurrency maintenance is optional" do
-    no_concurrency_clerk = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, concurrency_clerk: false)
-    no_concurrency_clerk.start
+    no_concurrency_maintenance_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, concurrency_maintenance: false)
+    no_concurrency_maintenance_dispatcher.start
 
     wait_for_registered_processes(1, timeout: 1.second)
 

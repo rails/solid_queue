@@ -12,8 +12,9 @@ module SolidQueue
     DISPATCHER_DEFAULTS = {
       batch_size: 500,
       polling_interval: 1,
-      concurrency_clerk: true,
-      concurrency_maintenance_interval: 600
+      concurrency_maintenance: true,
+      concurrency_maintenance_interval: 600,
+      recurring_tasks: []
     }
 
     def initialize(mode: :work, load_from: nil)
