@@ -35,7 +35,7 @@ module SolidQueue
       if mode.in? %i[ work all]
         workers_options.flat_map do |worker_options|
           processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
-          processes.times.collect { SolidQueue::Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
+          processes.times.map { Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
         end
       else
         []
@@ -44,8 +44,10 @@ module SolidQueue
 
     def dispatchers
       if mode.in? %i[ dispatch all]
-        dispatchers_options.flat_map do |dispatcher_options|
-          SolidQueue::Dispatcher.new(**dispatcher_options.with_defaults(DISPATCHER_DEFAULTS))
+        dispatchers_options.map do |dispatcher_options|
+          recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
+
+          Dispatcher.new **dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
         end
       end
     end
@@ -75,6 +77,11 @@ module SolidQueue
           .map { |options| options.dup.symbolize_keys }
       end
 
+      def parse_recurring_tasks(tasks)
+        Array(tasks).map do |id, options|
+          Dispatcher::RecurringTask.from_configuration(id, **options)
+        end.select(&:valid?)
+      end
 
       def load_config_from(file_or_hash)
         case file_or_hash

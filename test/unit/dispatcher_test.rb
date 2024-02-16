@@ -32,6 +32,23 @@ class DispatcherTest < ActiveSupport::TestCase
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
     assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
+
+    no_concurrency_maintenance_dispatcher.stop
+  end
+
+  test "recurring schedule" do
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every hour", args: 42 } }
+    with_recurring_schedule = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+
+    with_recurring_schedule.start
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
+    assert_equal [ "AddToBufferJob.perform_later(42) with schedule 0 * * * *" ], process.metadata["recurring_schedule"]
+
+    with_recurring_schedule.stop
   end
 
   test "polling queries are logged" do
