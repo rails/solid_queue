@@ -3,26 +3,16 @@
 require "solid_queue/version"
 require "solid_queue/engine"
 
-require "active_job/queue_adapters/solid_queue_adapter"
-require "active_job/concurrency_controls"
+require "active_job"
+require "active_job/queue_adapters"
 
-require "solid_queue/app_executor"
-require "solid_queue/processes/supervised"
-require "solid_queue/processes/registrable"
-require "solid_queue/processes/interruptible"
-require "solid_queue/processes/callbacks"
-require "solid_queue/processes/pidfile"
-require "solid_queue/processes/procline"
-require "solid_queue/processes/poller"
-require "solid_queue/processes/base"
-require "solid_queue/processes/runnable"
-require "solid_queue/processes/signals"
-require "solid_queue/configuration"
-require "solid_queue/pool"
-require "solid_queue/worker"
-require "solid_queue/concurrency_clerk"
-require "solid_queue/dispatcher"
-require "solid_queue/supervisor"
+require "zeitwerk"
+
+loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
+loader.ignore("#{__dir__}/solid_queue/tasks.rb")
+loader.ignore("#{__dir__}/generators")
+loader.ignore("#{__dir__}/puma")
+loader.setup
 
 module SolidQueue
   mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
