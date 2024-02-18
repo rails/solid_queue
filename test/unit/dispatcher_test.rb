@@ -46,7 +46,7 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
-    assert_equal [ "AddToBufferJob.perform_later(42) with schedule 0 * * * *" ], process.metadata["recurring_schedule"]
+    assert_equal [ "AddToBufferJob.perform_later(42) [ 0 * * * * ]" ], process.metadata["recurring_schedule"]
 
     with_recurring_schedule.stop
   end

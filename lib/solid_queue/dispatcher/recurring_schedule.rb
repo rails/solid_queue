@@ -36,11 +36,11 @@ module SolidQueue
 
     private
       def schedule(task)
-        scheduled_task = Concurrent::ScheduledTask.new(task.delay_from_now, args: [ self, task ]) do |thread_schedule, thread_task|
-          thread_schedule.load_task(task)
+        scheduled_task = Concurrent::ScheduledTask.new(task.delay_from_now, args: [ self, task, task.next_time ]) do |thread_schedule, thread_task, thread_task_run_at|
+          thread_schedule.load_task(thread_task)
 
           wrap_in_app_executor do
-            thread_task.enqueue
+            thread_task.enqueue(at: thread_task_run_at)
           end
         end
 

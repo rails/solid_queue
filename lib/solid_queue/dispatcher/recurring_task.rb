@@ -29,9 +29,12 @@ module SolidQueue
       schedule.next_time.utc
     end
 
-    def enqueue
-      SolidQueue.logger.info("[SolidQueue] Dispatching recurring task #{self}")
-      job_class.perform_later(*arguments)
+    def enqueue(at:)
+      if using_solid_queue_adapter?
+        perform_later_and_record(run_at: at)
+      else
+        perform_later
+      end
     end
 
     def valid?
@@ -39,10 +42,22 @@ module SolidQueue
     end
 
     def to_s
-      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) with schedule #{schedule.original}"
+      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{schedule.original} ]"
     end
 
     private
+      def using_solid_queue_adapter?
+        job_class.queue_adapter_name.inquiry.solid_queue?
+      end
+
+      def perform_later_and_record(run_at:)
+        RecurringExecution.record(key, run_at) { perform_later.provider_job_id }
+      end
+
+      def perform_later
+        job_class.perform_later(*arguments)
+      end
+
       def job_class
         @job_class ||= class_name.safe_constantize
       end

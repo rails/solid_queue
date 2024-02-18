@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include Clearable, ConcurrencyControls, Schedulable
+        include ConcurrencyControls, Schedulable
 
         has_one :ready_execution
         has_one :claimed_execution
