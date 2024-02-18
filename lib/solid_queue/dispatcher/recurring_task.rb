@@ -7,15 +7,15 @@ module SolidQueue
         args.first.is_a?(self) ? args.first : from_configuration(args.first, **args.second)
       end
 
-      def from_configuration(id, **options)
-        new(id, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
+      def from_configuration(key, **options)
+        new(key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
       end
     end
 
-    attr_reader :id, :schedule, :class_name, :arguments
+    attr_reader :key, :schedule, :class_name, :arguments
 
-    def initialize(id, class_name:, schedule:, arguments: nil)
-      @id = id
+    def initialize(key, class_name:, schedule:, arguments: nil)
+      @key = key
       @class_name = class_name
       @schedule = Fugit.parse(schedule)
       @arguments = Array(arguments)

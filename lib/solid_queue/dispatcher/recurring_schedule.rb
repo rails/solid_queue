@@ -18,7 +18,7 @@ module SolidQueue
     end
 
     def load_task(task)
-      scheduled_tasks[task.id] = schedule(task)
+      scheduled_tasks[task.key] = schedule(task)
     end
 
     def unload_tasks
