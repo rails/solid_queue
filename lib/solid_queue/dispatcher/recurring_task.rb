@@ -4,7 +4,7 @@ module SolidQueue
   class Dispatcher::RecurringTask
     class << self
       def wrap(args)
-        args.first.is_a?(self) ? args.first : from_configuration(args.first, **args.second)
+        args.is_a?(self) ? args : from_configuration(args.first, **args.second)
       end
 
       def from_configuration(key, **options)
