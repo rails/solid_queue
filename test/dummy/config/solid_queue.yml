@@ -8,9 +8,9 @@ default: &default
     - polling_interval: 1
       batch_size: 500
       recurring_tasks:
-        periodic-add-to-buffer:
-          class: AddToBufferJob
-          args: 42
+        periodic_store_result:
+          class: StoreResultJob
+          args: [ 42, { status: "custom_status" } ]
           schedule: every second
 
 development:

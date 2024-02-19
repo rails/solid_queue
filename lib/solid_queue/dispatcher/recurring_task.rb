@@ -42,7 +42,11 @@ module SolidQueue
     end
 
     def to_s
-      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{schedule.original} ]"
+      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule} ]"
+    end
+
+    def parsed_schedule
+      schedule.original.to_s
     end
 
     private
@@ -55,7 +59,15 @@ module SolidQueue
       end
 
       def perform_later
-        job_class.perform_later(*arguments)
+        job_class.perform_later(*arguments_with_kwargs)
+      end
+
+      def arguments_with_kwargs
+        if arguments.last.is_a?(Hash)
+          arguments[0...-1] + [ Hash.ruby2_keywords_hash(arguments.last) ]
+        else
+          arguments
+        end
       end
 
       def job_class

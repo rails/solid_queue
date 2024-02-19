@@ -12,6 +12,8 @@ class DispatcherTest < ActiveSupport::TestCase
 
   teardown do
     @dispatcher.stop
+    SolidQueue::Job.delete_all
+    SolidQueue::Process.delete_all
   end
 
   test "dispatcher is registered as process" do
@@ -79,7 +81,7 @@ class DispatcherTest < ActiveSupport::TestCase
     SolidQueue.silence_polling = old_silence_polling
   end
 
-  test "run more than one instance of the dispatcher" do
+  test "run more than one instance of the dispatcher without recurring tasks" do
     15.times do
       AddToBufferJob.set(wait: 0.2).perform_later("I'm scheduled")
     end
@@ -96,5 +98,24 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 15, SolidQueue::ReadyExecution.count
 
     another_dispatcher.stop
+  end
+
+  test "run more than one instance of the dispatcher with recurring tasks" do
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+    dispatchers = 2.times.collect do
+      SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+    end
+
+    dispatchers.each(&:start)
+    sleep 2
+    dispatchers.each(&:stop)
+
+    assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
+    assert SolidQueue::Job.count < 4
+
+    run_at_times = SolidQueue::RecurringExecution.all.map(&:run_at).sort
+    0.upto(run_at_times.length - 2) do |i|
+      assert_equal 1, run_at_times[i + 1] - run_at_times[i]
+    end
   end
 end
