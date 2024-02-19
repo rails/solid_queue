@@ -229,8 +229,7 @@ failed_execution.retry # This will re-enqueue the job as if it was enqueued for 
 failed_execution.discard # This will delete the job from the system
 ```
 
-We're planning to release a dashboard called _Mission Control_, where, among other things, you'll be able to examine and retry/discard failed jobs, one by one, or in bulk.
-
+We've recently open sourced [mission_control-jobs](https://github.com/basecamp/mission_control-jobs), where, among other things, you're be able to examine and retry/discard failed jobs.
 
 ## Puma plugin
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
