@@ -5,7 +5,7 @@ module SolidQueue
     include Dispatching
 
     scope :due, -> { where(scheduled_at: ..Time.current) }
-    scope :ordered, -> { order(scheduled_at: :asc, priority: :asc) }
+    scope :ordered, -> { order(scheduled_at: :asc, priority: :asc, job_id: :asc) }
     scope :next_batch, ->(batch_size) { due.ordered.limit(batch_size) }
 
     assumes_attributes_from_job :scheduled_at
