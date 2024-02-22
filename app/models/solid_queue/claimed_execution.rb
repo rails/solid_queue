@@ -16,7 +16,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       insert_all!(job_data)
       where(job_id: job_ids, process_id: process_id).load.tap do |claimed|
         block.call(claimed)
-        SolidQueue.logger.info("[SolidQueue] Claimed #{claimed.size} jobs")
       end
     end
 
