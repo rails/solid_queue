@@ -35,6 +35,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal "Dispatcher", process.kind
     assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
 
+  ensure
     no_concurrency_maintenance_dispatcher.stop
   end
 
@@ -48,8 +49,11 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
-    assert_equal [ "AddToBufferJob.perform_later(42) [ 0 * * * * ]" ], process.metadata["recurring_schedule"]
 
+    schedule_from_metadata = process.metadata["recurring_schedule"]
+    assert_equal 1, schedule_from_metadata.size
+    assert_equal({ "class_name" => "AddToBufferJob", "schedule" => "every hour", "arguments" => [ 42 ] }, schedule_from_metadata["example_task"])
+  ensure
     with_recurring_schedule.stop
   end
 
@@ -97,6 +101,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 15, SolidQueue::ReadyExecution.count
 
+  ensure
     another_dispatcher.stop
   end
 

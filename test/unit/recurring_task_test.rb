@@ -65,16 +65,16 @@ class RecurringTaskTest < ActiveSupport::TestCase
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every Thursday at 1 AM")
     assert task.valid?
     # At 1 AM on the 4th day of the week
-    assert_equal "0 1 * * 4", task.parsed_schedule
+    assert task.to_s.ends_with? "[ 0 1 * * 4 ]"
 
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every month")
     assert task.valid?
     # At 12:00 AM, on day 1 of the month
-    assert_equal "0 0 1 * *", task.parsed_schedule
+    assert task.to_s.ends_with? "[ 0 0 1 * * ]"
 
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every second")
     assert task.valid?
-    assert_equal "* * * * * *", task.parsed_schedule
+    assert task.to_s.ends_with? "[ * * * * * * ]"
   end
 
   private

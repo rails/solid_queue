@@ -17,7 +17,7 @@ module SolidQueue
     def initialize(key, class_name:, schedule:, arguments: nil)
       @key = key
       @class_name = class_name
-      @schedule = Fugit.parse(schedule)
+      @schedule = schedule
       @arguments = Array(arguments)
     end
 
@@ -26,7 +26,7 @@ module SolidQueue
     end
 
     def next_time
-      schedule.next_time.utc
+      parsed_schedule.next_time.utc
     end
 
     def enqueue(at:)
@@ -38,15 +38,19 @@ module SolidQueue
     end
 
     def valid?
-      schedule.instance_of?(Fugit::Cron)
+      parsed_schedule.instance_of?(Fugit::Cron)
     end
 
     def to_s
-      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule} ]"
+      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original.to_s} ]"
     end
 
-    def parsed_schedule
-      schedule.original.to_s
+    def to_h
+      {
+        schedule: schedule,
+        class_name: class_name,
+        arguments: arguments
+      }
     end
 
     private
@@ -68,6 +72,10 @@ module SolidQueue
         else
           arguments
         end
+      end
+
+      def parsed_schedule
+        @parsed_schedule ||= Fugit.parse(schedule)
       end
 
       def job_class

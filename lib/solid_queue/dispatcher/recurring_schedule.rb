@@ -27,11 +27,11 @@ module SolidQueue
     end
 
     def tasks
-      configured_tasks.map(&:to_s)
+      configured_tasks.each_with_object({}) { |task, hsh| hsh[task.key] = task.to_h }
     end
 
     def inspect
-      tasks.map(&:to_s).join(" | ")
+      configured_tasks.map(&:to_s).join(" | ")
     end
 
     private
