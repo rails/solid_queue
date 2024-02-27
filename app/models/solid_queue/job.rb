@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Job < Record
-    include Executable, Recurrable, Clearable
+    include Executable, Clearable, Recurrable
 
     serialize :arguments, coder: JSON
 
