@@ -30,10 +30,10 @@ module SolidQueue
 
       private
         def releasable(concurrency_keys)
-          semaphores = Semaphore.where(key: concurrency_keys).select(:key, :value).index_by(&:key)
+          semaphores = Semaphore.where(key: concurrency_keys).pluck(:key, :value).to_h
 
           # Concurrency keys without semaphore + concurrency keys with open semaphore
-          (concurrency_keys - semaphores.keys) | semaphores.select { |key, semaphore| semaphore.value > 0 }.map(&:first)
+          (concurrency_keys - semaphores.keys) | semaphores.select { |_key, value| value > 0 }.keys
         end
     end
 
