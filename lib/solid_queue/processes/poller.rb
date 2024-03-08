@@ -10,7 +10,7 @@ module SolidQueue::Processes
 
     private
       def with_polling_volume
-        if SolidQueue.silence_polling?
+        if SolidQueue.silence_polling? && ActiveRecord::Base.logger
           ActiveRecord::Base.logger.silence { yield }
         else
           yield
