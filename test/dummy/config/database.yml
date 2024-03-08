@@ -5,29 +5,17 @@
 #   gem "mysql2"
 #
 
-<% def database_name_from(name); ENV["TARGET_DB"]=="sqlite" ? "db/#{name}.sqlite3" : name; end %>
+<% def database_name_from(name); ENV["TARGET_DB"] == "sqlite" ? "db/#{name}.sqlite3" : name; end %>
 
 <% if ENV["TARGET_DB"] == "sqlite" %>
 default: &default
   adapter: sqlite3
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 50 } %>
-  retries: 100
-
 <% elsif ENV["TARGET_DB"] == "postgres" %>
 default: &default
   adapter: postgresql
-  encoding: unicode
-  username: postgres
-  pool: 5
-  host: "127.0.0.1"
-  port: 55432
-  gssencmode: disable # https://github.com/ged/ruby-pg/issues/311
-
 <% else %>
 default: &default
   adapter: mysql2
-  username: root
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 <% end %>
 
 development:
