@@ -4,6 +4,8 @@ require "active_support/testing/method_call_assertions"
 class DispatcherTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
 
+  self.use_transactional_tests = false
+
   setup do
     @dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10)
   end
@@ -56,6 +58,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 15, SolidQueue::ScheduledExecution.count
 
     another_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10)
+
     @dispatcher.start
     another_dispatcher.start
 

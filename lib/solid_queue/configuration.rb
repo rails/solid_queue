@@ -4,7 +4,7 @@ module SolidQueue
   class Configuration
     WORKER_DEFAULTS = {
       queues: "*",
-      threads: 5,
+      threads: 3,
       processes: 1,
       polling_interval: 0.1
     }
