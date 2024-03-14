@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Dispatcher < Processes::Base
-    include Processes::Runnable, Processes::Poller
+    include Processes::Poller
 
     attr_accessor :batch_size, :concurrency_maintenance, :recurring_schedule
 
@@ -20,13 +20,9 @@ module SolidQueue
     end
 
     private
-      def run
+      def poll
         batch = dispatch_next_batch
-
-        unless batch.size > 0
-          procline "waiting"
-          interruptible_sleep(polling_interval)
-        end
+        batch.size
       end
 
       def dispatch_next_batch
@@ -49,6 +45,10 @@ module SolidQueue
 
       def unload_recurring_schedule
         recurring_schedule.unload_tasks
+      end
+
+      def set_procline
+        procline "waiting"
       end
 
       def metadata

@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Worker < Processes::Base
-    include Processes::Runnable, Processes::Poller
+    include Processes::Poller
 
     attr_accessor :queues, :pool
 
@@ -15,22 +15,17 @@ module SolidQueue
     end
 
     private
-      def run
-        polled_executions = poll
-
-        if polled_executions.size > 0
-          procline "performing #{polled_executions.count} jobs"
-
-          polled_executions.each do |execution|
+      def poll
+        claim_executions.then do |executions|
+          executions.each do |execution|
             pool.post(execution)
           end
-        else
-          procline "waiting for jobs in #{queues.join(",")}"
-          interruptible_sleep(polling_interval)
+
+          executions.size
         end
       end
 
-      def poll
+      def claim_executions
         with_polling_volume do
           SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
         end
@@ -45,6 +40,10 @@ module SolidQueue
 
       def all_work_completed?
         SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
+      end
+
+      def set_procline
+        procline "waiting for jobs in #{queues.join(",")}"
       end
 
       def metadata

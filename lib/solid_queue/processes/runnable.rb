@@ -8,9 +8,9 @@ module SolidQueue::Processes
 
     def start
       @stopping = false
-
       run_callbacks(:boot) { boot }
-      start_loop
+
+      run
     end
 
     def stop
@@ -26,28 +26,12 @@ module SolidQueue::Processes
       end
 
       def boot
-        register_signal_handlers if supervised?
+        if supervised?
+          register_signal_handlers
+          set_procline
+        end
+
         SolidQueue.logger.info("[SolidQueue] Starting #{self}")
-      end
-
-      def start_loop
-        if mode.async?
-          @thread = Thread.new { do_start_loop }
-        else
-          do_start_loop
-        end
-      end
-
-      def do_start_loop
-        loop do
-          break if shutting_down?
-
-          wrap_in_app_executor do
-            run
-          end
-        end
-      ensure
-        run_callbacks(:shutdown) { shutdown }
       end
 
       def shutting_down?
@@ -68,6 +52,9 @@ module SolidQueue::Processes
 
       def all_work_completed?
         false
+      end
+
+      def set_procline
       end
 
       def running_inline?
