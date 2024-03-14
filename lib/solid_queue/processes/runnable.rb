@@ -18,60 +18,60 @@ module SolidQueue::Processes
       @thread&.join
     end
 
-  private
-    DEFAULT_MODE = :async
+    private
+      DEFAULT_MODE = :async
 
-    def mode
-      (@mode || DEFAULT_MODE).to_s.inquiry
-    end
-
-    def boot
-      register_signal_handlers if supervised?
-      SolidQueue.logger.info("[SolidQueue] Starting #{self}")
-    end
-
-    def start_loop
-      if mode.async?
-        @thread = Thread.new { do_start_loop }
-      else
-        do_start_loop
+      def mode
+        (@mode || DEFAULT_MODE).to_s.inquiry
       end
-    end
 
-    def do_start_loop
-      loop do
-        break if shutting_down?
+      def boot
+        register_signal_handlers if supervised?
+        SolidQueue.logger.info("[SolidQueue] Starting #{self}")
+      end
 
-        wrap_in_app_executor do
-          run
+      def start_loop
+        if mode.async?
+          @thread = Thread.new { do_start_loop }
+        else
+          do_start_loop
         end
       end
-    ensure
-      run_callbacks(:shutdown) { shutdown }
-    end
 
-    def shutting_down?
-      stopping? || supervisor_went_away? || finished?
-    end
+      def do_start_loop
+        loop do
+          break if shutting_down?
 
-    def run
-      raise NotImplementedError
-    end
+          wrap_in_app_executor do
+            run
+          end
+        end
+      ensure
+        run_callbacks(:shutdown) { shutdown }
+      end
 
-    def stopping?
-      @stopping
-    end
+      def shutting_down?
+        stopping? || supervisor_went_away? || finished?
+      end
 
-    def finished?
-      running_inline? && all_work_completed?
-    end
+      def run
+        raise NotImplementedError
+      end
 
-    def all_work_completed?
-      false
-    end
+      def stopping?
+        @stopping
+      end
 
-    def running_inline?
-      mode.inline?
-    end
+      def finished?
+        running_inline? && all_work_completed?
+      end
+
+      def all_work_completed?
+        false
+      end
+
+      def running_inline?
+        mode.inline?
+      end
   end
 end
