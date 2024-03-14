@@ -2,37 +2,13 @@ PATH
   remote: .
   specs:
     solid_queue (0.2.2)
-      rails (~> 7.1)
+      activejob (>= 7.1)
+      activerecord (>= 7.1)
+      railties (>= 7.1)
 
 GEM
   remote: https://rubygems.org/
   specs:
-    actioncable (7.1.0)
-      actionpack (= 7.1.0)
-      activesupport (= 7.1.0)
-      nio4r (~> 2.0)
-      websocket-driver (>= 0.6.1)
-      zeitwerk (~> 2.6)
-    actionmailbox (7.1.0)
-      actionpack (= 7.1.0)
-      activejob (= 7.1.0)
-      activerecord (= 7.1.0)
-      activestorage (= 7.1.0)
-      activesupport (= 7.1.0)
-      mail (>= 2.7.1)
-      net-imap
-      net-pop
-      net-smtp
-    actionmailer (7.1.0)
-      actionpack (= 7.1.0)
-      actionview (= 7.1.0)
-      activejob (= 7.1.0)
-      activesupport (= 7.1.0)
-      mail (~> 2.5, >= 2.5.4)
-      net-imap
-      net-pop
-      net-smtp
-      rails-dom-testing (~> 2.2)
     actionpack (7.1.0)
       actionview (= 7.1.0)
       activesupport (= 7.1.0)
@@ -42,13 +18,6 @@ GEM
       rack-test (>= 0.6.3)
       rails-dom-testing (~> 2.2)
       rails-html-sanitizer (~> 1.6)
-    actiontext (7.1.0)
-      actionpack (= 7.1.0)
-      activerecord (= 7.1.0)
-      activestorage (= 7.1.0)
-      activesupport (= 7.1.0)
-      globalid (>= 0.6.0)
-      nokogiri (>= 1.8.5)
     actionview (7.1.0)
       activesupport (= 7.1.0)
       builder (~> 3.1)
@@ -64,12 +33,6 @@ GEM
       activemodel (= 7.1.0)
       activesupport (= 7.1.0)
       timeout (>= 0.4.0)
-    activestorage (7.1.0)
-      actionpack (= 7.1.0)
-      activejob (= 7.1.0)
-      activerecord (= 7.1.0)
-      activesupport (= 7.1.0)
-      marcel (~> 1.0)
     activesupport (7.1.0)
       base64
       bigdecimal
@@ -86,7 +49,6 @@ GEM
     concurrent-ruby (1.2.2)
     connection_pool (2.4.1)
     crass (1.0.6)
-    date (3.3.3)
     debug (1.7.1)
       irb (>= 1.5.0)
       reline (>= 0.3.1)
@@ -103,28 +65,12 @@ GEM
     loofah (2.21.4)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
-    mail (2.8.1)
-      mini_mime (>= 0.1.1)
-      net-imap
-      net-pop
-      net-smtp
-    marcel (1.0.2)
-    mini_mime (1.1.5)
     mini_portile2 (2.8.1)
     minitest (5.20.0)
     mocha (2.1.0)
       ruby2_keywords (>= 0.0.5)
     mutex_m (0.1.2)
     mysql2 (0.5.4)
-    net-imap (0.4.1)
-      date
-      net-protocol
-    net-pop (0.1.2)
-      net-protocol
-    net-protocol (0.2.1)
-      timeout
-    net-smtp (0.4.0)
-      net-protocol
     nio4r (2.7.0)
     nokogiri (1.16.2-arm64-darwin)
       racc (~> 1.4)
@@ -144,20 +90,6 @@ GEM
     rackup (2.1.0)
       rack (>= 3)
       webrick (~> 1.8)
-    rails (7.1.0)
-      actioncable (= 7.1.0)
-      actionmailbox (= 7.1.0)
-      actionmailer (= 7.1.0)
-      actionpack (= 7.1.0)
-      actiontext (= 7.1.0)
-      actionview (= 7.1.0)
-      activejob (= 7.1.0)
-      activemodel (= 7.1.0)
-      activerecord (= 7.1.0)
-      activestorage (= 7.1.0)
-      activesupport (= 7.1.0)
-      bundler (>= 1.15.0)
-      railties (= 7.1.0)
     rails-dom-testing (2.2.0)
       activesupport (>= 5.0.0)
       minitest
@@ -180,17 +112,15 @@ GEM
     sqlite3 (1.5.4)
       mini_portile2 (~> 2.8.0)
     thor (1.2.2)
-    timeout (0.4.0)
+    timeout (0.4.1)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     webrick (1.8.1)
-    websocket-driver (0.7.6)
-      websocket-extensions (>= 0.1.0)
-    websocket-extensions (0.1.5)
     zeitwerk (2.6.12)
 
 PLATFORMS
   arm64-darwin-22
+  x86_64-darwin-21
   x86_64-darwin-23
   x86_64-linux
 
