@@ -2,72 +2,57 @@
 
 module SolidQueue
   class Dispatcher < Processes::Base
-    include Processes::Runnable, Processes::Poller
+    include Processes::Poller
 
-    attr_accessor :batch_size, :concurrency_maintenance_interval
+    attr_accessor :batch_size, :concurrency_maintenance, :recurring_schedule
 
-    set_callback :boot, :after, :launch_concurrency_maintenance
-    set_callback :shutdown, :before, :stop_concurrency_maintenance
+    after_boot :start_concurrency_maintenance, :load_recurring_schedule
+    before_shutdown :stop_concurrency_maintenance, :unload_recurring_schedule
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
 
       @batch_size = options[:batch_size]
       @polling_interval = options[:polling_interval]
-      @concurrency_maintenance_interval = options[:concurrency_maintenance_interval]
+
+      @concurrency_maintenance = ConcurrencyMaintenance.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_maintenance]
+      @recurring_schedule = RecurringSchedule.new(options[:recurring_tasks])
     end
 
     private
-      def run
+      def poll
         batch = dispatch_next_batch
-
-        unless batch.size > 0
-          procline "waiting"
-          interruptible_sleep(polling_interval)
-        end
+        batch.size
       end
 
       def dispatch_next_batch
         with_polling_volume do
-          SolidQueue::ScheduledExecution.dispatch_next_batch(batch_size)
+          ScheduledExecution.dispatch_next_batch(batch_size)
         end
       end
 
-      def launch_concurrency_maintenance
-        @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: concurrency_maintenance_interval) do
-          expire_semaphores
-          unblock_blocked_executions
-        end
+      def start_concurrency_maintenance
+        concurrency_maintenance&.start
+      end
 
-        @concurrency_maintenance_task.add_observer do |_, _, error|
-          handle_thread_error(error) if error
-        end
-
-        @concurrency_maintenance_task.execute
+      def load_recurring_schedule
+        recurring_schedule.load_tasks
       end
 
       def stop_concurrency_maintenance
-        @concurrency_maintenance_task.shutdown
+        concurrency_maintenance&.stop
       end
 
-      def expire_semaphores
-        wrap_in_app_executor do
-          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
-        end
+      def unload_recurring_schedule
+        recurring_schedule.unload_tasks
       end
 
-      def unblock_blocked_executions
-        wrap_in_app_executor do
-          BlockedExecution.unblock(batch_size)
-        end
-      end
-
-      def initial_jitter
-        Kernel.rand(0...polling_interval)
+      def set_procline
+        procline "waiting"
       end
 
       def metadata
-        super.merge(batch_size: batch_size)
+        super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.tasks.presence )
       end
   end
 end

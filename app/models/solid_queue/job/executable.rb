@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include Clearable, ConcurrencyControls, Schedulable
+        include ConcurrencyControls, Schedulable
 
         has_one :ready_execution
         has_one :claimed_execution
@@ -78,7 +78,7 @@ module SolidQueue
       end
 
       def finished!
-        if preserve_finished_jobs?
+        if SolidQueue.preserve_finished_jobs?
           touch(:finished_at)
         else
           destroy!
@@ -116,10 +116,6 @@ module SolidQueue
 
         def execution
           %w[ ready claimed failed ].reduce(nil) { |acc, status| acc || public_send("#{status}_execution") }
-        end
-
-        def preserve_finished_jobs?
-          SolidQueue.preserve_finished_jobs
         end
     end
   end

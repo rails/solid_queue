@@ -21,7 +21,12 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activerecord", rails_version
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
+  spec.add_dependency "concurrent-ruby", "~> 1.2.2"
+  spec.add_dependency "fugit", "~> 1.9.0"
   spec.add_development_dependency "debug"
   spec.add_development_dependency "mocha"
   spec.add_development_dependency "puma"
+  spec.add_development_dependency "mysql2"
+  spec.add_development_dependency "pg"
+  spec.add_development_dependency "sqlite3"
 end

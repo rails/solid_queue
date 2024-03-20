@@ -43,7 +43,7 @@ module SolidQueue
           promote_to_ready
           destroy!
 
-          SolidQueue.logger.info("[SolidQueue] Unblocked job #{job.id} under #{concurrency_key}")
+          SolidQueue.logger.debug("[SolidQueue] Unblocked job #{job.id} under #{concurrency_key}")
         end
       end
     end

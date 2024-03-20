@@ -14,6 +14,10 @@ module SolidQueue::Processes
     end
 
     private
+      def set_procline
+        procline "waiting"
+      end
+
       def supervisor_went_away?
         supervised? && supervisor&.pid != ::Process.ppid
       end
