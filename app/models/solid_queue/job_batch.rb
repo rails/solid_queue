@@ -35,7 +35,7 @@ module SolidQueue
       def dispatch_finished_batches
         incomplete.order(:id).pluck(:id).each do |id|
           transaction do
-            where(id:).non_blocking_lock.each(&:finish)
+            where(id: id).non_blocking_lock.each(&:finish)
           end
         end
       end
@@ -82,8 +82,8 @@ module SolidQueue
       if on_finish_active_job.present?
         active_job = ActiveJob::Base.deserialize(on_finish_active_job)
         active_job.send(:deserialize_arguments_if_needed)
-        active_job.arguments = [self] + Array.wrap(active_job.arguments)
-        ActiveJob.perform_all_later([active_job])
+        active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
+        ActiveJob.perform_all_later([ active_job ])
         attrs[:job] = Job.find_by(active_job_id: active_job.job_id)
       end
 

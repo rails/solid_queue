@@ -23,13 +23,13 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
   end
 
   test "batch will be completed on success" do
-    batch = SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) {}
+    batch = SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) { }
     assert_not_nil batch.on_finish_active_job
     assert_equal BatchCompletionJob.name, batch.on_finish_active_job["job_class"]
   end
 
   test "batch will be completed on finish" do
-    batch = SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) {}
+    batch = SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) { }
     assert_not_nil batch.on_success_active_job
     assert_equal BatchCompletionJob.name, batch.on_success_active_job["job_class"]
   end
@@ -41,7 +41,7 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
     end
 
     assert_equal 2, SolidQueue::Job.count
-    assert_equal [batch.id] * 2, SolidQueue::Job.last(2).map(&:batch_id)
+    assert_equal [ batch.id ] * 2, SolidQueue::Job.last(2).map(&:batch_id)
   end
 
   test "batch id is present inside the block" do
@@ -60,7 +60,7 @@ class SolidQueue::JobBatchTest < ActiveSupport::TestCase
     end
 
     assert_not_nil SolidQueue::JobBatch.last.on_finish_active_job["arguments"]
-    assert_equal SolidQueue::JobBatch.last.on_finish_active_job["arguments"], [1, 2]
+    assert_equal SolidQueue::JobBatch.last.on_finish_active_job["arguments"], [ 1, 2 ]
     assert_equal SolidQueue::JobBatch.last.on_finish_active_job["queue_name"], "batch"
   end
 end
