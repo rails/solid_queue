@@ -2,8 +2,8 @@ class CreateSolidQueueBatchTable < ActiveRecord::Migration[7.1]
   def change
     create_table :solid_queue_job_batches do |t|
       t.references :job, index: { unique: true }
-      t.string :on_finish_active_job
-      t.string :on_success_active_job
+      t.text :on_finish_active_job
+      t.text :on_success_active_job
       t.datetime :finished_at
       t.datetime :changed_at
       t.datetime :last_changed_at
