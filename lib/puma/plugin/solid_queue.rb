@@ -19,6 +19,7 @@ Puma::Plugin.create do
     end
 
     launcher.events.on_stopped { stop_solid_queue }
+    launcher.events.on_restart { stop_solid_queue }
   end
 
   private
