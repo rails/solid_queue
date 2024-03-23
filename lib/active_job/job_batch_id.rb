@@ -11,12 +11,12 @@ module ActiveJob
     end
 
     def serialize
-      super.merge('batch_id' => batch_id)
+      super.merge("batch_id" => batch_id)
     end
 
     def deserialize(job_data)
       super
-      self.batch_id = job_data['batch_id']
+      self.batch_id = job_data["batch_id"]
     end
 
     def batch
