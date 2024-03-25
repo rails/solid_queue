@@ -8,7 +8,7 @@ module SolidQueue
       included do
         has_one :scheduled_execution
 
-        scope :scheduled, -> { where.not(finished_at: nil) }
+        scope :scheduled, -> { where(finished_at: nil) }
       end
 
       class_methods do
