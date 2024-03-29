@@ -261,13 +261,6 @@ If you prefer not to rely on this, or avoid relying on it unintentionally, you s
   config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
   ```
 
-## Inspiration
-
-Solid Queue has been inspired by [resque](https://github.com/resque/resque) and [GoodJob](https://github.com/bensheldon/good_job). We recommend checking out these projects as they're great examples from which we've learnt a lot.
-
-## License
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
-
 ## Recurring tasks
 Solid Queue supports defining recurring tasks that run at specific times in the future, on a regular basis like cron jobs. These are managed by dispatcher processes and as such, they can be defined in the dispatcher's configuration like this:
 ```yml
@@ -312,3 +305,10 @@ You can still configure this in Solid Queue:
           schedule: "*/5 * * * *"
 ```
 and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
+
+## Inspiration
+
+Solid Queue has been inspired by [resque](https://github.com/resque/resque) and [GoodJob](https://github.com/bensheldon/good_job). We recommend checking out these projects as they're great examples from which we've learnt a lot.
+
+## License
+The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
