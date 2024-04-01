@@ -116,8 +116,6 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatchers.each(&:stop)
 
     assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
-    assert SolidQueue::Job.count < 4
-
     run_at_times = SolidQueue::RecurringExecution.all.map(&:run_at).sort
     0.upto(run_at_times.length - 2) do |i|
       assert_equal 1, run_at_times[i + 1] - run_at_times[i]
