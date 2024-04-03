@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
@@ -133,7 +134,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
       SolidQueue::Job.clear_finished_in_batches
     end
   end
-  
+
   test "respect class name when clearing finished jobs" do
     10.times { AddToBufferJob.perform_later(2) }
     10.times { RaisingJob.perform_later(RuntimeError, "A") }

@@ -42,7 +42,7 @@ module SolidQueue
     end
 
     def to_s
-      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original.to_s} ]"
+      "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original} ]"
     end
 
     def to_h

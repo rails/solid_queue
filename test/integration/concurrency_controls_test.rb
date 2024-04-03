@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 
 class ConcurrencyControlsTest < ActiveSupport::TestCase
@@ -184,7 +185,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   private
     def assert_stored_sequence(result, *sequences)
-      expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}"}.join }
+      expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }
       skip_active_record_query_cache do
         assert_includes expected, result.reload.status
       end

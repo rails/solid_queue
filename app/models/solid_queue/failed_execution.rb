@@ -33,5 +33,5 @@ module SolidQueue
           self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace }
         end
       end
-    end
+  end
 end
