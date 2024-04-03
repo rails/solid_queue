@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 
 class PumaPluginTest < ActiveSupport::TestCase
@@ -7,7 +8,7 @@ class PumaPluginTest < ActiveSupport::TestCase
   setup do
     FileUtils.mkdir_p Rails.root.join("tmp", "pids")
 
-    Dir.chdir('test/dummy') do
+    Dir.chdir("test/dummy") do
       cmd = %w[
         bundle exec puma
           -b tcp://127.0.0.1:9222
