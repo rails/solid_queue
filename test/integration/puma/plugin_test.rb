@@ -41,7 +41,8 @@ class PumaPluginTest < ActiveSupport::TestCase
 
   test "stop the queue on puma's restart" do
     signal_process(@pid, :SIGUSR2)
-
+    # Ensure the restart finishes before we try to continue with the test
+    wait_for_registered_processes(0, timeout: 3.second)
     wait_for_registered_processes(4, timeout: 3.second)
 
     StoreResultJob.perform_later(:puma_plugin)
