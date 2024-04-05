@@ -5,7 +5,7 @@ PATH
       activejob (>= 7.1)
       activerecord (>= 7.1)
       concurrent-ruby (~> 1.2.2)
-      fugit (~> 1.9.0)
+      fugit (~> 1.10.1)
       railties (>= 7.1)
 
 GEM
@@ -60,7 +60,7 @@ GEM
     erubi (1.12.0)
     et-orbi (1.2.7)
       tzinfo
-    fugit (1.9.0)
+    fugit (1.10.1)
       et-orbi (~> 1, >= 1.2.7)
       raabro (~> 1.4)
     globalid (1.2.1)
