@@ -6,6 +6,9 @@ require "solid_queue/engine"
 require "active_job"
 require "active_job/queue_adapters"
 
+require "active_support"
+require "active_support/core_ext/numeric/time"
+
 require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
