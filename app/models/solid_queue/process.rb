@@ -12,17 +12,24 @@ class SolidQueue::Process < SolidQueue::Record
   after_destroy -> { claimed_executions.release_all }
 
   def self.register(**attributes)
-    create!(attributes.merge(last_heartbeat_at: Time.current))
+    SolidQueue.instrument :register_process, **attributes do
+      create!(attributes.merge(last_heartbeat_at: Time.current))
+    end
+  rescue Exception => error
+    SolidQueue.instrument :register_process, **attributes.merge(error: error)
+    raise
   end
 
   def heartbeat
     touch(:last_heartbeat_at)
   end
 
-  def deregister
-    destroy!
-  rescue Exception
-    SolidQueue.logger.error("[SolidQueue] Error deregistering process #{id} - #{metadata}")
+  def deregister(pruned: false)
+    SolidQueue.instrument :deregister_process, process: self, pruned: pruned do
+      destroy!
+    end
+  rescue Exception => error
+    SolidQueue.instrument :deregister_process, process: self, error: error
     raise
   end
 end

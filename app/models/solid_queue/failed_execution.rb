@@ -11,15 +11,19 @@ module SolidQueue
     attr_accessor :exception
 
     def self.retry_all(jobs)
-      transaction do
-        dispatch_jobs lock_all_from_jobs(jobs)
+      SolidQueue.instrument(:retry_all, jobs_size: jobs.size) do |payload|
+        transaction do
+          payload[:size] = dispatch_jobs lock_all_from_jobs(jobs)
+        end
       end
     end
 
     def retry
-      with_lock do
-        job.prepare_for_execution
-        destroy!
+      SolidQueue.instrument(:retry, job_id: job.id) do
+        with_lock do
+          job.prepare_for_execution
+          destroy!
+        end
       end
     end
 

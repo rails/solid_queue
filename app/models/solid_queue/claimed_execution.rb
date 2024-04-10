@@ -20,7 +20,12 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
 
     def release_all
-      includes(:job).each(&:release)
+      SolidQueue.instrument(:release_many_claimed) do |payload|
+        includes(:job).tap do |executions|
+          payload[:size] = executions.size
+          executions.each(&:release)
+        end
+      end
     end
 
     def discard_all_in_batches(*)
@@ -45,9 +50,11 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   def release
-    transaction do
-      job.dispatch_bypassing_concurrency_limits
-      destroy!
+    SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id) do
+      transaction do
+        job.dispatch_bypassing_concurrency_limits
+        destroy!
+      end
     end
   end
 
