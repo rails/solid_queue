@@ -115,10 +115,51 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_event events.second, "retry_all", jobs_size: 4, size: 0
   end
 
+  test "discarding job emits a discard event" do
+    AddToBufferJob.perform_later("A")
+    job = SolidQueue::Job.last
+
+    events = subscribed("discard.solid_queue") do
+      job.discard
+    end
+
+    assert_equal 1, events.size
+    assert_event events.first, "discard", job_id: job.id, status: :ready
+  end
+
+  test "discarding jobs in bulk emits a discard_all event" do
+    # 5 ready jobs
+    5.times { AddToBufferJob.perform_later("A") }
+    # 1 ready + 3 blocked
+    result = JobResult.create!
+    4.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
+
+    events = subscribed("discard_all.solid_queue") do
+      SolidQueue::ReadyExecution.discard_all_from_jobs(SolidQueue::Job.all)
+      SolidQueue::ReadyExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+
+    assert_equal 2, events.size
+    assert_event events.first, "discard_all", jobs_size: 9, status: :ready, size: 6
+    # Only 3 blocked jobs remaining for the second discard_all_from_jobs call
+    assert_event events.second, "discard_all", jobs_size: 3, status: :ready, size: 0
+  end
+
+  test "discarding jobs in batches emits a discard_all event" do
+    15.times { AddToBufferJob.perform_later("A") }
+
+    events = subscribed("discard_all.solid_queue") do
+      SolidQueue::ReadyExecution.discard_all_in_batches(batch_size: 6)
+    end
+
+    assert_equal 1, events.size
+    assert_event events.first, "discard_all", batch_size: 6, status: :ready, batches: 3, size: 15
+  end
+
   test "unblocking job emits release_blocked event" do
     result = JobResult.create!
     # 1 ready, 2 blocked
-    3.times { SequentialUpdateResultJob.perform_later(result, name: name, pause: 0.2.seconds) }
+    3.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
 
     # Simulate expiry of the concurrency locks
     travel_to 3.days.from_now
@@ -140,7 +181,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   test "unblocking jobs in bulk emits release_many_blocked event" do
     result = JobResult.create!
     # 1 ready, 3 blocked
-    4.times { SequentialUpdateResultJob.perform_later(result, name: name, pause: 0.2.seconds) }
+    4.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
 
     # Simulate expiry of the concurrency locks
     travel_to 3.days.from_now

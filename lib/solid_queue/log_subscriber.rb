@@ -23,6 +23,14 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Retry failed job", **event.payload.slice(:job_id))
   end
 
+  def discard_all(event)
+    debug formatted_event(event, action: "Discard jobs", **event.payload.slice(:jobs_size, :size, :status))
+  end
+
+  def discard(event)
+    debug formatted_event(event, action: "Discard job", **event.payload.slice(:job_id, :status))
+  end
+
   def release_many_blocked(event)
     debug formatted_event(event, action: "Unblock jobs", **event.payload.slice(:limit, :size))
   end
