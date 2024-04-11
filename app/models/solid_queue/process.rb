@@ -25,7 +25,7 @@ class SolidQueue::Process < SolidQueue::Record
   end
 
   def deregister(pruned: false)
-    SolidQueue.instrument :deregister_process, process: self, pruned: pruned do
+    SolidQueue.instrument :deregister_process, process: self, pruned: pruned, claimed_size: claimed_executions.size do
       destroy!
     end
   rescue Exception => error

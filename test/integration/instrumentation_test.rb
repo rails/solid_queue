@@ -38,6 +38,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "starting and stopping a worker emits register_process and deregister_process events" do
+    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
     process = nil
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
@@ -52,9 +53,8 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 2, events.size
     register_event, deregister_event = events
-
     assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid
-    assert_event deregister_event, "deregister_process", process: process, pruned: false
+    assert_event deregister_event, "deregister_process", process: process, pruned: false, claimed_size: 1
   end
 
   test "pruning processes emit prune_processes and deregister_process events" do
@@ -75,7 +75,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_event prune_event, "prune_processes", size: 3
     deregister_events.each_with_index do |event, i|
-      assert_event event, "deregister_process", process: processes[i], pruned: true
+      assert_event event, "deregister_process", process: processes[i], pruned: true, claimed_size: 0
     end
   end
 
