@@ -25,10 +25,11 @@ class InstrumentationTest < ActiveSupport::TestCase
     events = subscribed(/release.*_claimed\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
 
-      wait_while_with_timeout(0.5.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout(1.seconds) { SolidQueue::ReadyExecution.any? }
       process = SolidQueue::Process.last
 
       worker.stop
+      wait_for_registered_processes(0, timeout: 1.second)
     end
 
     assert_equal 2, events.size
@@ -43,7 +44,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
-      wait_for_registered_processes(1, timeout: 1.second)
+      wait_while_with_timeout(1.seconds) { SolidQueue::ReadyExecution.any? }
 
       process = SolidQueue::Process.last
 
@@ -195,6 +196,48 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_equal 2, events.size
     assert_event events.first, "release_many_blocked", limit: 5, size: 1
     assert_event events.second, "release_many_blocked", limit: 5, size: 0
+  end
+
+  test "enqueuing recurring task emits enqueue_recurring_task event" do
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+
+    events = subscribed("enqueue_recurring_task.solid_queue") do
+      dispatcher.start
+      sleep 1.01
+      dispatcher.stop
+    end
+
+    assert events.size >= 1
+    event = events.last
+
+    assert_event event, "enqueue_recurring_task", task: :example_task, active_job_id: SolidQueue::Job.last.active_job_id
+    assert event.last[:at].present?
+    assert_nil event.last[:other_adapter]
+  end
+
+  test "skipping a recurring task is reflected in the enqueue_recurring_task event" do
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+    dispatchers = 2.times.collect { SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task) }
+
+    events = subscribed("enqueue_recurring_task.solid_queue") do
+      dispatchers.each(&:start)
+      sleep 1.01
+      dispatchers.each(&:stop)
+    end
+
+    assert events.size >= 2
+    events.each do |event|
+      assert_event event, "enqueue_recurring_task", task: :example_task
+    end
+
+    active_job_ids = SolidQueue::Job.all.map(&:active_job_id)
+    events.group_by { |event| event.last[:at] }.each do |_, events_by_time|
+      if events_by_time.many?
+        assert events_by_time.any? { |e| e.last[:active_job_id].nil? }
+        assert events_by_time.any? { |e| e.last[:active_job_id].in? active_job_ids }
+      end
+    end
   end
 
   private

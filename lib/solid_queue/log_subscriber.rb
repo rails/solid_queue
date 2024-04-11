@@ -39,6 +39,17 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Release blocked job", **event.payload.slice(:job_id, :concurrency_key, :released))
   end
 
+  def enqueue_recurring_task(event)
+    attributes = event.payload.slice(:task, :at, :active_job_id)
+
+    if event.payload[:other_adapter]
+      debug formatted_event(event, action: "Enqueued recurring task outside Solid Queue", **attributes)
+    else
+      action = attributes[:active_job_id].present? ? "Enqueued recurring task" : "Skipped recurring task – already dispatched"
+      info formatted_event(event, action: action, **attributes)
+    end
+  end
+
   def register_process(event)
     attributes = event.payload.slice(:kind, :pid, :hostname)
 

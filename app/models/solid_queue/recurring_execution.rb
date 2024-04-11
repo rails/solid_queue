@@ -7,12 +7,12 @@ module SolidQueue
     class << self
       def record(task_key, run_at, &block)
         transaction do
-          if job_id = block.call
-            create!(job_id: job_id, task_key: task_key, run_at: run_at)
+          block.call.tap do |active_job|
+            create!(job_id: active_job.provider_job_id, task_key: task_key, run_at: run_at)
           end
         end
       rescue ActiveRecord::RecordNotUnique
-        SolidQueue.logger.info("[SolidQueue] Skipped recurring task #{task_key} at #{run_at} — already dispatched")
+        # Task already dispatched
       end
 
       def clear_in_batches(batch_size: 500)
