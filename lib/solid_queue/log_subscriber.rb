@@ -3,12 +3,8 @@
 require "active_support/log_subscriber"
 
 class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
-  def release_many_blocked(event)
-    debug formatted_event(event, action: "Unblock jobs", **event.payload.slice(:limit, :size))
-  end
-
-  def release_blocked(event)
-    debug formatted_event(event, action: "Release blocked job", **event.payload.slice(:job_id, :concurrency_key, :released))
+  def dispatch_scheduled(event)
+    debug formatted_event(event, action: "Dispatch scheduled jobs", **event.payload.slice(:batch_size, :size))
   end
 
   def release_many_claimed(event)
@@ -19,16 +15,20 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
   end
 
-  def dispatch_scheduled(event)
-    debug formatted_event(event, action: "Dispatch scheduled jobs", **event.payload.slice(:batch_size, :size))
-  end
-
   def retry_all(event)
     debug formatted_event(event, action: "Retry failed jobs", **event.payload.slice(:jobs_size, :size))
   end
 
   def retry(event)
     debug formatted_event(event, action: "Retry failed job", **event.payload.slice(:job_id))
+  end
+
+  def release_many_blocked(event)
+    debug formatted_event(event, action: "Unblock jobs", **event.payload.slice(:limit, :size))
+  end
+
+  def release_blocked(event)
+    debug formatted_event(event, action: "Release blocked job", **event.payload.slice(:job_id, :concurrency_key, :released))
   end
 
   def register_process(event)

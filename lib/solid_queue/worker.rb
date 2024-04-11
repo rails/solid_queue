@@ -32,10 +32,10 @@ module SolidQueue
       end
 
       def shutdown
-        super
-
         pool.shutdown
         pool.wait_for_termination(SolidQueue.shutdown_timeout)
+
+        super
       end
 
       def all_work_completed?

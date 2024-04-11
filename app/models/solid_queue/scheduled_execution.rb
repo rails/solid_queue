@@ -12,12 +12,12 @@ module SolidQueue
 
     class << self
       def dispatch_next_batch(batch_size)
-        SolidQueue.instrument(:dispatch_scheduled, batch_size: batch_size, count: 0) do |payload|
-          transaction do
-            job_ids = next_batch(batch_size).non_blocking_lock.pluck(:job_id)
-            if job_ids.empty? then []
-            else
-              payload[:count] = dispatch_jobs(job_ids)
+        transaction do
+          job_ids = next_batch(batch_size).non_blocking_lock.pluck(:job_id)
+          if job_ids.empty? then []
+          else
+            SolidQueue.instrument(:dispatch_scheduled, batch_size: batch_size) do |payload|
+              payload[:size] = dispatch_jobs(job_ids)
             end
           end
         end

@@ -17,9 +17,9 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
   test "unblock many jobs" do
     attach_log_subscriber
-    instrument "unblock_batch.solid_queue", batch_size: 42
+    instrument "release_many_blocked.solid_queue", limit: 42, size: 10
 
-    assert_match_logged :debug, "Unblock jobs", "batch_size: 42"
+    assert_match_logged :debug, "Unblock jobs", "limit: 42, size: 10"
   end
 
   private
