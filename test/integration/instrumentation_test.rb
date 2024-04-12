@@ -81,8 +81,9 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "errors when deregistering processes are included in deregister_process events" do
-    SolidQueue::Process.any_instance.expects(:destroy!).raises(RuntimeError.new("everything is broken")).at_least_once
-    Thread.report_on_exception = false
+    previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
+    error = RuntimeError.new("everything is broken")
+    SolidQueue::Process.any_instance.expects(:destroy!).raises(error).at_least_once
 
     events = subscribed("deregister_process.solid_queue") do
       assert_raises RuntimeError do
@@ -95,9 +96,9 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
 
     assert_equal 1, events.size
-    assert events.first.last[:error].is_a?(RuntimeError)
+    assert_event events.first, "deregister_process", error: error
   ensure
-    Thread.report_on_exception = true
+    Thread.report_on_exception = previous_thread_report_on_exception
   end
 
   test "retrying failed job emits retry event" do
@@ -258,6 +259,27 @@ class InstrumentationTest < ActiveSupport::TestCase
         assert events_by_time.any? { |e| e.last[:active_job_id].in? active_job_ids }
       end
     end
+  end
+
+  test "thread errors emit thread_error events" do
+    previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
+
+    error = RuntimeError.new("everything is broken")
+    SolidQueue::ClaimedExecution::Result.expects(:new).raises(error).at_least_once
+
+    AddToBufferJob.perform_later "hey!"
+
+    events = subscribed("thread_error.solid_queue") do
+      SolidQueue::Worker.new.tap do |worker|
+        worker.mode = :inline
+        worker.start
+      end
+    end
+
+    assert_equal 1, events.count
+    assert_event events.first, "thread_error", error: error
+  ensure
+    Thread.report_on_exception = previous_thread_report_on_exception
   end
 
   private

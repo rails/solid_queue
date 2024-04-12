@@ -211,7 +211,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_no_registered_workers
-      assert_empty find_processes_registered_as("Worker")
+      assert_empty find_processes_registered_as("Worker").to_a
     end
 
     def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)

@@ -11,7 +11,7 @@ module SolidQueue
     end
 
     def handle_thread_error(error)
-      SolidQueue.logger.error("[SolidQueue] #{error}")
+      SolidQueue.instrument(:thread_error, error: error)
 
       if SolidQueue.on_thread_error
         SolidQueue.on_thread_error.call(error)
