@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
+ActiveRecord::Schema[7.1].define(version: 2024_04_12_083635) do
   create_table "job_results", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "queue_name"
     t.string "status"
@@ -27,6 +27,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.datetime "expires_at", null: false
     t.datetime "created_at", null: false
     t.index ["concurrency_key", "priority", "job_id"], name: "index_solid_queue_blocked_executions_for_release"
+    t.index ["created_at"], name: "index_solid_queue_blocked_executions_on_created_at"
     t.index ["expires_at", "concurrency_key"], name: "index_solid_queue_blocked_executions_for_maintenance"
     t.index ["job_id"], name: "index_solid_queue_blocked_executions_on_job_id", unique: true
   end
@@ -35,6 +36,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.bigint "job_id", null: false
     t.bigint "process_id"
     t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_solid_queue_claimed_executions_on_created_at"
     t.index ["job_id"], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
     t.index ["process_id", "job_id"], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
   end
@@ -43,6 +45,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.bigint "job_id", null: false
     t.text "error"
     t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_solid_queue_failed_executions_on_created_at"
     t.index ["job_id"], name: "index_solid_queue_failed_executions_on_job_id", unique: true
   end
 
@@ -87,6 +90,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_solid_queue_ready_executions_on_created_at"
     t.index ["job_id"], name: "index_solid_queue_ready_executions_on_job_id", unique: true
     t.index ["priority", "job_id"], name: "index_solid_queue_poll_all"
     t.index ["queue_name", "priority", "job_id"], name: "index_solid_queue_poll_by_queue"
@@ -97,6 +101,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.string "task_key", null: false
     t.datetime "run_at", null: false
     t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_solid_queue_recurring_executions_on_created_at"
     t.index ["job_id"], name: "index_solid_queue_recurring_executions_on_job_id", unique: true
     t.index ["task_key", "run_at"], name: "index_solid_queue_recurring_executions_on_task_key_and_run_at", unique: true
   end
@@ -107,6 +112,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_02_18_110712) do
     t.integer "priority", default: 0, null: false
     t.datetime "scheduled_at", null: false
     t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_solid_queue_scheduled_executions_on_created_at"
     t.index ["job_id"], name: "index_solid_queue_scheduled_executions_on_job_id", unique: true
     t.index ["scheduled_at", "priority", "job_id"], name: "index_solid_queue_dispatch_all"
   end
