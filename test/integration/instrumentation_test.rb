@@ -80,6 +80,26 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
   end
 
+  test "errors when deregistering processes are included in deregister_process events" do
+    SolidQueue::Process.any_instance.expects(:destroy!).raises(RuntimeError.new("everything is broken")).at_least_once
+    Thread.report_on_exception = false
+
+    events = subscribed("deregister_process.solid_queue") do
+      assert_raises RuntimeError do
+        worker = SolidQueue::Worker.new.tap(&:start)
+        wait_for_registered_processes(1, timeout: 1.second)
+
+        worker.stop
+        wait_for_registered_processes(0, timeout: 1.second)
+      end
+    end
+
+    assert_equal 1, events.size
+    assert events.first.last[:error].is_a?(RuntimeError)
+  ensure
+    Thread.report_on_exception = true
+  end
+
   test "retrying failed job emits retry event" do
     RaisingJob.perform_later(RuntimeError, "A")
     job = SolidQueue::Job.last
