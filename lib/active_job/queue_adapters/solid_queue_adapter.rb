@@ -8,6 +8,10 @@ module ActiveJob
     #
     #   Rails.application.config.active_job.queue_adapter = :solid_queue
     class SolidQueueAdapter
+      def enqueue_after_transaction_commit?
+        SolidQueue.enqueue_after_transaction_commit
+      end
+
       def enqueue(active_job) # :nodoc:
         SolidQueue::Job.enqueue(active_job)
       end
