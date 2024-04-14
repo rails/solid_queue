@@ -28,7 +28,7 @@ module SolidQueue
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
 
-  mattr_accessor :enqueue_after_transaction_commit, default: false
+  mattr_accessor :enqueue_after_transaction_commit, default: true
 
   mattr_accessor :silence_polling, default: true
 
