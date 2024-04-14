@@ -247,9 +247,20 @@ to your `puma.rb` configuration.
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
 
-If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
-- Your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
-- Or, to opt out completely from this behaviour, configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
+Important update: solid_queue now takes advantage of ActiveJob's [ recent update ](https://github.com/rails/rails/pull/51426) where jobs enqueued within a database transaction are automatically deferred until after the transaction is committed. This helps avoid issues where jobs might operate on records that aren't yet committed to the database. By default, any job you enqueue using solid_queue inside a transaction will wait to be actually enqueued until after the transaction has successfully committed.
+
+If you decide to switch to a different Active Job backend or move solid_queue to a separate database, it's crucial to ensure that the new setup either supports similar transaction-aware enqueuing or adjust your application's job enqueuing logic accordingly.
+
+If your application's logic requires immediate job queuing before a transaction commits (although generally not recommended due to potential race conditions), you can explicitly disable this behavior on a per-job basis. For example:
+
+
+  ```ruby
+  class UrgentNotificationJob < ApplicationJob
+    self.enqueue_after_transaction_commit = false
+    # job implementation
+  end
+  ```
+If you explicitly set `enqueue_after_transaction_commit` to `false`, it could be a good idea to configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
 
   ```ruby
   class ApplicationRecord < ActiveRecord::Base
