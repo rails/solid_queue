@@ -10,6 +10,10 @@ module SolidQueue::Processes
       attr_accessor :polling_interval
     end
 
+    def metadata
+      super.merge(polling_interval: polling_interval)
+    end
+
     private
       def run
         if mode.async?
@@ -43,10 +47,6 @@ module SolidQueue::Processes
         else
           yield
         end
-      end
-
-      def metadata
-        super.merge(polling_interval: polling_interval)
       end
   end
 end

@@ -8,6 +8,10 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
   teardown { ActiveSupport::LogSubscriber.log_subscribers.clear }
 
+  def set_logger(logger)
+    SolidQueue.logger = logger
+  end
+
   test "unblock one job" do
     attach_log_subscriber
     instrument "release_blocked.solid_queue", job_id: 42, concurrency_key: "foo/1", released: true

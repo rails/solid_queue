@@ -38,6 +38,21 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_event release_many_event, "release_many_claimed", size: 1
   end
 
+  test "starting a runnable process emits a start_process event" do
+    worker = SolidQueue::Worker.new
+
+    events = subscribed("start_process.solid_queue") do
+      worker.start
+      wait_for_registered_processes(1, timeout: 1.second)
+
+      worker.stop
+      wait_for_registered_processes(0, timeout: 1.second)
+    end
+
+    assert_equal 1, events.size
+    assert_event events.first, "start_process", process: worker
+  end
+
   test "starting and stopping a worker emits register_process and deregister_process events" do
     StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
     process = nil

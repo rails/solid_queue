@@ -11,18 +11,13 @@ module SolidQueue::Processes
       after_shutdown :deregister
     end
 
-    def inspect
-      "#{kind}(pid=#{process_pid}, hostname=#{hostname}, metadata=#{metadata})"
-    end
-    alias to_s inspect
-
     private
       attr_accessor :process
 
       def register
         @process = SolidQueue::Process.register \
           kind: self.class.name.demodulize,
-          pid: process_pid,
+          pid: pid,
           hostname: hostname,
           supervisor: try(:supervisor),
           metadata: metadata.compact
@@ -47,22 +42,6 @@ module SolidQueue::Processes
 
       def heartbeat
         process.heartbeat
-      end
-
-      def kind
-        self.class.name.demodulize
-      end
-
-      def hostname
-        @hostname ||= Socket.gethostname.force_encoding(Encoding::UTF_8)
-      end
-
-      def process_pid
-        @pid ||= ::Process.pid
-      end
-
-      def metadata
-        {}
       end
   end
 end

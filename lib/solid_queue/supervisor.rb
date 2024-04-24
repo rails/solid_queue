@@ -79,19 +79,24 @@ module SolidQueue
       end
 
       def graceful_termination
-        SolidQueue.logger.info("[SolidQueue] Terminating gracefully...")
-        term_forks
+        SolidQueue.instrument(:graceful_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do |payload|
+          term_forks
 
-        wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
-          reap_terminated_forks
+          wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
+            reap_terminated_forks
+          end
+
+          unless all_forks_terminated?
+            payload[:shutdown_timeout_exceeded] = true
+            immediate_termination
+          end
         end
-
-        immediate_termination unless all_forks_terminated?
       end
 
       def immediate_termination
-        SolidQueue.logger.info("[SolidQueue] Terminating immediately...")
-        quit_forks
+        SolidQueue.instrument(:immediate_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do
+          quit_forks
+        end
       end
 
       def term_forks
