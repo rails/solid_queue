@@ -38,7 +38,7 @@ module SolidQueue::Processes
         when :QUIT
           request_immediate_termination
         else
-          SolidQueue.logger.warn "Received unhandled signal #{signal}"
+          SolidQueue.instrument :unhandled_signal_error, signal: signal
         end
       end
 

@@ -105,12 +105,27 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     if event.payload[:shutdown_timeout_exceeded]
       warn formatted_event(event, action: "Supervisor wasn't terminated gracefully - shutdown timeout exceeded", **attributes)
     else
-      formatted_event(event, action: "Supervisor terminated gracefully", **attributes)
+      info formatted_event(event, action: "Supervisor terminated gracefully", **attributes)
     end
   end
 
   def immediate_termination(event)
     info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:supervisor_pid, :supervised_pids))
+  end
+
+  def unhandled_signal_error(event)
+    error formatted_event(event, action: "Received unhandled signal", **event.payload.slice(:signal))
+  end
+
+  def replace_fork(event)
+    status = event.payload[:status]
+    attributes = event.payload.slice(:pid).merge(status: status.exitstatus, pid_from_status: status.pid)
+
+    if replaced_fork = event.payload[:fork]
+      info formatted_event(event, action: "Replaced #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname))
+    else
+      warn formatted_event(event, action: "Tried to replace forked process but it had already died", **attributes)
+    end
   end
 
   private

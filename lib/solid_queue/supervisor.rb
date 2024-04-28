@@ -152,11 +152,11 @@ module SolidQueue
       end
 
       def replace_fork(pid, status)
-        if supervised_fork = forks.delete(pid)
-          SolidQueue.logger.info "[SolidQueue] Restarting fork[#{status.pid}] (status: #{status.exitstatus})"
-          start_fork(supervised_fork)
-        else
-          SolidQueue.logger.info "[SolidQueue] Tried to replace fork[#{pid}] (status: #{status.exitstatus}, fork[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
+        SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
+          if supervised_fork = forks.delete(pid)
+            payload[:fork] = supervised_fork
+            start_fork(supervised_fork)
+          end
         end
       end
 
