@@ -220,6 +220,10 @@ class InstrumentationTest < ActiveSupport::TestCase
     # 1 ready, 3 blocked
     4.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
 
+    # 1 ready, 2 blocked
+    result = JobResult.create!
+    3.times { SequentialUpdateResultJob.perform_later(result, name: "B") }
+
     # Simulate expiry of the concurrency locks
     travel_to 3.days.from_now
     SolidQueue::Semaphore.expired.delete_all
@@ -230,7 +234,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
 
     assert_equal 2, events.size
-    assert_event events.first, "release_many_blocked", limit: 5, size: 1
+    assert_event events.first, "release_many_blocked", limit: 5, size: 2
     assert_event events.second, "release_many_blocked", limit: 5, size: 0
   end
 
