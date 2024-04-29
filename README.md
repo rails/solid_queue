@@ -171,7 +171,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
-- `enqueue_after_transaction_commit`: it defines whether the job should be enqueued after `after_commit`. The default is `true`. [Read more](https://github.com/rails/rails/pull/51426) about it.
+- `enqueue_after_transaction_commit`: whether the job queuing is deferred to after the current Active Record transaction is committed. The default is `false`. [Read more](https://github.com/rails/rails/pull/51426).
 
 
 ## Concurrency controls
@@ -247,20 +247,12 @@ to your `puma.rb` configuration.
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
 
-Important update: solid_queue now takes advantage of ActiveJob's [ recent update ](https://github.com/rails/rails/pull/51426) where jobs enqueued within a database transaction are automatically deferred until after the transaction is committed. This helps avoid issues where jobs might operate on records that aren't yet committed to the database. By default, any job you enqueue using solid_queue inside a transaction will wait to be actually enqueued until after the transaction has successfully committed.
+By default, Solid Queue runs in the same DB as your app, and job enqueuing is _not_ deferred until any ongoing transaction is committed, which means that by default, you'll be taking advantage of this transactional integrity.
 
-If you decide to switch to a different Active Job backend or move solid_queue to a separate database, it's crucial to ensure that the new setup either supports similar transaction-aware enqueuing or adjust your application's job enqueuing logic accordingly.
-
-If your application's logic requires immediate job queuing before a transaction commits (although generally not recommended due to potential race conditions), you can explicitly disable this behavior on a per-job basis. For example:
-
-
-  ```ruby
-  class UrgentNotificationJob < ApplicationJob
-    self.enqueue_after_transaction_commit = false
-    # job implementation
-  end
-  ```
-If you explicitly set `enqueue_after_transaction_commit` to `false`, it could be a good idea to configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
+If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
+- You set [`config.active_job.enqueue_after_transaction_commit`](https://edgeguides.rubyonrails.org/configuring.html#config-active-job-enqueue-after-transaction-commit) to `always`, if you're using Rails 7.2+.
+- Or, your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
+- Or, you configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
 
   ```ruby
   class ApplicationRecord < ActiveRecord::Base
