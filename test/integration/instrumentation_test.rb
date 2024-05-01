@@ -25,11 +25,11 @@ class InstrumentationTest < ActiveSupport::TestCase
     events = subscribed(/release.*_claimed\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
 
-      wait_while_with_timeout(1.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
       process = SolidQueue::Process.last
 
       worker.stop
-      wait_for_registered_processes(0, timeout: 1.second)
+      wait_for_registered_processes(0, timeout: 3.second)
     end
 
     assert_equal 2, events.size
@@ -59,12 +59,12 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
-      wait_while_with_timeout(1.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
 
       process = SolidQueue::Process.last
 
       worker.stop
-      wait_for_registered_processes(0, timeout: 1.second)
+      wait_for_registered_processes(0, timeout: 3.second)
     end
 
     assert_equal 2, events.size

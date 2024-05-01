@@ -34,7 +34,9 @@ module SolidQueue::Processes
           end
         end
       ensure
-        run_callbacks(:shutdown) { shutdown }
+        SolidQueue.instrument(:shutdown_process, process: self) do
+          run_callbacks(:shutdown) { shutdown }
+        end
       end
 
       def poll

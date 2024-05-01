@@ -61,6 +61,17 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     info formatted_event(event, action: "Started #{process.kind}", **attributes)
   end
 
+  def shutdown_process(event)
+    process = event.payload[:process]
+
+    attributes = {
+      pid: process.pid,
+      hostname: process.hostname
+    }.merge(process.metadata)
+
+    info formatted_event(event, action: "Shut down #{process.kind}", **attributes)
+  end
+
   def register_process(event)
     process_kind = event.payload[:kind]
     attributes = event.payload.slice(:pid, :hostname)
@@ -119,10 +130,15 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
   def replace_fork(event)
     status = event.payload[:status]
-    attributes = event.payload.slice(:pid).merge(status: status.exitstatus, pid_from_status: status.pid)
+    attributes = event.payload.slice(:pid).merge \
+      status: (status.exitstatus || "no exit status set"),
+      pid_from_status: status.pid,
+      signaled: status.signaled?,
+      stopsig: status.stopsig,
+      termsig: status.termsig
 
     if replaced_fork = event.payload[:fork]
-      info formatted_event(event, action: "Replaced #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname))
+      info formatted_event(event, action: "Replaced terminated #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname))
     else
       warn formatted_event(event, action: "Tried to replace forked process but it had already died", **attributes)
     end
