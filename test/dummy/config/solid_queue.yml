@@ -12,6 +12,10 @@ default: &default
           class: StoreResultJob
           args: [ 42, { status: "custom_status" } ]
           schedule: every second
+        periodic_raise_exception:
+          class: StoreResultJob
+          args: [ 42, { exception: RuntimeError } ]
+          schedule: every second
 
 development:
   <<: *default
