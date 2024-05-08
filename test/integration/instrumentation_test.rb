@@ -10,7 +10,7 @@ class InstrumentationTest < ActiveSupport::TestCase
       travel_to 2.days.from_now
       dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10).tap(&:start)
 
-      wait_while_with_timeout(0.5.seconds) { SolidQueue::ScheduledExecution.any? }
+      wait_while_with_timeout!(0.5.seconds) { SolidQueue::ScheduledExecution.any? }
       dispatcher.stop
     end
 
@@ -19,13 +19,13 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "stopping a worker with claimed executions emits release_claimed events" do
-    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
+    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
 
     events = subscribed(/release.*_claimed\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
 
-      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
       process = SolidQueue::Process.last
 
       worker.stop
@@ -54,12 +54,12 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "starting and stopping a worker emits register_process and deregister_process events" do
-    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
+    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
-      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
 
       process = SolidQueue::Process.last
 
