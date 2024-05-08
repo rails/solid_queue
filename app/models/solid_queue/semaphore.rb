@@ -70,7 +70,7 @@ module SolidQueue
         end
 
         def limit
-          job.concurrency_limit
+          job.concurrency_limit || 1
         end
     end
   end
