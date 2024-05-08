@@ -39,6 +39,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     signal_process(@pid, :KILL, wait: 0.15.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_registered_processes(1, timeout: 3.second)
 
     assert_not process_exists?(@pid)
 
