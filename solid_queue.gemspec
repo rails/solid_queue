@@ -5,13 +5,13 @@ Gem::Specification.new do |spec|
   spec.version     = SolidQueue::VERSION
   spec.authors     = [ "Rosa Gutierrez" ]
   spec.email       = [ "rosa@37signals.com" ]
-  spec.homepage    = "https://github.com/basecamp/solid_queue"
+  spec.homepage    = "https://github.com/rails/solid_queue"
   spec.summary     = "Database-backed Active Job backend."
   spec.description = "Database-backed Active Job backend."
   spec.license     = "MIT"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/basecamp/solid_queue"
+  spec.metadata["source_code_uri"] = "https://github.com/rails/solid_queue"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
