@@ -10,7 +10,7 @@ class InstrumentationTest < ActiveSupport::TestCase
       travel_to 2.days.from_now
       dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10).tap(&:start)
 
-      wait_while_with_timeout(0.5.seconds) { SolidQueue::ScheduledExecution.any? }
+      wait_while_with_timeout!(0.5.seconds) { SolidQueue::ScheduledExecution.any? }
       dispatcher.stop
     end
 
@@ -25,7 +25,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     events = subscribed(/release.*_claimed\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
 
-      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
       process = SolidQueue::Process.last
 
       worker.stop
@@ -59,7 +59,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
       worker = SolidQueue::Worker.new.tap(&:start)
-      wait_while_with_timeout(3.seconds) { SolidQueue::ReadyExecution.any? }
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
 
       process = SolidQueue::Process.last
 

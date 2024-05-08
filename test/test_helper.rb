@@ -85,6 +85,11 @@ class ActiveSupport::TestCase
     end
 
     def wait_while_with_timeout(timeout, &block)
+      wait_while_with_timeout!(timeout, &block)
+    rescue Timeout::Error
+    end
+
+    def wait_while_with_timeout!(timeout, &block)
       Timeout.timeout(timeout) do
         skip_active_record_query_cache do
           while block.call
@@ -92,7 +97,6 @@ class ActiveSupport::TestCase
           end
         end
       end
-    rescue Timeout::Error
     end
 
     def signal_process(pid, signal, wait: nil)
