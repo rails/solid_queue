@@ -19,7 +19,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "stopping a worker with claimed executions emits release_claimed events" do
-    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
+    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
 
     events = subscribed(/release.*_claimed\.solid_queue/) do
@@ -54,7 +54,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "starting and stopping a worker emits register_process and deregister_process events" do
-    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 10.second)
+    StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
 
     events = subscribed(/(register|deregister)_process\.solid_queue/) do
