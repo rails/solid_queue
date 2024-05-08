@@ -30,10 +30,16 @@ module SolidQueue
     end
 
     def enqueue(at:)
-      if using_solid_queue_adapter?
-        perform_later_and_record(run_at: at)
-      else
-        perform_later
+      SolidQueue.instrument(:enqueue_recurring_task, task: key, at: at) do |payload|
+        if using_solid_queue_adapter?
+          perform_later_and_record(run_at: at)
+        else
+          payload[:other_adapter] = true
+
+          perform_later
+        end.tap do |active_job|
+          payload[:active_job_id] = active_job&.job_id
+        end
       end
     end
 
@@ -59,7 +65,7 @@ module SolidQueue
       end
 
       def perform_later_and_record(run_at:)
-        RecurringExecution.record(key, run_at) { perform_later.provider_job_id }
+        RecurringExecution.record(key, run_at) { perform_later }
       end
 
       def perform_later

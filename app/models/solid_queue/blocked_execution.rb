@@ -10,21 +10,25 @@ module SolidQueue
     scope :expired, -> { where(expires_at: ...Time.current) }
 
     class << self
-      def unblock(count)
-        expired.distinct.limit(count).pluck(:concurrency_key).then do |concurrency_keys|
-          release_many releasable(concurrency_keys)
+      def unblock(limit)
+        SolidQueue.instrument(:release_many_blocked, limit: limit) do |payload|
+          expired.distinct.limit(limit).pluck(:concurrency_key).then do |concurrency_keys|
+            payload[:size] = release_many releasable(concurrency_keys)
+          end
         end
       end
 
       def release_many(concurrency_keys)
         # We want to release exactly one blocked execution for each concurrency key, and we need to do it
         # one by one, locking each record and acquiring the semaphore individually for each of them:
-        Array(concurrency_keys).each { |concurrency_key| release_one(concurrency_key) }
+        Array(concurrency_keys).count { |concurrency_key| release_one(concurrency_key) }
       end
 
       def release_one(concurrency_key)
         transaction do
-          ordered.where(concurrency_key: concurrency_key).limit(1).non_blocking_lock.each(&:release)
+          if execution = ordered.where(concurrency_key: concurrency_key).limit(1).non_blocking_lock.first
+            execution.release
+          end
         end
       end
 
@@ -38,12 +42,14 @@ module SolidQueue
     end
 
     def release
-      transaction do
-        if acquire_concurrency_lock
-          promote_to_ready
-          destroy!
+      SolidQueue.instrument(:release_blocked, job_id: job.id, concurrency_key: concurrency_key, released: false) do |payload|
+        transaction do
+          if acquire_concurrency_lock
+            promote_to_ready
+            destroy!
 
-          SolidQueue.logger.debug("[SolidQueue] Unblocked job #{job.id} under #{concurrency_key}")
+            payload[:released] = true
+          end
         end
       end
     end

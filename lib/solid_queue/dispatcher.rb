@@ -19,6 +19,10 @@ module SolidQueue
       @recurring_schedule = RecurringSchedule.new(options[:recurring_tasks])
     end
 
+    def metadata
+      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.tasks.presence)
+    end
+
     private
       def poll
         batch = dispatch_next_batch
@@ -49,10 +53,6 @@ module SolidQueue
 
       def set_procline
         procline "waiting"
-      end
-
-      def metadata
-        super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.tasks.presence)
       end
   end
 end

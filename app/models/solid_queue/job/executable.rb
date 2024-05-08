@@ -93,7 +93,7 @@ module SolidQueue
         if finished?
           :finished
         elsif execution.present?
-          execution.model_name.element.sub("_execution", "").to_sym
+          execution.type
         end
       end
 

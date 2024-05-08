@@ -18,6 +18,8 @@ loader.ignore("#{__dir__}/puma")
 loader.setup
 
 module SolidQueue
+  extend self
+
   mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
   mattr_accessor :app_executor, :on_thread_error, :connects_to
 
@@ -39,17 +41,19 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
-  class << self
-    def supervisor?
-      supervisor
-    end
+  def supervisor?
+    supervisor
+  end
 
-    def silence_polling?
-      silence_polling
-    end
+  def silence_polling?
+    silence_polling
+  end
 
-    def preserve_finished_jobs?
-      preserve_finished_jobs
-    end
+  def preserve_finished_jobs?
+    preserve_finished_jobs
+  end
+
+  def instrument(channel, **options, &block)
+    ActiveSupport::Notifications.instrument("#{channel}.solid_queue", **options, &block)
   end
 end

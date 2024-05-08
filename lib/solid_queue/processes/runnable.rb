@@ -8,7 +8,10 @@ module SolidQueue::Processes
 
     def start
       @stopping = false
-      run_callbacks(:boot) { boot }
+
+      SolidQueue.instrument(:start_process, process: self) do
+        run_callbacks(:boot) { boot }
+      end
 
       run
     end
@@ -30,8 +33,6 @@ module SolidQueue::Processes
           register_signal_handlers
           set_procline
         end
-
-        SolidQueue.logger.info("[SolidQueue] Starting #{self}")
       end
 
       def shutting_down?

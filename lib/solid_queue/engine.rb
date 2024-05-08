@@ -26,8 +26,10 @@ module SolidQueue
 
     initializer "solid_queue.logger" do |app|
       ActiveSupport.on_load(:solid_queue) do
-        self.logger = app.logger
+        self.logger ||= app.logger
       end
+
+      SolidQueue::LogSubscriber.attach_to :solid_queue
     end
 
     initializer "solid_queue.active_job.extensions" do

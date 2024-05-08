@@ -14,6 +14,10 @@ module SolidQueue
       @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
     end
 
+    def metadata
+      super.merge(queues: queues.join(","), thread_pool_size: pool.size)
+    end
+
     private
       def poll
         claim_executions.then do |executions|
@@ -32,10 +36,10 @@ module SolidQueue
       end
 
       def shutdown
-        super
-
         pool.shutdown
         pool.wait_for_termination(SolidQueue.shutdown_timeout)
+
+        super
       end
 
       def all_work_completed?
@@ -44,10 +48,6 @@ module SolidQueue
 
       def set_procline
         procline "waiting for jobs in #{queues.join(",")}"
-      end
-
-      def metadata
-        super.merge(queues: queues.join(","), thread_pool_size: pool.size)
       end
   end
 end
