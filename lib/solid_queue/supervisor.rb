@@ -4,8 +4,6 @@ module SolidQueue
   class Supervisor < Processes::Base
     include Processes::Signals
 
-    after_boot :launch_process_prune
-
     class << self
       def start(mode: :work, load_configuration_from: nil)
         SolidQueue.supervisor = true
@@ -23,6 +21,8 @@ module SolidQueue
     def start
       run_callbacks(:boot) { boot }
 
+      start_forks
+      launch_process_prune
       supervise
     rescue Processes::GracefulTerminationRequested
       graceful_termination
@@ -42,8 +42,6 @@ module SolidQueue
       end
 
       def supervise
-        start_forks
-
         loop do
           procline "supervising #{forks.keys.join(", ")}"
 
@@ -63,13 +61,13 @@ module SolidQueue
         end
       end
 
-      def launch_process_prune
-        @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
-        @prune_task.execute
-      end
-
       def start_forks
         configured_processes.each { |configured_process| start_fork(configured_process) }
+      end
+
+      def launch_process_prune
+        @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: 2.seconds) { prune_dead_processes }
+        @prune_task.execute
       end
 
       def shutdown
@@ -116,9 +114,7 @@ module SolidQueue
       end
 
       def prune_dead_processes
-        wrap_in_app_executor do
-          SolidQueue::Process.prune
-        end
+        wrap_in_app_executor { SolidQueue::Process.prune }
       end
 
       def start_fork(configured_process)
