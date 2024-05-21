@@ -37,7 +37,7 @@ module SolidQueue
           return [] if job_ids.none?
 
           SolidQueue::ClaimedExecution.claiming(job_ids, process_id) do |claimed|
-            where(job_id: claimed.pluck(:job_id)).delete_all
+            where(id: where(job_id: claimed.pluck(:job_id)).pluck(:id)).delete_all
           end
         end
 
