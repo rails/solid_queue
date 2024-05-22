@@ -183,7 +183,46 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert job.reload.ready?
   end
 
+  if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
+    test "insert_with_unique_by_has_same_database_results_as_create!_with_exception_handling" do
+      key = "key", limit = 1, expires_at = 1.minute.from_now
+
+      assert SolidQueue::Semaphore.count == 0
+
+      SolidQueue::Semaphore.insert({ key: key, value: limit - 1, expires_at: expires_at }, unique_by: :key)
+      assert SolidQueue::Semaphore.count == 1
+
+      SolidQueue::Semaphore.insert({ key: key, value: limit - 1, expires_at: expires_at }, unique_by: :key)
+      assert SolidQueue::Semaphore.count == 1
+
+      SolidQueue::Semaphore.delete_all
+      assert SolidQueue::Semaphore.count == 0
+
+      SolidQueue::Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
+      assert SolidQueue::Semaphore.count == 1
+
+      assert_raises ActiveRecord::RecordNotUnique do
+        SolidQueue::Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
+      end
+    end
+  end
+
+  test "confirm correct version of attempt_creation by database adaptor" do
+    proxy = SolidQueue::Semaphore::Proxy.new(true)
+
+    aliased_method = proxy.method(:attempt_creation)
+
+    if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
+      original_method = proxy.method(:attempt_creation_with_insert_on_conflict)
+    else
+      original_method = proxy.method(:attempt_creation_with_create_and_exception_handling)
+    end
+
+    assert_equal original_method.name, aliased_method.original_name, "The alias maps to the correct original method"
+  end
+
   private
+
     def assert_stored_sequence(result, *sequences)
       expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }
       skip_active_record_query_cache do

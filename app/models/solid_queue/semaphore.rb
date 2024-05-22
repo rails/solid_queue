@@ -41,16 +41,30 @@ module SolidQueue
       end
 
       private
+
         attr_accessor :job
 
-        def attempt_creation
+        def attempt_creation_with_insert_on_conflict
+          results = Semaphore.insert({ key: key, value: limit - 1, expires_at: expires_at }, unique_by: :key)
+
+          if results.length.zero?
+            limit == 1 ? false : attempt_decrement
+          else
+            true
+          end
+        end
+
+        def attempt_creation_with_create_and_exception_handling
           Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
           true
         rescue ActiveRecord::RecordNotUnique
-          if limit == 1 then false
-          else
-            attempt_decrement
-          end
+          limit == 1 ? false : attempt_decrement
+        end
+
+        if ActiveRecord::Base.connection.adapter_name == 'PostgreSQL'
+          alias attempt_creation attempt_creation_with_insert_on_conflict
+        else
+          alias attempt_creation attempt_creation_with_create_and_exception_handling
         end
 
         def attempt_decrement
