@@ -20,7 +20,9 @@ loader.setup
 module SolidQueue
   extend self
 
-  mattr_accessor :logger, default: ActiveSupport::Logger.new($stdout)
+  DEFAULT_LOGGER = ActiveSupport::Logger.new($stdout)
+
+  mattr_accessor :logger, default: DEFAULT_LOGGER
   mattr_accessor :app_executor, :on_thread_error, :connects_to
 
   mattr_accessor :use_skip_locked, default: true
@@ -56,4 +58,6 @@ module SolidQueue
   def instrument(channel, **options, &block)
     ActiveSupport::Notifications.instrument("#{channel}.solid_queue", **options, &block)
   end
+
+  ActiveSupport.run_load_hooks(:solid_queue, self)
 end
