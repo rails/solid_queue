@@ -24,9 +24,9 @@ module SolidQueue
       SolidQueue.on_thread_error = config.solid_queue.on_thread_error
     end
 
-    initializer "solid_queue.logger" do |app|
+    initializer "solid_queue.logger" do
       ActiveSupport.on_load(:solid_queue) do
-        self.logger ||= app.logger
+        self.logger = ::Rails.logger if logger == SolidQueue::DEFAULT_LOGGER
       end
 
       SolidQueue::LogSubscriber.attach_to :solid_queue
