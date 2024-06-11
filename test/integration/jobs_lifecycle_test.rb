@@ -62,6 +62,26 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal 1, SolidQueue::FailedExecution.count
   end
 
+  test "retry job that failed after being automatically retried" do
+    RaisingJob.perform_later(RaisingJob::DefaultError, "A", 5)
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 2, SolidQueue::Job.finished.count # 2 retries of A
+    assert_equal 1, SolidQueue::FailedExecution.count
+
+    failed_execution = SolidQueue::FailedExecution.last
+    failed_execution.job.retry
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 4, SolidQueue::Job.finished.count # Add other 2 retries of A
+    assert_equal 1, SolidQueue::FailedExecution.count
+  end
+
   test "enqueue and run jobs that fail and it's discarded" do
     RaisingJob.perform_later(RaisingJob::DiscardableError, "A")
 
