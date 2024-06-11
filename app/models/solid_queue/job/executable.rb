@@ -6,16 +6,14 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        include ConcurrencyControls, Schedulable
+        include ConcurrencyControls, Schedulable, Retryable
 
         has_one :ready_execution
         has_one :claimed_execution
-        has_one :failed_execution
 
         after_create :prepare_for_execution
 
         scope :finished, -> { where.not(finished_at: nil) }
-        scope :failed, -> { includes(:failed_execution).where.not(failed_execution: { id: nil }) }
       end
 
       class_methods do
@@ -97,16 +95,8 @@ module SolidQueue
         end
       end
 
-      def retry
-        failed_execution&.retry
-      end
-
       def discard
         execution&.discard
-      end
-
-      def failed_with(exception)
-        FailedExecution.create_or_find_by!(job_id: id, exception: exception)
       end
 
       private

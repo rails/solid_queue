@@ -7,10 +7,10 @@ class RaisingJob < ApplicationJob
   retry_on DefaultError, attempts: 3, wait: 0.1.seconds
   discard_on DiscardableError
 
-  def perform(raising, identifier, attempts = 1)
+  def perform(raising, identifier, fail_count = 1)
     raising = raising.shift if raising.is_a?(Array)
 
-    if raising && executions <= attempts
+    if raising && executions <= fail_count
       JobBuffer.add("#{identifier}: raised #{raising} for the #{executions.ordinalize} time")
       raise raising, "This is a #{raising} exception"
     else

@@ -21,6 +21,7 @@ module SolidQueue
     def retry
       SolidQueue.instrument(:retry, job_id: job.id) do
         with_lock do
+          job.reset_execution_counters
           job.prepare_for_execution
           destroy!
         end
