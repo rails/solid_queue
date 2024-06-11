@@ -24,20 +24,21 @@ module SolidQueue
           return [] if limit <= 0
 
           transaction do
-            job_ids = select_candidates(queue_relation, limit)
-            lock_candidates(job_ids, process_id)
+            candidates = select_candidates(queue_relation, limit)
+            lock_candidates(candidates, process_id)
           end
         end
 
         def select_candidates(queue_relation, limit)
-          queue_relation.ordered.limit(limit).non_blocking_lock.pluck(:job_id)
+          queue_relation.ordered.limit(limit).non_blocking_lock.select(:id, :job_id)
         end
 
-        def lock_candidates(job_ids, process_id)
-          return [] if job_ids.none?
+        def lock_candidates(executions, process_id)
+          return [] if executions.none?
 
-          SolidQueue::ClaimedExecution.claiming(job_ids, process_id) do |claimed|
-            where(job_id: claimed.pluck(:job_id)).delete_all
+          SolidQueue::ClaimedExecution.claiming(executions.map(&:job_id), process_id) do |claimed|
+            ids_to_delete = executions.index_by(&:job_id).values_at(*claimed.map(&:job_id)).map(&:id)
+            where(id: ids_to_delete).delete_all
           end
         end
 
