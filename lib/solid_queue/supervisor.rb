@@ -22,7 +22,8 @@ module SolidQueue
       run_callbacks(:boot) { boot }
 
       start_forks
-      launch_process_prune
+      launch_maintenance_task
+
       supervise
     rescue Processes::GracefulTerminationRequested
       graceful_termination
@@ -65,9 +66,12 @@ module SolidQueue
         configured_processes.each { |configured_process| start_fork(configured_process) }
       end
 
-      def launch_process_prune
-        @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
-        @prune_task.execute
+      def launch_maintenance_task
+        @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) do
+          prune_dead_processes
+          release_orphaned_executions
+        end
+        @maintenance_task.execute
       end
 
       def shutdown
@@ -106,7 +110,7 @@ module SolidQueue
       end
 
       def stop_process_prune
-        @prune_task&.shutdown
+        @maintenance_task&.shutdown
       end
 
       def delete_pidfile
@@ -115,6 +119,10 @@ module SolidQueue
 
       def prune_dead_processes
         wrap_in_app_executor { SolidQueue::Process.prune }
+      end
+
+      def release_orphaned_executions
+        wrap_in_app_executor { SolidQueue::ClaimedExecution.orphaned.release_all }
       end
 
       def start_fork(configured_process)

@@ -20,8 +20,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   test "enqueue jobs in multiple queues" do
-    6.times.map { |i| enqueue_store_result_job("job_#{i}") }
-    6.times.map { |i| enqueue_store_result_job("job_#{i}", :default) }
+    6.times { |i| enqueue_store_result_job("job_#{i}") }
+    6.times { |i| enqueue_store_result_job("job_#{i}", :default) }
 
     wait_for_jobs_to_finish_for(0.5.seconds)
 

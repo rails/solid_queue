@@ -3,6 +3,8 @@
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
   belongs_to :process
 
+  scope :orphaned, -> { where.missing(:process) }
+
   class Result < Struct.new(:success, :error)
     def success?
       success
