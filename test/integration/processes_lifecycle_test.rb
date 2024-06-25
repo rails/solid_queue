@@ -20,8 +20,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   test "enqueue jobs in multiple queues" do
-    6.times.map { |i| enqueue_store_result_job("job_#{i}") }
-    6.times.map { |i| enqueue_store_result_job("job_#{i}", :default) }
+    6.times { |i| enqueue_store_result_job("job_#{i}") }
+    6.times { |i| enqueue_store_result_job("job_#{i}", :default) }
 
     wait_for_jobs_to_finish_for(0.5.seconds)
 
@@ -39,6 +39,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     signal_process(@pid, :KILL, wait: 0.15.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_registered_processes(1, timeout: 3.second)
 
     assert_not process_exists?(@pid)
 
@@ -96,6 +97,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(no_pause, :finished)
     assert_job_status(pause, :finished)
 
+    wait_for_process_termination_with_timeout(@pid, timeout: 1.second)
     assert_clean_termination
   end
 
@@ -112,12 +114,13 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_job_status(no_pause, :finished)
     assert_job_status(pause, :finished)
 
+    wait_for_process_termination_with_timeout(@pid, timeout: 1.second)
     assert_clean_termination
   end
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 1.second)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
     signal_process(@pid, :TERM, wait: 0.1.second)
     wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 0.1.second)
@@ -132,6 +135,10 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     # The process running the long job couldn't deregister, the other did
     assert_registered_workers_for(:background)
+
+    # Now wait until the supervisor finishes for real, which will complete the cleanup
+    wait_for_process_termination_with_timeout(@pid, timeout: 1.second)
+    assert_clean_termination
   end
 
   test "process some jobs that raise errors" do
@@ -188,6 +195,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       wait_for_registered_processes 0, timeout: 0.2.second
       assert_no_registered_processes
       assert_no_claimed_jobs
+      assert_not process_exists?(@pid)
     end
 
     def assert_registered_workers_for(*queues)
@@ -204,7 +212,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_no_registered_workers
-      assert_empty find_processes_registered_as("Worker")
+      assert_empty find_processes_registered_as("Worker").to_a
     end
 
     def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
@@ -58,6 +59,26 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal messages_from_a + messages_from_b, JobBuffer.values.sort
 
     assert_equal 4, SolidQueue::Job.finished.count # B + its retry + 2 retries of A
+    assert_equal 1, SolidQueue::FailedExecution.count
+  end
+
+  test "retry job that failed after being automatically retried" do
+    RaisingJob.perform_later(RaisingJob::DefaultError, "A", 5)
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 2, SolidQueue::Job.finished.count # 2 retries of A
+    assert_equal 1, SolidQueue::FailedExecution.count
+
+    failed_execution = SolidQueue::FailedExecution.last
+    failed_execution.job.retry
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 4, SolidQueue::Job.finished.count # Add other 2 retries of A
     assert_equal 1, SolidQueue::FailedExecution.count
   end
 
@@ -132,6 +153,21 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_difference -> { SolidQueue::Job.count }, -5 do
       SolidQueue::Job.clear_finished_in_batches
     end
+  end
+
+  test "respect class name when clearing finished jobs" do
+    10.times { AddToBufferJob.perform_later(2) }
+    10.times { RaisingJob.perform_later(RuntimeError, "A") }
+    jobs = SolidQueue::Job.all
+
+    jobs.each(&:finished!)
+
+    travel_to 3.days.from_now
+
+    SolidQueue::Job.clear_finished_in_batches(class_name: "AddToBufferJob")
+
+    assert_equal 0, SolidQueue::Job.where(class_name: "AddToBufferJob").count
+    assert_equal 10, SolidQueue::Job.where(class_name: "RaisingJob").count
   end
 
   private

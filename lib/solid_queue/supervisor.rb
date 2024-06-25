@@ -4,8 +4,6 @@ module SolidQueue
   class Supervisor < Processes::Base
     include Processes::Signals
 
-    set_callback :boot, :after, :launch_process_prune
-
     class << self
       def start(mode: :work, load_configuration_from: nil)
         SolidQueue.supervisor = true
@@ -22,6 +20,9 @@ module SolidQueue
 
     def start
       run_callbacks(:boot) { boot }
+
+      start_forks
+      launch_maintenance_task
 
       supervise
     rescue Processes::GracefulTerminationRequested
@@ -42,8 +43,6 @@ module SolidQueue
       end
 
       def supervise
-        start_forks
-
         loop do
           procline "supervising #{forks.keys.join(", ")}"
 
@@ -63,13 +62,16 @@ module SolidQueue
         end
       end
 
-      def launch_process_prune
-        @prune_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) { prune_dead_processes }
-        @prune_task.execute
-      end
-
       def start_forks
         configured_processes.each { |configured_process| start_fork(configured_process) }
+      end
+
+      def launch_maintenance_task
+        @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) do
+          prune_dead_processes
+          release_orphaned_executions
+        end
+        @maintenance_task.execute
       end
 
       def shutdown
@@ -79,19 +81,24 @@ module SolidQueue
       end
 
       def graceful_termination
-        SolidQueue.logger.info("[SolidQueue] Terminating gracefully...")
-        term_forks
+        SolidQueue.instrument(:graceful_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do |payload|
+          term_forks
 
-        wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
-          reap_terminated_forks
+          wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
+            reap_terminated_forks
+          end
+
+          unless all_forks_terminated?
+            payload[:shutdown_timeout_exceeded] = true
+            immediate_termination
+          end
         end
-
-        immediate_termination unless all_forks_terminated?
       end
 
       def immediate_termination
-        SolidQueue.logger.info("[SolidQueue] Terminating immediately...")
-        quit_forks
+        SolidQueue.instrument(:immediate_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do
+          quit_forks
+        end
       end
 
       def term_forks
@@ -103,7 +110,7 @@ module SolidQueue
       end
 
       def stop_process_prune
-        @prune_task&.shutdown
+        @maintenance_task&.shutdown
       end
 
       def delete_pidfile
@@ -111,9 +118,11 @@ module SolidQueue
       end
 
       def prune_dead_processes
-        wrap_in_app_executor do
-          SolidQueue::Process.prune
-        end
+        wrap_in_app_executor { SolidQueue::Process.prune }
+      end
+
+      def release_orphaned_executions
+        wrap_in_app_executor { SolidQueue::ClaimedExecution.orphaned.release_all }
       end
 
       def start_fork(configured_process)
@@ -147,11 +156,11 @@ module SolidQueue
       end
 
       def replace_fork(pid, status)
-        if supervised_fork = forks.delete(pid)
-          SolidQueue.logger.info "[SolidQueue] Restarting fork[#{status.pid}] (status: #{status.exitstatus})"
-          start_fork(supervised_fork)
-        else
-          SolidQueue.logger.info "[SolidQueue] Tried to replace fork[#{pid}] (status: #{status.exitstatus}, fork[#{status.pid}]), but it had already died  (status: #{status.exitstatus})"
+        SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
+          if supervised_fork = forks.delete(pid)
+            payload[:fork] = supervised_fork
+            start_fork(supervised_fork)
+          end
         end
       end
 

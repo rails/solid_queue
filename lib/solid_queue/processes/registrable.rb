@@ -5,17 +5,11 @@ module SolidQueue::Processes
     extend ActiveSupport::Concern
 
     included do
-      set_callback :boot, :after, :register
-      set_callback :boot, :after, :launch_heartbeat
+      after_boot :register, :launch_heartbeat
 
-      set_callback :shutdown, :before, :stop_heartbeat
-      set_callback :shutdown, :after, :deregister
+      before_shutdown :stop_heartbeat
+      after_shutdown :deregister
     end
-
-    def inspect
-      "#{kind}(pid=#{process_pid}, hostname=#{hostname}, metadata=#{metadata})"
-    end
-    alias to_s inspect
 
     private
       attr_accessor :process
@@ -23,10 +17,10 @@ module SolidQueue::Processes
       def register
         @process = SolidQueue::Process.register \
           kind: self.class.name.demodulize,
-          pid: process_pid,
+          pid: pid,
           hostname: hostname,
           supervisor: try(:supervisor),
-          metadata: metadata
+          metadata: metadata.compact
       end
 
       def deregister
@@ -38,7 +32,10 @@ module SolidQueue::Processes
       end
 
       def launch_heartbeat
-        @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) { heartbeat }
+        @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
+          wrap_in_app_executor { heartbeat }
+        end
+
         @heartbeat_task.execute
       end
 
@@ -48,22 +45,6 @@ module SolidQueue::Processes
 
       def heartbeat
         process.heartbeat
-      end
-
-      def kind
-        self.class.name.demodulize
-      end
-
-      def hostname
-        @hostname ||= Socket.gethostname.force_encoding(Encoding::UTF_8)
-      end
-
-      def process_pid
-        @pid ||= ::Process.pid
-      end
-
-      def metadata
-        {}
       end
   end
 end

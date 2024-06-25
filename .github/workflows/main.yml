@@ -2,6 +2,20 @@ name: Build
 on: [push, pull_request]
 
 jobs:
+  rubocop:
+    name: Rubocop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Setup Ruby and install gems
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.0
+          bundler-cache: true
+      - name: Run rubocop
+        run: |
+          bundle exec rubocop --parallel
   tests:
     name: Tests
     runs-on: ubuntu-latest

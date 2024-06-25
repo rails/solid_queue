@@ -2,7 +2,7 @@
 ENV["RAILS_ENV"] = "test"
 
 require_relative "../test/dummy/config/environment"
-ActiveRecord::Migrator.migrations_paths = [File.expand_path("../test/dummy/db/migrate", __dir__)]
+ActiveRecord::Migrator.migrations_paths = [ File.expand_path("../test/dummy/db/migrate", __dir__) ]
 require "rails/test_help"
 require "debug"
 require "mocha/minitest"
@@ -85,6 +85,11 @@ class ActiveSupport::TestCase
     end
 
     def wait_while_with_timeout(timeout, &block)
+      wait_while_with_timeout!(timeout, &block)
+    rescue Timeout::Error
+    end
+
+    def wait_while_with_timeout!(timeout, &block)
       Timeout.timeout(timeout) do
         skip_active_record_query_cache do
           while block.call
@@ -92,7 +97,6 @@ class ActiveSupport::TestCase
           end
         end
       end
-    rescue Timeout::Error
     end
 
     def signal_process(pid, signal, wait: nil)

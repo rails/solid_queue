@@ -67,7 +67,7 @@ class SupervisorTest < ActiveSupport::TestCase
     wait_for_process_termination_with_timeout(pid, exitstatus: 1)
   end
 
-  test "deletes previous pidfile if the owner is dead" do
+  test "delete previous pidfile if the owner is dead" do
     pid = run_supervisor_as_fork(mode: :all)
     wait_for_registered_processes(4)
 
@@ -85,6 +85,32 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_equal pid, File.read(@pidfile).strip.to_i
 
     terminate_process(pid)
+  end
+
+  test "release orphaned executions" do
+    3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42)
+
+    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+
+    assert_equal 3, SolidQueue::ClaimedExecution.count
+    assert_equal 0, SolidQueue::ReadyExecution.count
+
+    assert_equal [ process.id ], SolidQueue::ClaimedExecution.last(3).pluck(:process_id).uniq
+
+    # Simnulate orphaned executions by just wiping the claiming process
+    process.delete
+
+    pid = run_supervisor_as_fork
+    wait_for_registered_processes(4)
+    assert_registered_supervisor(pid)
+
+    terminate_process(pid)
+
+    skip_active_record_query_cache do
+      assert_equal 0, SolidQueue::ClaimedExecution.count
+      assert_equal 3, SolidQueue::ReadyExecution.count
+    end
   end
 
   private
