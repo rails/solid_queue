@@ -3,7 +3,7 @@ require "test_helper"
 class ConfigurationTest < ActiveSupport::TestCase
   test "default configuration to process all queues and dispatch" do
     configuration = stub_const(SolidQueue::Configuration, :DEFAULT_CONFIG_FILE_PATH, "non/existent/path") do
-      SolidQueue::Configuration.new(mode: :all)
+      SolidQueue::Configuration.new
     end
 
     assert_equal 2, configuration.processes.count
@@ -16,7 +16,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "read configuration from default file" do
-    configuration = SolidQueue::Configuration.new(mode: :all)
+    configuration = SolidQueue::Configuration.new
     assert 3, configuration.processes.count
     assert_equal 2, configuration.workers.count
     assert_equal 1, configuration.dispatchers.count
@@ -26,7 +26,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     background_worker = { queues: "background", polling_interval: 10 }
     dispatcher = { batch_size: 100 }
     config_as_hash = { workers: [ background_worker, background_worker ], dispatchers: [ dispatcher ] }
-    configuration = SolidQueue::Configuration.new(mode: :all, load_from: config_as_hash)
+    configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
 
     assert_equal 1, configuration.dispatchers.count
     dispatcher = configuration.dispatchers.first
@@ -39,14 +39,14 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "max number of threads" do
-    configuration = SolidQueue::Configuration.new(mode: :all)
+    configuration = SolidQueue::Configuration.new
     assert 7, configuration.max_number_of_threads
   end
 
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     config_as_hash = { workers: [ background_worker ] }
-    configuration = SolidQueue::Configuration.new(mode: :work, load_from: config_as_hash)
+    configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
 
     assert_equal 3, configuration.workers.count
     assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq

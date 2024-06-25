@@ -6,7 +6,7 @@ class RecurringTasksTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @pid = run_supervisor_as_fork(mode: :all)
+    @pid = run_supervisor_as_fork
     # 1 supervisor + 2 workers + 1 dispatcher
     wait_for_registered_processes(4, timeout: 3.second)
   end

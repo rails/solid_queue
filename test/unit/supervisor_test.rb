@@ -16,23 +16,26 @@ class SupervisorTest < ActiveSupport::TestCase
     SolidQueue::Process.destroy_all
   end
 
-  test "start in work mode (default)" do
+  test "start" do
     pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert_registered_supervisor(pid)
     assert_registered_workers(2, supervisor_pid: pid)
+    assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
 
     assert_no_registered_processes
   end
 
-  test "start in dispatch mode" do
-    pid = run_supervisor_as_fork(mode: :dispatch)
-    wait_for_registered_processes(4)
+  test "start with provided configuration" do
+    config_as_hash = { workers: [], dispatchers: [ { batch_size: 100 } ] }
+    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    wait_for_registered_processes(2) # supervisor + dispatcher
 
     assert_registered_supervisor(pid)
+    assert_registered_workers(0)
     assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -114,7 +117,7 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def assert_registered_workers(count, supervisor_pid:, **metadata)
+    def assert_registered_workers(count, supervisor_pid: nil, **metadata)
       skip_active_record_query_cache do
         workers = find_processes_registered_as("Worker")
         assert_equal count, workers.count

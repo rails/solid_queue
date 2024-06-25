@@ -5,9 +5,9 @@ module SolidQueue
     include Processes::Signals
 
     class << self
-      def start(mode: :work, load_configuration_from: nil)
+      def start(mode: :fork, load_configuration_from: nil)
         SolidQueue.supervisor = true
-        configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
+        configuration = Configuration.new(load_from: load_configuration_from)
 
         new(*configuration.processes).start
       end

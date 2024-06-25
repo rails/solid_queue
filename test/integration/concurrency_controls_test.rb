@@ -11,7 +11,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     default_worker = { queues: "default", polling_interval: 0.1, processes: 3, threads: 2 }
     dispatcher = { polling_interval: 0.1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
-    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
+    @pid = run_supervisor_as_fork(load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
 
     wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + dispatcher + supervisor
   end
