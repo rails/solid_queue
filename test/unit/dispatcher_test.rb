@@ -59,30 +59,35 @@ class DispatcherTest < ActiveSupport::TestCase
 
   test "polling queries are logged" do
     log = StringIO.new
-    old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
-    old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, false
-
-    @dispatcher.start
-    sleep 0.5
+    with_active_record_logger(ActiveSupport::Logger.new(log)) do
+      with_polling(silence: false) do
+        @dispatcher.start
+        sleep 0.2
+      end
+    end
 
     assert_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
-  ensure
-    ActiveRecord::Base.logger = old_logger
-    SolidQueue.silence_polling = old_silence_polling
   end
 
   test "polling queries can be silenced" do
     log = StringIO.new
-    old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, ActiveSupport::Logger.new(log)
-    old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, true
-
-    @dispatcher.start
-    sleep 0.5
+    with_active_record_logger(ActiveSupport::Logger.new(log)) do
+      with_polling(silence: true) do
+        @dispatcher.start
+        sleep 0.2
+      end
+    end
 
     assert_no_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
-  ensure
-    ActiveRecord::Base.logger = old_logger
-    SolidQueue.silence_polling = old_silence_polling
+  end
+
+  test "silencing polling queries when there's no Active Record logger" do
+    with_active_record_logger(nil) do
+      with_polling(silence: true) do
+        @dispatcher.start
+        sleep 0.2
+      end
+    end
   end
 
   test "run more than one instance of the dispatcher without recurring tasks" do
@@ -121,4 +126,19 @@ class DispatcherTest < ActiveSupport::TestCase
       assert_equal 1, run_at_times[i + 1] - run_at_times[i]
     end
   end
+
+  private
+    def with_polling(silence:)
+      old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
+      yield
+    ensure
+      SolidQueue.silence_polling = old_silence_polling
+    end
+
+    def with_active_record_logger(logger)
+      old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, logger
+      yield
+    ensure
+      ActiveRecord::Base.logger = old_logger
+    end
 end
