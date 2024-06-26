@@ -6,8 +6,6 @@ module SolidQueue
     class ImmediateTerminationRequested < Interrupt; end
 
     module Signals
-      extend ActiveSupport::Concern
-
       private
         SIGNALS = %i[ QUIT INT TERM ]
 

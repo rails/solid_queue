@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-module SolidQueue::Processes
-  class Pidfile
+module SolidQueue
+  class Supervisor::Pidfile
     def initialize(path)
       @path = path
       @pid = ::Process.pid

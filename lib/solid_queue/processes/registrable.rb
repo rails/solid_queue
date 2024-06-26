@@ -16,7 +16,7 @@ module SolidQueue::Processes
 
       def register
         @process = SolidQueue::Process.register \
-          kind: self.class.name.demodulize,
+          kind: kind,
           pid: pid,
           hostname: hostname,
           supervisor: try(:supervisor),

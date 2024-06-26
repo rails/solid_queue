@@ -118,7 +118,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def graceful_termination(event)
-    attributes = event.payload.slice(:supervisor_pid, :supervised_pids)
+    attributes = event.payload.slice(:supervisor_pid, :supervised_processes)
 
     if event.payload[:shutdown_timeout_exceeded]
       warn formatted_event(event, action: "Supervisor wasn't terminated gracefully - shutdown timeout exceeded", **attributes)
@@ -128,7 +128,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def immediate_termination(event)
-    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:supervisor_pid, :supervised_pids))
+    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:supervisor_pid, :supervised_processes))
   end
 
   def unhandled_signal_error(event)

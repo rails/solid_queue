@@ -2,26 +2,26 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Signals
+    include Signals, Maintenance
 
     class << self
       def start(mode: :fork, load_configuration_from: nil)
         SolidQueue.supervisor = true
         configuration = Configuration.new(load_from: load_configuration_from)
 
-        new(*configuration.processes).start
+        Forks.new(*configuration.processes).start
       end
     end
 
-    def initialize(*configured_processes)
-      @configured_processes = Array(configured_processes)
-      @forks = {}
+    def initialize(*configuration)
+      @configuration = Array(configuration)
+      @processes = {}
     end
 
     def start
       run_callbacks(:boot) { boot }
 
-      start_forks
+      start_processes
       launch_maintenance_task
 
       supervise
@@ -34,7 +34,7 @@ module SolidQueue
     end
 
     private
-      attr_reader :configured_processes, :forks
+      attr_reader :configuration, :processes
 
       def boot
         sync_std_streams
@@ -42,53 +42,52 @@ module SolidQueue
         register_signal_handlers
       end
 
+      def start_processes
+        configuration.each { |configured_process| start_process(configured_process) }
+      end
+
       def supervise
         loop do
-          procline "supervising #{forks.keys.join(", ")}"
+          procline "supervising #{processes.keys.join(", ")}"
 
           process_signal_queue
-          reap_and_replace_terminated_forks
+          reap_and_replace_terminated_processes
           interruptible_sleep(1.second)
         end
       end
+
 
       def sync_std_streams
         STDOUT.sync = STDERR.sync = true
       end
 
       def setup_pidfile
-        @pidfile = if SolidQueue.supervisor_pidfile
-          Processes::Pidfile.new(SolidQueue.supervisor_pidfile).tap(&:setup)
+        if path = SolidQueue.supervisor_pidfile
+          @pidfile = Pidfile.new(path).tap(&:setup)
         end
       end
 
-      def start_forks
-        configured_processes.each { |configured_process| start_fork(configured_process) }
+
+      def start_process(configured_process)
+        raise NotImplementedError
       end
 
-      def launch_maintenance_task
-        @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) do
-          prune_dead_processes
-          release_orphaned_executions
-        end
-        @maintenance_task.execute
-      end
 
       def shutdown
-        stop_process_prune
+        stop_maintenance_task
         restore_default_signal_handlers
         delete_pidfile
       end
 
       def graceful_termination
-        SolidQueue.instrument(:graceful_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do |payload|
-          term_forks
+        SolidQueue.instrument(:graceful_termination, supervisor_pid: ::Process.pid, supervised_processes: processes.keys) do |payload|
+          term_processes
 
-          wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
-            reap_terminated_forks
+          wait_until(SolidQueue.shutdown_timeout, -> { all_processes_terminated? }) do
+            reap_terminated_processes
           end
 
-          unless all_forks_terminated?
+          unless all_processes_terminated?
             payload[:shutdown_timeout_exceeded] = true
             immediate_termination
           end
@@ -96,77 +95,13 @@ module SolidQueue
       end
 
       def immediate_termination
-        SolidQueue.instrument(:immediate_termination, supervisor_pid: ::Process.pid, supervised_pids: forks.keys) do
-          quit_forks
+        SolidQueue.instrument(:immediate_termination, supervisor_pid: ::Process.pid, supervised_processes: processes.keys) do
+          quit_processes
         end
-      end
-
-      def term_forks
-        signal_processes(forks.keys, :TERM)
-      end
-
-      def quit_forks
-        signal_processes(forks.keys, :QUIT)
-      end
-
-      def stop_process_prune
-        @maintenance_task&.shutdown
       end
 
       def delete_pidfile
         @pidfile&.delete
-      end
-
-      def prune_dead_processes
-        wrap_in_app_executor { SolidQueue::Process.prune }
-      end
-
-      def release_orphaned_executions
-        wrap_in_app_executor { SolidQueue::ClaimedExecution.orphaned.release_all }
-      end
-
-      def start_fork(configured_process)
-        configured_process.supervised_by process
-        configured_process.mode = :fork
-
-        pid = fork do
-          configured_process.start
-        end
-
-        forks[pid] = configured_process
-      end
-
-      def reap_and_replace_terminated_forks
-        loop do
-          pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
-          break unless pid
-
-          replace_fork(pid, status)
-        end
-      end
-
-      def reap_terminated_forks
-        loop do
-          pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
-          break unless pid
-
-          forks.delete(pid)
-        end
-      rescue SystemCallError
-        # All children already reaped
-      end
-
-      def replace_fork(pid, status)
-        SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
-          if supervised_fork = forks.delete(pid)
-            payload[:fork] = supervised_fork
-            start_fork(supervised_fork)
-          end
-        end
-      end
-
-      def all_forks_terminated?
-        forks.empty?
       end
 
       def wait_until(timeout, condition, &block)
