@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Processes::Signals
+    include Signals
 
     class << self
       def start(mode: :fork, load_configuration_from: nil)
@@ -25,9 +25,9 @@ module SolidQueue
       launch_maintenance_task
 
       supervise
-    rescue Processes::GracefulTerminationRequested
+    rescue GracefulTerminationRequested
       graceful_termination
-    rescue Processes::ImmediateTerminationRequested
+    rescue ImmediateTerminationRequested
       immediate_termination
     ensure
       run_callbacks(:shutdown) { shutdown }
