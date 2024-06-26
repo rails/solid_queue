@@ -13,7 +13,11 @@ module SolidQueue::Processes
         run_callbacks(:boot) { boot }
       end
 
-      run
+      if mode.async?
+        @thread = Thread.new { run }
+      else
+        run
+      end
     end
 
     def stop

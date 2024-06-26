@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 module SolidQueue::Processes
-  module Poller
-    extend ActiveSupport::Concern
-
+  class Poller < Base
     include Runnable
 
-    included do
-      attr_accessor :polling_interval
+    attr_accessor :polling_interval
+
+    def initialize(polling_interval:, **options)
+      @polling_interval = polling_interval
     end
 
     def metadata
@@ -16,11 +16,7 @@ module SolidQueue::Processes
 
     private
       def run
-        if mode.async?
-          @thread = Thread.new { start_loop }
-        else
-          start_loop
-        end
+        start_loop
       end
 
       def start_loop

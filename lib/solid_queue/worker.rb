@@ -1,17 +1,16 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Worker < Processes::Base
-    include Processes::Poller
-
+  class Worker < Processes::Poller
     attr_accessor :queues, :pool
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
-      @polling_interval = options[:polling_interval]
       @queues = Array(options[:queues])
       @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
+
+      super(**options)
     end
 
     def metadata
