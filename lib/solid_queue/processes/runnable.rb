@@ -13,7 +13,7 @@ module SolidQueue::Processes
         run_callbacks(:boot) { boot }
       end
 
-      if mode.async?
+      if running_async?
         @thread = Thread.new { run }
       else
         run
@@ -33,7 +33,7 @@ module SolidQueue::Processes
       end
 
       def boot
-        if supervised?
+        if running_as_fork?
           register_signal_handlers
           set_procline
         end
@@ -64,6 +64,14 @@ module SolidQueue::Processes
 
       def running_inline?
         mode.inline?
+      end
+
+      def running_async?
+        mode.async?
+      end
+
+      def running_as_fork?
+        mode.fork?
       end
   end
 end

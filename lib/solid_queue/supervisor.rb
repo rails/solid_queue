@@ -127,6 +127,7 @@ module SolidQueue
 
       def start_fork(configured_process)
         configured_process.supervised_by process
+        configured_process.mode = :fork
 
         pid = fork do
           configured_process.start
