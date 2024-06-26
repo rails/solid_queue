@@ -288,7 +288,7 @@ Tasks are enqueued at their corresponding times by the dispatcher that owns them
 
 It's possible to run multiple dispatchers with the same `recurring_tasks` configuration. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
 
-Finally, it's possible to configure jobs that aren't handled by Solid Queue. That's it, you can a have a job like this in your app:
+Finally, it's possible to configure jobs that aren't handled by Solid Queue. That is, you can have a job like this in your app:
 ```ruby
 class MyResqueJob < ApplicationJob
   self.queue_adapter = :resque
