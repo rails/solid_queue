@@ -61,7 +61,7 @@ module SolidQueue
           limit == 1 ? false : attempt_decrement
         end
 
-        if ActiveRecord::Base.connection.adapter_name == 'PostgreSQL'
+        if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
           alias attempt_creation attempt_creation_with_insert_on_conflict
         else
           alias attempt_creation attempt_creation_with_create_and_exception_handling
