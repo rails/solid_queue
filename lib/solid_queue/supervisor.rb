@@ -9,12 +9,12 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(load_from: load_configuration_from)
 
-        Forks.new(*configuration.processes).start
+        Forks.new(configuration).start
       end
     end
 
-    def initialize(*configuration)
-      @configuration = Array(configuration)
+    def initialize(configuration)
+      @configuration = configuration
       @processes = {}
     end
 
@@ -26,7 +26,7 @@ module SolidQueue
 
       supervise
     rescue GracefulTerminationRequested
-      graceful_termination
+      terminate_gracefully
     rescue ImmediateTerminationRequested
       immediate_termination
     ensure
@@ -43,7 +43,7 @@ module SolidQueue
       end
 
       def start_processes
-        configuration.each { |configured_process| start_process(configured_process) }
+        configuration.processes.each { |configured_process| start_process(configured_process) }
       end
 
       def supervise
@@ -79,11 +79,11 @@ module SolidQueue
         delete_pidfile
       end
 
-      def graceful_termination
+      def terminate_gracefully
         SolidQueue.instrument(:graceful_termination, supervisor_pid: ::Process.pid, supervised_processes: processes.keys) do |payload|
           term_processes
 
-          wait_until(SolidQueue.shutdown_timeout, -> { all_processes_terminated? }) do
+          Timer.wait_until(SolidQueue.shutdown_timeout, -> { all_processes_terminated? }) do
             reap_terminated_processes
           end
 
@@ -102,26 +102,6 @@ module SolidQueue
 
       def delete_pidfile
         @pidfile&.delete
-      end
-
-      def wait_until(timeout, condition, &block)
-        if timeout > 0
-          deadline = monotonic_time_now + timeout
-
-          while monotonic_time_now < deadline && !condition.call
-            sleep 0.1
-            block.call
-          end
-        else
-          while !condition.call
-            sleep 0.5
-            block.call
-          end
-        end
-      end
-
-      def monotonic_time_now
-        ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
       end
   end
 end
