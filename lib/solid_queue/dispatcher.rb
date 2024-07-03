@@ -51,6 +51,10 @@ module SolidQueue
         recurring_schedule.unload_tasks
       end
 
+      def all_work_completed?
+        SolidQueue::ScheduledExecution.none? && recurring_schedule.empty?
+      end
+
       def set_procline
         procline "waiting"
       end

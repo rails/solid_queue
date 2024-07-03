@@ -11,6 +11,10 @@ module SolidQueue
       @scheduled_tasks = Concurrent::Hash.new
     end
 
+    def empty?
+      configured_tasks.empty?
+    end
+
     def load_tasks
       configured_tasks.each do |task|
         load_task(task)
