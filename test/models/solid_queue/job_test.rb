@@ -241,6 +241,22 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  test "raise ActiveJob::EnqueueError when there's an ActiveRecordError" do
+    SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
+
+    active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
+    assert_raises ActiveJob::EnqueueError do
+      SolidQueue::Job.enqueue(active_job)
+    end
+
+    enqueue_result = AddToBufferJob.perform_later(1) do |job|
+      assert job.enqueue_error.is_a? ActiveJob::EnqueueError
+      assert_not job.successfully_enqueued?
+    end
+
+    assert_not enqueue_result
+  end
+
   if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
     test "uses a different connection and transaction than the one in use when connects_to is specified" do
       assert_difference -> { SolidQueue::Job.count } do
