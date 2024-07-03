@@ -280,6 +280,26 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
   end
 
+  test "an error enqueuing a recurring task is reflected in the enqueue_recurring_task event" do
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+    SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
+
+    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+
+    events = subscribed("enqueue_recurring_task.solid_queue") do
+      dispatcher.start
+      sleep(1.01)
+      dispatcher.stop
+    end
+
+    assert events.size >= 1
+    event = events.last
+
+    assert_event event, "enqueue_recurring_task", task: :example_task
+    assert event.last[:at].present?
+    assert_nil event.last[:other_adapter]
+  end
+
   test "thread errors emit thread_error events" do
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
 
