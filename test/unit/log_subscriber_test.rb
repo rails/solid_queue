@@ -42,9 +42,9 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
   test "error enqueuing recurring task" do
     attach_log_subscriber
-    instrument "enqueue_recurring_task.solid_queue", task: :example_task, at: Time.now
+    instrument "enqueue_recurring_task.solid_queue", task: :example_task, enqueue_error: "Everything is broken", at: Time.now
 
-    assert_match_logged :info, "Error enqueuing recurring task", "task: :example_task"
+    assert_match_logged :info, "Error enqueuing recurring task", "task: :example_task, enqueue_error: \"Everything is broken\""
   end
 
   private

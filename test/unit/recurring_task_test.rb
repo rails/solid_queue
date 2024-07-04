@@ -85,7 +85,7 @@ class RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
-  test "error when enqueuing job using another adapter" do
+  test "error when enqueuing job using another adapter that raises ActiveJob::EnqueueError" do
     ActiveJob::QueueAdapters::AsyncAdapter.any_instance.stubs(:enqueue).raises(ActiveJob::EnqueueError)
     previous_size = JobBuffer.size
 

@@ -40,7 +40,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def enqueue_recurring_task(event)
-    attributes = event.payload.slice(:task, :active_job_id, :at)
+    attributes = event.payload.slice(:task, :active_job_id, :enqueue_error, :at)
 
     if event.payload[:other_adapter]
       action = attributes[:active_job_id].present? ? "Enqueued recurring task outside Solid Queue" : "Error enqueuing recurring task"

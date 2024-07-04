@@ -280,7 +280,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
   end
 
-  test "an error enqueuing a recurring task is reflected in the enqueue_recurring_task event" do
+  test "an error enqueuing a recurring task in Solid Queue is reflected in the enqueue_recurring_task event" do
     recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
     SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
 
@@ -295,9 +295,32 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert events.size >= 1
     event = events.last
 
-    assert_event event, "enqueue_recurring_task", task: :example_task
+    assert_event event, "enqueue_recurring_task", task: :example_task, enqueue_error: "ActiveRecord::Deadlocked: ActiveRecord::Deadlocked"
     assert event.last[:at].present?
     assert_nil event.last[:other_adapter]
+  end
+
+  test "an error enqueuing a recurring task with another adapter is reflected in the enqueue_recurring_task event" do
+    AddToBufferJob.queue_adapter = :async
+    ActiveJob::QueueAdapters::AsyncAdapter.any_instance.stubs(:enqueue).raises(ActiveJob::EnqueueError.new("All is broken"))
+    recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+
+    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+
+    events = subscribed("enqueue_recurring_task.solid_queue") do
+      dispatcher.start
+      sleep(1.01)
+      dispatcher.stop
+    end
+
+    assert events.size >= 1
+    event = events.last
+
+    assert_event event, "enqueue_recurring_task", task: :example_task, enqueue_error: "All is broken"
+    assert event.last[:at].present?
+    assert event.last[:other_adapter]
+  ensure
+    AddToBufferJob.queue_adapter = :solid_queue
   end
 
   test "thread errors emit thread_error events" do
