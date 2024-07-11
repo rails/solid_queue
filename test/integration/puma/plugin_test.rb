@@ -26,7 +26,8 @@ class PumaPluginTest < ActiveSupport::TestCase
   end
 
   teardown do
-    terminate_process(@pid, signal: :INT)
+    terminate_process(@pid, signal: :INT) if process_exists?(@pid)
+
     wait_for_registered_processes 0, timeout: 1.second
 
     JobResult.delete_all
@@ -48,5 +49,14 @@ class PumaPluginTest < ActiveSupport::TestCase
     StoreResultJob.perform_later(:puma_plugin)
     wait_for_jobs_to_finish_for(2.seconds)
     assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :puma_plugin).count
+  end
+
+  test "stop puma when solid queue's supervisor dies" do
+    supervisor = find_processes_registered_as("Supervisor").first
+
+    signal_process(supervisor.pid, :KILL)
+    wait_for_process_termination_with_timeout(@pid)
+
+    assert_not process_exists?(@pid)
   end
 end

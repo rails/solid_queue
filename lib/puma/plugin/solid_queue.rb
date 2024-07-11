@@ -7,14 +7,14 @@ Puma::Plugin.create do
     @log_writer = launcher.log_writer
     @puma_pid = $$
 
+    in_background do
+      monitor_solid_queue
+    end
+
     launcher.events.on_booted do
       @solid_queue_pid = fork do
         Thread.new { monitor_puma }
         SolidQueue::Supervisor.start(mode: :all)
-      end
-
-      in_background do
-        monitor_solid_queue
       end
     end
 
@@ -51,10 +51,16 @@ Puma::Plugin.create do
     end
 
     def solid_queue_dead?
-      Process.waitpid(solid_queue_pid, Process::WNOHANG)
+      if solid_queue_started?
+        Process.waitpid(solid_queue_pid, Process::WNOHANG)
+      end
       false
     rescue Errno::ECHILD, Errno::ESRCH
       true
+    end
+
+    def solid_queue_started?
+      solid_queue_pid.present?
     end
 
     def puma_dead?
