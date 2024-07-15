@@ -31,15 +31,23 @@ module SolidQueue
 
     def enqueue(at:)
       SolidQueue.instrument(:enqueue_recurring_task, task: key, at: at) do |payload|
-        if using_solid_queue_adapter?
+        active_job = if using_solid_queue_adapter?
           perform_later_and_record(run_at: at)
         else
           payload[:other_adapter] = true
 
-          perform_later
-        end.tap do |active_job|
-          payload[:active_job_id] = active_job&.job_id
+          perform_later do |job|
+            unless job.successfully_enqueued?
+              payload[:enqueue_error] = job.enqueue_error&.message
+            end
+          end
         end
+
+        payload[:active_job_id] = active_job.job_id if active_job
+      rescue RecurringExecution::AlreadyRecorded
+        payload[:skipped] = true
+      rescue Job::EnqueueError => error
+        payload[:enqueue_error] = error.message
       end
     end
 
@@ -68,8 +76,8 @@ module SolidQueue
         RecurringExecution.record(key, run_at) { perform_later }
       end
 
-      def perform_later
-        job_class.perform_later(*arguments_with_kwargs)
+      def perform_later(&block)
+        job_class.perform_later(*arguments_with_kwargs, &block)
       end
 
       def arguments_with_kwargs

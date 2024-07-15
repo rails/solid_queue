@@ -26,6 +26,27 @@ class LogSubscriberTest < ActiveSupport::TestCase
     assert_match_logged :debug, "Unblock jobs", "limit: 42, size: 10"
   end
 
+  test "recurring task enqueued succesfully" do
+    attach_log_subscriber
+    instrument "enqueue_recurring_task.solid_queue", task: :example_task, active_job_id: "b944ddbc-6a37-43c0-b661-4b56e57195f5", at: Time.now
+
+    assert_match_logged :info, "Enqueued recurring task", "task: :example_task, active_job_id: \"b944ddbc-6a37-43c0-b661-4b56e57195f5\""
+  end
+
+  test "recurring task skipped" do
+    attach_log_subscriber
+    instrument "enqueue_recurring_task.solid_queue", task: :example_task, skipped: true, at: Time.now
+
+    assert_match_logged :info, "Skipped recurring task – already dispatched", "task: :example_task"
+  end
+
+  test "error enqueuing recurring task" do
+    attach_log_subscriber
+    instrument "enqueue_recurring_task.solid_queue", task: :example_task, enqueue_error: "Everything is broken", at: Time.now
+
+    assert_match_logged :info, "Error enqueuing recurring task", "task: :example_task, enqueue_error: \"Everything is broken\""
+  end
+
   private
     def attach_log_subscriber
       ActiveSupport::LogSubscriber.attach_to :solid_queue, SolidQueue::LogSubscriber.new

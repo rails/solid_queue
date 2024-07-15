@@ -2,6 +2,8 @@
 
 module SolidQueue
   class Job < Record
+    class EnqueueError < StandardError; end
+
     include Executable, Clearable, Recurrable
 
     serialize :arguments, coder: JSON
@@ -37,6 +39,11 @@ module SolidQueue
 
         def create_from_active_job(active_job)
           create!(**attributes_from_active_job(active_job))
+        rescue ActiveRecord::ActiveRecordError => e
+          enqueue_error = EnqueueError.new("#{e.class.name}: #{e.message}").tap do |error|
+            error.set_backtrace e.backtrace
+          end
+          raise enqueue_error
         end
 
         def create_all_from_active_jobs(active_jobs)

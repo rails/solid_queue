@@ -25,6 +25,14 @@ class RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class JobUsingAsyncAdapter < ApplicationJob
+    self.queue_adapter = :async
+
+    def perform
+      JobBuffer.add "job_using_async_adapter"
+    end
+  end
+
   setup do
     @worker = SolidQueue::Worker.new(queues: "*")
     @worker.mode = :inline
@@ -56,6 +64,37 @@ class RecurringTaskTest < ActiveSupport::TestCase
     task = recurring_task_with(class_name: "JobWithMultipleTypeArguments", args:
       [ "multiple_types", value: "regular_hash_value", value_kwarg: 42, not_used: 32 ])
     enqueue_and_assert_performed_with_result task, [ "multiple_types", nil, 42 ]
+  end
+
+  test "job using a different adapter" do
+    task = recurring_task_with(class_name: "JobUsingAsyncAdapter")
+    previous_size = JobBuffer.size
+
+    task.enqueue(at: Time.now)
+    wait_while_with_timeout!(0.5.seconds) { JobBuffer.size == previous_size }
+
+    assert_equal "job_using_async_adapter", JobBuffer.last_value
+  end
+
+  test "error when enqueuing job before recording task" do
+    SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
+
+    task = recurring_task_with(class_name: "JobWithoutArguments")
+    assert_no_difference -> { SolidQueue::Job.count } do
+      task.enqueue(at: Time.now)
+    end
+  end
+
+  test "error when enqueuing job using another adapter that raises ActiveJob::EnqueueError" do
+    ActiveJob::QueueAdapters::AsyncAdapter.any_instance.stubs(:enqueue).raises(ActiveJob::EnqueueError)
+    previous_size = JobBuffer.size
+
+    task = recurring_task_with(class_name: "JobUsingAsyncAdapter")
+    task.enqueue(at: Time.now)
+
+    wait_while_with_timeout(0.5.seconds) { JobBuffer.size == previous_size }
+
+    assert_equal previous_size, JobBuffer.size
   end
 
   test "valid and invalid schedules" do
