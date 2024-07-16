@@ -33,9 +33,11 @@ module SolidQueue
     end
 
     private
+      BACKTRACE_LINES_LIMIT = 400
+
       def expand_error_details_from_exception
         if exception
-          self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace }
+          self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace.first(BACKTRACE_LINES_LIMIT) }
         end
       end
   end
