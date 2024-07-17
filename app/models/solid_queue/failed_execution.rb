@@ -34,7 +34,7 @@ module SolidQueue
 
     private
       JSON_OVERHEAD = 256
-      DEFAULT_BACKTRACE_LINES_LIMIT = 400
+      DEFAULT_ERROR_SIZE_LIMIT = 64.kilobytes
 
       def expand_error_details_from_exception
         if exception
@@ -51,17 +51,19 @@ module SolidQueue
       end
 
       def exception_backtrace
-        if column = self.class.connection.schema_cache.columns_hash(self.class.table_name)["error"]
-          limit = column.limit - exception_class_name.bytesize - exception_message.bytesize - JSON_OVERHEAD
+        limit = determine_backtrace_size_limit
 
-          if exception.backtrace.to_json.bytesize <= limit
-            exception.backtrace
-          else
-            truncate_backtrace(exception.backtrace, limit)
-          end
+        if exception.backtrace.to_json.bytesize <= limit
+          exception.backtrace
         else
-          exception.backtrace.take(DEFAULT_BACKTRACE_LINES_LIMIT)
+          truncate_backtrace(exception.backtrace, limit)
         end
+      end
+
+      def determine_backtrace_size_limit
+        column = self.class.connection.schema_cache.columns_hash(self.class.table_name)["error"]
+
+        (column&.limit || DEFAULT_ERROR_SIZE_LIMIT) - exception_class_name.bytesize - exception_message.bytesize - JSON_OVERHEAD
       end
 
       def truncate_backtrace(lines, limit)
