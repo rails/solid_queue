@@ -150,13 +150,14 @@ If processes have no chance of cleaning up before exiting (e.g. if someone pulls
 
 Solid Queue can be configured to run on a different database than the main application.
 
-Configure the `connects_to` option in `config/application.rb` or your environment config like so, where `:solid_queue` is the identifier for your dedicated Solid Queue database.
+Configure the `connects_to` option in `config/application.rb` or your environment config, with the custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model.
 
 ```ruby
-config.solid_queue.connects_to = { database: { writing: :solid_queue, reading: :solid_queue } }
-```
+  # Use a separate DB for Solid Queue
+  config.solid_queue.connects_to = { database: { writing: :solid_queue_primary, reading: :solid_queue_replica } }
+  ```
 
-Add the dedicated database configuration to `config/database.yml`, differentiating between the main `:primary` database and the dedicated `:solid_queue` database. Make sure to include the `migrations_paths` for the solid queue database. This is where migration files for Solid Queue tables will reside.
+Add the dedicated database configuration to `config/database.yml`, differentiating between the main app's database and the dedicated `solid_queue` database. Make sure to include the `migrations_paths` for the solid queue database. This is where migration files for Solid Queue tables will reside.
 
 ```yml
 default: &default
@@ -171,10 +172,13 @@ solid_queue: &solid_queue
 development:
   primary:
     <<: *default
-    database: storage/development.sqlite3
-  solid_queue:
+    # ...
+  solid_queue_primary:
     <<: *solid_queue
-    database: storage/development_solid_queue.sqlite3
+    # ...
+  solid_queue_replica:
+    <<: *solid_queue
+    # ...
 ```
 
 Install migrations and specify the dedicated database name with the `DATABASE` option. This will create the Solid Queue migration files in a separate directory, matching the value provided in `migrations_paths` in `config/database.yml`.
@@ -201,12 +205,6 @@ There are several settings that control how Solid Queue works that you can set a
 
   ```ruby
   -> (exception) { Rails.error.report(exception, handled: false) }
-  ```
-- `connects_to`: a custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model. This is required to use a different database than the main app. For example:
-
-  ```ruby
-  # Use a separate DB for Solid Queue
-  config.solid_queue.connects_to = { database: { writing: :solid_queue_primary, reading: :solid_queue_replica } }
   ```
 - `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
@@ -302,7 +300,7 @@ By default, Solid Queue runs in the same DB as your app, and job enqueuing is _n
 If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
 - You set [`config.active_job.enqueue_after_transaction_commit`](https://edgeguides.rubyonrails.org/configuring.html#config-active-job-enqueue-after-transaction-commit) to `always`, if you're using Rails 7.2+.
 - Or, your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
-- Or, you configure a database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
+- Or, you configure a different database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
 
   ```ruby
   class ApplicationRecord < ActiveRecord::Base
