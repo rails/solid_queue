@@ -1,6 +1,6 @@
 require "test_helper"
 
-class RecurringTaskTest < ActiveSupport::TestCase
+class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
   class JobWithoutArguments < ApplicationJob
     def perform
       JobBuffer.add "job_without_arguments"
@@ -130,6 +130,6 @@ class RecurringTaskTest < ActiveSupport::TestCase
     end
 
     def recurring_task_with(class_name:, schedule: "every hour", args: nil)
-      SolidQueue::Dispatcher::RecurringTask.from_configuration("task-id", class: "RecurringTaskTest::#{class_name}", schedule: schedule, args: args)
+      SolidQueue::RecurringTask.from_configuration("task-id", class: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, args: args)
     end
 end

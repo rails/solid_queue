@@ -75,7 +75,7 @@ module SolidQueue
 
       def parse_recurring_tasks(tasks)
         Array(tasks).map do |id, options|
-          Dispatcher::RecurringTask.from_configuration(id, **options)
+          RecurringTask.from_configuration(id, **options)
         end.select(&:valid?)
       end
 

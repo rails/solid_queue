@@ -1,24 +1,17 @@
 require "fugit"
 
 module SolidQueue
-  class Dispatcher::RecurringTask
+  class RecurringTask < Record
+    serialize :arguments, coder: JSON
+
     class << self
       def wrap(args)
         args.is_a?(self) ? args : from_configuration(args.first, **args.second)
       end
 
       def from_configuration(key, **options)
-        new(key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
+        new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args] || [])
       end
-    end
-
-    attr_reader :key, :schedule, :class_name, :arguments
-
-    def initialize(key, class_name:, schedule:, arguments: nil)
-      @key = key
-      @class_name = class_name
-      @schedule = schedule
-      @arguments = Array(arguments)
     end
 
     def delay_from_now

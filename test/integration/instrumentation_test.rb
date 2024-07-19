@@ -289,7 +289,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert events.size >= 1
     event = events.last
 
-    assert_event event, "enqueue_recurring_task", task: :example_task, active_job_id: SolidQueue::Job.last.active_job_id
+    assert_event event, "enqueue_recurring_task", task: "example_task", active_job_id: SolidQueue::Job.last.active_job_id
     assert event.last[:at].present?
     assert_nil event.last[:other_adapter]
   end

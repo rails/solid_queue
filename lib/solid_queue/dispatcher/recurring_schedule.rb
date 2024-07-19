@@ -7,7 +7,7 @@ module SolidQueue
     attr_reader :configured_tasks, :scheduled_tasks
 
     def initialize(tasks)
-      @configured_tasks = Array(tasks).map { |task| Dispatcher::RecurringTask.wrap(task) }
+      @configured_tasks = Array(tasks).map { |task| SolidQueue::RecurringTask.wrap(task) }
       @scheduled_tasks = Concurrent::Hash.new
     end
 
