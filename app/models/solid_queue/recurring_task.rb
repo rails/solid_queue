@@ -4,6 +4,9 @@ module SolidQueue
   class RecurringTask < Record
     serialize :arguments, coder: Arguments, default: []
 
+    validate :supported_schedule
+    validate :existing_job_class
+
     class << self
       def wrap(args)
         args.is_a?(self) ? args : from_configuration(args.first, **args.second)
@@ -44,10 +47,6 @@ module SolidQueue
       end
     end
 
-    def valid?
-      parsed_schedule.instance_of?(Fugit::Cron)
-    end
-
     def to_s
       "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original} ]"
     end
@@ -61,6 +60,19 @@ module SolidQueue
     end
 
     private
+      def supported_schedule
+        unless parsed_schedule.instance_of?(Fugit::Cron)
+          errors.add :schedule, :unsupported, message: "is not a supported recurring schedule"
+        end
+      end
+
+      def existing_job_class
+        unless job_class.present?
+          errors.add :class_name, :undefined, message: "doesn't correspond to an existing class"
+        end
+      end
+
+
       def using_solid_queue_adapter?
         job_class.queue_adapter_name.inquiry.solid_queue?
       end
@@ -81,12 +93,13 @@ module SolidQueue
         end
       end
 
+
       def parsed_schedule
         @parsed_schedule ||= Fugit.parse(schedule)
       end
 
       def job_class
-        @job_class ||= class_name.safe_constantize
+        @job_class ||= class_name&.safe_constantize
       end
   end
 end
