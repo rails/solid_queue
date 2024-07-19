@@ -2,7 +2,7 @@ require "fugit"
 
 module SolidQueue
   class RecurringTask < Record
-    serialize :arguments, coder: JSON
+    serialize :arguments, coder: Arguments, default: []
 
     class << self
       def wrap(args)
@@ -10,7 +10,7 @@ module SolidQueue
       end
 
       def from_configuration(key, **options)
-        new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args] || [])
+        new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
       end
     end
 
