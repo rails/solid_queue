@@ -33,11 +33,45 @@ module SolidQueue
     end
 
     private
-      BACKTRACE_LINES_LIMIT = 400
+      JSON_OVERHEAD = 256
 
       def expand_error_details_from_exception
         if exception
-          self.error = { exception_class: exception.class.name, message: exception.message, backtrace: exception.backtrace.first(BACKTRACE_LINES_LIMIT) }
+          self.error = { exception_class: exception_class_name, message: exception_message, backtrace: exception_backtrace }
+        end
+      end
+
+      def exception_class_name
+        exception.class.name
+      end
+
+      def exception_message
+        exception.message
+      end
+
+      def exception_backtrace
+        if (limit = determine_backtrace_size_limit) && exception.backtrace.to_json.bytesize > limit
+          truncate_backtrace(exception.backtrace, limit)
+        else
+          exception.backtrace
+        end
+      end
+
+      def determine_backtrace_size_limit
+        column = self.class.connection.schema_cache.columns_hash(self.class.table_name)["error"]
+        if column.limit.present?
+          column.limit - exception_class_name.bytesize - exception_message.bytesize - JSON_OVERHEAD
+        end
+      end
+
+      def truncate_backtrace(lines, limit)
+        [].tap do |truncated_backtrace|
+          lines.each do |line|
+            if (truncated_backtrace << line).to_json.bytesize > limit
+              truncated_backtrace.pop
+              break
+            end
+          end
         end
       end
   end
