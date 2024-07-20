@@ -6,6 +6,8 @@ class CreateRecurringTasks < ActiveRecord::Migration[7.1]
       t.string :class_name, null: false
       t.text :arguments
 
+      t.boolean :static, default: true, index: true
+
       t.timestamps
     end
   end
