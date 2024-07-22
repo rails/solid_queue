@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Supervisor::Forks < Supervisor
+  class Supervisor::ForkSupervisor < Supervisor
     include Signals
 
     before_boot :setup_pidfile

@@ -12,7 +12,7 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(load_from: load_configuration_from)
 
-        Forks.new(configuration).start
+        ForkSupervisor.new(configuration).start
       end
     end
 
