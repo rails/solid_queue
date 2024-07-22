@@ -1,6 +1,6 @@
 require "test_helper"
 
-class SupervisorTest < ActiveSupport::TestCase
+class ForkSupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do

@@ -2,10 +2,7 @@
 
 module SolidQueue
   class Supervisor::ForkSupervisor < Supervisor
-    include Signals
-
-    before_boot :setup_pidfile
-    after_shutdown :delete_pidfile
+    include Signals, Single
 
     def initialize(*)
       super
@@ -96,16 +93,6 @@ module SolidQueue
             start_process(supervised_fork)
           end
         end
-      end
-
-      def setup_pidfile
-        if path = SolidQueue.supervisor_pidfile
-          @pidfile = Pidfile.new(path).tap(&:setup)
-        end
-      end
-
-      def delete_pidfile
-        @pidfile&.delete
       end
 
       def all_forks_terminated?
