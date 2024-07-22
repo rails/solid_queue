@@ -52,7 +52,7 @@ class PumaPluginTest < ActiveSupport::TestCase
   end
 
   test "stop puma when solid queue's supervisor dies" do
-    supervisor = find_processes_registered_as("Supervisor(forks)").first
+    supervisor = find_processes_registered_as("Supervisor(fork)").first
 
     signal_process(supervisor.pid, :KILL)
     wait_for_process_termination_with_timeout(@pid)

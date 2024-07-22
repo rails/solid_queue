@@ -211,7 +211,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_supervisor
-      processes = find_processes_registered_as("Supervisor(forks)")
+      processes = find_processes_registered_as("Supervisor(fork)")
       assert_equal 1, processes.count
       assert_equal @pid, processes.first.pid
     end

@@ -3,7 +3,7 @@
 module SolidQueue
   class Supervisor::Forks < Supervisor
     def kind
-      "Supervisor(forks)"
+      "Supervisor(fork)"
     end
 
     private

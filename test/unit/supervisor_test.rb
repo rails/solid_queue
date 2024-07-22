@@ -104,8 +104,12 @@ class SupervisorTest < ActiveSupport::TestCase
     # Simnulate orphaned executions by just wiping the claiming process
     process.delete
 
-    pid = run_supervisor_as_fork
-    wait_for_registered_processes(4)
+    config_as_hash = {
+      workers: [ { queues: "background", polling_interval: 10, processes: 2 } ],
+      dispatchers: []
+    }
+    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    wait_for_registered_processes(3)
     assert_registered_supervisor(pid)
 
     terminate_process(pid)
@@ -140,7 +144,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
     def assert_registered_supervisor(pid)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Supervisor(forks)")
+        processes = find_processes_registered_as("Supervisor(fork)")
         assert_equal 1, processes.count
         assert_nil processes.first.supervisor
         assert_equal pid, processes.first.pid
