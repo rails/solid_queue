@@ -169,7 +169,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "don't block claimed executions that get released" do
-    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 3.seconds)
+    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
 
     sleep(0.2)
@@ -177,7 +177,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # This won't leave time to the job to finish
     signal_process(@pid, :TERM, wait: 0.1.second)
-    sleep(SolidQueue.shutdown_timeout + 0.2.seconds)
+    sleep(SolidQueue.shutdown_timeout + 0.6.seconds)
 
     assert_not job.reload.finished?
     assert job.reload.ready?

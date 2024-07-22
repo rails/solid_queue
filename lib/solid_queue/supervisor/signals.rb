@@ -2,10 +2,14 @@
 
 module SolidQueue
   class Supervisor
-    class GracefulTerminationRequested < Interrupt; end
-    class ImmediateTerminationRequested < Interrupt; end
-
     module Signals
+      extend ActiveSupport::Concern
+
+      included do
+        before_boot :register_signal_handlers
+        after_shutdown :restore_default_signal_handlers
+      end
+
       private
         SIGNALS = %i[ QUIT INT TERM ]
 
