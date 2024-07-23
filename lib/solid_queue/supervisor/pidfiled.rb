@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor
-    module Single
+    module Pidfiled
       extend ActiveSupport::Concern
 
       included do

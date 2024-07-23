@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor::ForkSupervisor < Supervisor
-    include Signals, Single
+    include Signals, Pidfiled
 
     def initialize(*)
       super
