@@ -7,6 +7,10 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Dispatch scheduled jobs", **event.payload.slice(:batch_size, :size))
   end
 
+  def claim(event)
+    debug formatted_event(event, action: "Claim jobs", **event.payload.slice(:process_id, :job_ids, :claimed_job_ids, :size))
+  end
+
   def release_many_claimed(event)
     debug formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
   end
@@ -45,7 +49,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     if event.payload[:other_adapter]
       action = attributes[:active_job_id].present? ? "Enqueued recurring task outside Solid Queue" : "Error enqueuing recurring task"
-      info formatted_event(event, action: action, **attributes)
+      debug formatted_event(event, action: action, **attributes)
     else
       action = case
       when event.payload[:skipped].present? then "Skipped recurring task – already dispatched"
@@ -53,7 +57,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       else                                       "Enqueued recurring task"
       end
 
-      info formatted_event(event, action: action, **attributes)
+      debug formatted_event(event, action: action, **attributes)
     end
   end
 
