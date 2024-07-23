@@ -37,20 +37,14 @@ module SolidQueue
         def handle_signal(signal)
           case signal
           when :TERM, :INT
-            request_graceful_termination
+            stop
+            terminate_gracefully
           when :QUIT
-            request_immediate_termination
+            stop
+            terminate_immediately
           else
             SolidQueue.instrument :unhandled_signal_error, signal: signal
           end
-        end
-
-        def request_graceful_termination
-          raise GracefulTerminationRequested
-        end
-
-        def request_immediate_termination
-          raise ImmediateTerminationRequested
         end
 
         def signal_processes(pids, signal)

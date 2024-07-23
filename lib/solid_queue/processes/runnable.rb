@@ -7,7 +7,7 @@ module SolidQueue::Processes
     attr_writer :mode
 
     def start
-      @stopping = false
+      @stopped = false
 
       SolidQueue.instrument(:start_process, process: self) do
         run_callbacks(:boot) { boot }
@@ -21,7 +21,7 @@ module SolidQueue::Processes
     end
 
     def stop
-      @stopping = true
+      @stopped = true
       @thread&.join
     end
 
@@ -40,15 +40,15 @@ module SolidQueue::Processes
       end
 
       def shutting_down?
-        stopping? || supervisor_went_away? || finished?
+        stopped? || supervisor_went_away? || finished?
       end
 
       def run
         raise NotImplementedError
       end
 
-      def stopping?
-        @stopping
+      def stopped?
+        @stopped
       end
 
       def finished?

@@ -17,10 +17,10 @@ module SolidQueue
       attr_reader :forks
 
       def supervise
-        loop do
-          procline "supervising #{forks.keys.join(", ")}"
+        procline "supervising #{forks.keys.join(", ")}"
+        process_signal_queue
 
-          process_signal_queue
+        unless stopped?
           reap_and_replace_terminated_forks
           interruptible_sleep(1.second)
         end
