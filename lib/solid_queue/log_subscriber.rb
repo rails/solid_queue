@@ -47,16 +47,12 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     attributes = event.payload.slice(:task, :active_job_id, :enqueue_error)
     attributes[:at] = event.payload[:at]&.iso8601
 
-    if event.payload[:other_adapter]
-      action = attributes[:active_job_id].present? ? "Enqueued recurring task outside Solid Queue" : "Error enqueuing recurring task"
-      debug formatted_event(event, action: action, **attributes)
+    if attributes[:active_job_id].nil? && event.payload[:skipped].nil?
+      error formatted_event(event, action: "Error enqueuing recurring task", **attributes)
+    elsif event.payload[:other_adapter]
+      debug formatted_event(event, action: "Enqueued recurring task outside Solid Queue", **attributes)
     else
-      action = case
-      when event.payload[:skipped].present? then "Skipped recurring task – already dispatched"
-      when attributes[:active_job_id].nil?  then "Error enqueuing recurring task"
-      else                                       "Enqueued recurring task"
-      end
-
+      action = event.payload[:skipped].present? ? "Skipped recurring task – already dispatched" : "Enqueued recurring task"
       debug formatted_event(event, action: action, **attributes)
     end
   end
