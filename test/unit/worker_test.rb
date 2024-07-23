@@ -22,7 +22,30 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal({ "queues" => "background", "polling_interval" => 0.2, "thread_pool_size" => 3 }, process.metadata)
   end
 
-  test "errors on claiming executions are reported via Rails error subscriber regardless of on_thread_error setting" do
+  test "errors on polling are passed to on_thread_error and re-raised" do
+    errors = Concurrent::Array.new
+
+    original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, ->(error) { errors << error.message }
+    previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
+
+    SolidQueue::ReadyExecution.expects(:claim).raises(RuntimeError.new("everything is broken")).at_least_once
+
+    AddToBufferJob.perform_later "hey!"
+
+    worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2).tap(&:start)
+    sleep(1)
+
+    assert_raises RuntimeError do
+      worker.stop
+    end
+
+    assert_equal [ "everything is broken" ], errors
+  ensure
+    SolidQueue.on_thread_error = original_on_thread_error
+    Thread.report_on_exception = previous_thread_report_on_exception
+  end
+
+  test "errors on claimed executions are reported via Rails error subscriber regardless of on_thread_error setting" do
     original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, nil
 
     subscriber = ErrorBuffer.new

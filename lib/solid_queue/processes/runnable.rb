@@ -14,7 +14,7 @@ module SolidQueue::Processes
       end
 
       if running_async?
-        @thread = Thread.new { run }
+        @thread = create_thread { run }
       else
         run
       end
@@ -72,6 +72,16 @@ module SolidQueue::Processes
 
       def running_as_fork?
         mode.fork?
+      end
+
+
+      def create_thread(&block)
+        Thread.new do
+          block.call
+        rescue Exception => exception
+          handle_thread_error(exception)
+          raise
+        end
       end
   end
 end
