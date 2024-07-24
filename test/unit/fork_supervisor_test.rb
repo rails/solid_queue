@@ -130,13 +130,11 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     end
 
     def assert_registered_processes(kind:, supervisor_pid:, count: 1)
-      skip_active_record_query_cache do
-        processes = find_processes_registered_as(kind)
-        assert_equal count, processes.count
+      processes = find_processes_registered_as(kind)
+      assert_equal count, processes.count
 
-        processes.each do |process|
-          assert_equal supervisor_pid, process.supervisor.pid
-        end
+      processes.each do |process|
+        assert_equal supervisor_pid, process.supervisor.pid
       end
     end
 

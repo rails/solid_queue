@@ -11,6 +11,10 @@ module SolidQueue::Processes
       after_shutdown :deregister
     end
 
+    def process_id
+      process.id
+    end
+
     private
       attr_accessor :process
 

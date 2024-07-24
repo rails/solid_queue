@@ -25,6 +25,14 @@ module SolidQueue::Processes
       @thread&.join
     end
 
+    def name
+      @name ||= [ kind.downcase, SecureRandom.hex(6) ].join("-")
+    end
+
+    def alive?
+      !running_async? || @thread.alive?
+    end
+
     private
       DEFAULT_MODE = :async
 
@@ -40,7 +48,7 @@ module SolidQueue::Processes
       end
 
       def shutting_down?
-        stopped? || supervisor_went_away? || finished?
+        stopped? || (running_as_fork? && supervisor_went_away?) || finished?
       end
 
       def run
@@ -77,6 +85,7 @@ module SolidQueue::Processes
 
       def create_thread(&block)
         Thread.new do
+          Thread.current.name = name
           block.call
         rescue Exception => exception
           handle_thread_error(exception)

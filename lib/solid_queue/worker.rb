@@ -30,7 +30,7 @@ module SolidQueue
 
       def claim_executions
         with_polling_volume do
-          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process.id)
+          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process_id)
         end
       end
 

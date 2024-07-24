@@ -9,7 +9,8 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(load_from: load_configuration_from)
 
-        ForkSupervisor.new(configuration).start
+        klass = mode == :fork ? ForkSupervisor : AsyncSupervisor
+        klass.new(configuration).tap(&:start)
       end
     end
 
