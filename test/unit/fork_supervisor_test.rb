@@ -21,7 +21,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(4)
 
     assert_registered_supervisor(pid)
-    assert_registered_workers(2, supervisor_pid: pid)
+    assert_registered_workers(count: 2, supervisor_pid: pid)
     assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -35,7 +35,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(2) # supervisor + dispatcher
 
     assert_registered_supervisor(pid)
-    assert_registered_workers(0)
+    assert_registered_workers(count: 0)
     assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -46,7 +46,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   test "create and delete pidfile" do
     assert_not File.exist?(@pidfile)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -61,7 +61,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(File.dirname(@pidfile))
     File.write(@pidfile, ::Process.pid.to_s)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -71,7 +71,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   end
 
   test "delete previous pidfile if the owner is dead" do
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     terminate_process(pid, signal: :KILL)
@@ -81,7 +81,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
 
     wait_for_registered_processes(0)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -121,24 +121,22 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def assert_registered_workers(count, supervisor_pid: nil, **metadata)
-      skip_active_record_query_cache do
-        workers = find_processes_registered_as("Worker")
-        assert_equal count, workers.count
-
-        workers.each do |process|
-          assert_equal supervisor_pid, process.supervisor.pid
-          assert metadata < process.metadata.symbolize_keys
-        end
-      end
+    def assert_registered_workers(supervisor_pid: nil, count: 1)
+      assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)
     end
 
-    def assert_registered_dispatcher(supervisor_pid:, **metadata)
+    def assert_registered_dispatcher(supervisor_pid: nil)
+      assert_registered_processes(kind: "Dispatcher", count: 1, supervisor_pid: supervisor_pid)
+    end
+
+    def assert_registered_processes(kind:, supervisor_pid:, count: 1)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Dispatcher")
-        assert_equal 1, processes.count
-        assert_equal supervisor_pid, processes.first.supervisor.pid
-        assert metadata < processes.first.metadata.symbolize_keys
+        processes = find_processes_registered_as(kind)
+        assert_equal count, processes.count
+
+        processes.each do |process|
+          assert_equal supervisor_pid, process.supervisor.pid
+        end
       end
     end
 
