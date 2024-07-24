@@ -8,12 +8,5 @@ module SolidQueue::Processes
       extend ActiveModel::Callbacks
       define_model_callbacks :boot, :shutdown
     end
-
-    private
-      def boot
-      end
-
-      def shutdown
-      end
   end
 end

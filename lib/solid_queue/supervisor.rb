@@ -18,18 +18,12 @@ module SolidQueue
     end
 
     def start
-      run_callbacks(:boot) { boot }
+      boot
 
       start_processes
       launch_maintenance_task
 
-      loop do
-        break if stopped?
-
-        supervise
-      end
-    ensure
-      run_callbacks(:shutdown) { shutdown }
+      supervise
     end
 
     def stop
@@ -40,8 +34,10 @@ module SolidQueue
       attr_reader :configuration
 
       def boot
-        @stopped = false
-        sync_std_streams
+        run_callbacks(:boot) do
+          @stopped = false
+          sync_std_streams
+        end
       end
 
       def start_processes
@@ -53,7 +49,6 @@ module SolidQueue
       end
 
       def supervise
-        raise NotImplementedError
       end
 
       def start_process(configured_process)
@@ -61,7 +56,9 @@ module SolidQueue
       end
 
       def shutdown
-        stop_maintenance_task
+        run_callbacks(:shutdown) do
+          stop_maintenance_task
+        end
       end
 
       def sync_std_streams

@@ -17,13 +17,19 @@ module SolidQueue
       attr_reader :forks
 
       def supervise
-        procline "supervising #{forks.keys.join(", ")}"
-        process_signal_queue
+        loop do
+          break if stopped?
 
-        unless stopped?
-          reap_and_replace_terminated_forks
-          interruptible_sleep(1.second)
+          procline "supervising #{forks.keys.join(", ")}"
+          process_signal_queue
+
+          unless stopped?
+            reap_and_replace_terminated_forks
+            interruptible_sleep(1.second)
+          end
         end
+      ensure
+        shutdown
       end
 
       def start_process(configured_process)
