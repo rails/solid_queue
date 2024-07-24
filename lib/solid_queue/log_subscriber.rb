@@ -40,7 +40,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def enqueue_recurring_task(event)
-    attributes = event.payload.slice(:task, :active_job_id, :enqueue_error, :at)
+    attributes = event.payload.slice(:task, :active_job_id, :enqueue_error)
+    attributes[:at] = event.payload[:at]&.iso8601
 
     if event.payload[:other_adapter]
       action = attributes[:active_job_id].present? ? "Enqueued recurring task outside Solid Queue" : "Error enqueuing recurring task"
@@ -96,9 +97,9 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       process_id: process.id,
       pid: process.pid,
       hostname: process.hostname,
-      last_heartbeat_at: process.last_heartbeat_at,
+      last_heartbeat_at: process.last_heartbeat_at.iso8601,
       claimed_size: process.claimed_executions.size,
-      pruned: event.payload
+      pruned: event.payload[:pruned]
     }
 
     if error = event.payload[:error]
