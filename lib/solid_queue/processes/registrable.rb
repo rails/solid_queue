@@ -36,6 +36,10 @@ module SolidQueue::Processes
           wrap_in_app_executor { heartbeat }
         end
 
+        @heartbeat_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
+        end
+
         @heartbeat_task.execute
       end
 

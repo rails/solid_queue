@@ -10,7 +10,13 @@ module SolidQueue
       def launch_maintenance_task
         @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: SolidQueue.process_alive_threshold) do
           prune_dead_processes
-        end.tap(&:execute)
+        end
+
+        @maintenance_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
+        end
+
+        @maintenance_task.execute
       end
 
       def stop_maintenance_task

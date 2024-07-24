@@ -76,7 +76,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       hostname: process.hostname
     }.merge(process.metadata)
 
-    info formatted_event(event, action: "Shut down #{process.kind}", **attributes)
+    info formatted_event(event, action: "Shutdown #{process.kind}", **attributes)
   end
 
   def register_process(event)
