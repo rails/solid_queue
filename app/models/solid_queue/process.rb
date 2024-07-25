@@ -1,15 +1,12 @@
 # frozen_string_literal: true
 
 class SolidQueue::Process < SolidQueue::Record
-  include Prunable
+  include Executor, Prunable
 
   belongs_to :supervisor, class_name: "SolidQueue::Process", optional: true, inverse_of: :supervisees
   has_many :supervisees, class_name: "SolidQueue::Process", inverse_of: :supervisor, foreign_key: :supervisor_id, dependent: :destroy
-  has_many :claimed_executions
 
   store :metadata, coder: JSON
-
-  after_destroy -> { claimed_executions.release_all }
 
   def self.register(**attributes)
     SolidQueue.instrument :register_process, **attributes do |payload|
