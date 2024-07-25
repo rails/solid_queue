@@ -100,7 +100,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       pid: process.pid,
       hostname: process.hostname,
       last_heartbeat_at: process.last_heartbeat_at.iso8601,
-      claimed_size: process.claimed_executions.size,
+      claimed_size: event.payload[:claimed_size],
       pruned: event.payload[:pruned]
     }
 

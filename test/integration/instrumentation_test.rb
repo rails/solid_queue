@@ -92,6 +92,25 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_event deregister_event, "deregister_process", process: process, pruned: false, claimed_size: 1
   end
 
+  test "starting and stopping a dispatcher emits register_process and deregister_process events" do
+    process = nil
+
+    events = subscribed(/(register|deregister)_process\.solid_queue/) do
+      dispatcher = SolidQueue::Dispatcher.new.tap(&:start)
+      wait_for_registered_processes(1, timeout: 3.second)
+
+      process = SolidQueue::Process.last
+
+      dispatcher.stop
+      wait_for_registered_processes(0, timeout: 3.second)
+    end
+
+    assert_equal 2, events.size
+    register_event, deregister_event = events
+    assert_event register_event, "register_process", kind: "Dispatcher", pid: ::Process.pid, process_id: process.id
+    assert_event deregister_event, "deregister_process", process: process, pruned: false
+  end
+
   test "pruning processes emit prune_processes and deregister_process events" do
     time = Time.now
     processes = 3.times.collect { |i| SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10 + i, hostname: "localhost", last_heartbeat_at: time) }
