@@ -35,9 +35,11 @@ module SolidQueue
       attr_reader :configuration
 
       def boot
-        run_callbacks(:boot) do
-          @stopped = false
-          sync_std_streams
+        SolidQueue.instrument(:start_process, process: self) do
+          run_callbacks(:boot) do
+            @stopped = false
+            sync_std_streams
+          end
         end
       end
 
@@ -57,8 +59,10 @@ module SolidQueue
       end
 
       def shutdown
-        run_callbacks(:shutdown) do
-          stop_maintenance_task
+        SolidQueue.instrument(:shutdown_process, process: self) do
+          run_callbacks(:shutdown) do
+            stop_maintenance_task
+          end
         end
       end
 
