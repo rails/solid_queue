@@ -88,7 +88,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 2, events.size
     register_event, deregister_event = events
-    assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid
+    assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid, process_id: process.id
     assert_event deregister_event, "deregister_process", process: process, pruned: false, claimed_size: 1
   end
 

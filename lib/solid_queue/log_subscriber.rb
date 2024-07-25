@@ -62,7 +62,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     attributes = {
       pid: process.pid,
-      hostname: process.hostname
+      hostname: process.hostname,
+      process_id: process.process_id
     }.merge(process.metadata)
 
     info formatted_event(event, action: "Started #{process.kind}", **attributes)
@@ -73,7 +74,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     attributes = {
       pid: process.pid,
-      hostname: process.hostname
+      hostname: process.hostname,
+      process_id: process.process_id
     }.merge(process.metadata)
 
     info formatted_event(event, action: "Shutdown #{process.kind}", **attributes)
@@ -81,7 +83,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
   def register_process(event)
     process_kind = event.payload[:kind]
-    attributes = event.payload.slice(:pid, :hostname)
+    attributes = event.payload.slice(:pid, :hostname, :process_id)
 
     if error = event.payload[:error]
       warn formatted_event(event, action: "Error registering #{process_kind}", **attributes.merge(error: formatted_error(error)))
@@ -118,7 +120,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def graceful_termination(event)
-    attributes = event.payload.slice(:supervisor_pid, :supervised_processes)
+    attributes = event.payload.slice(:process_id, :supervisor_pid, :supervised_processes)
 
     if event.payload[:shutdown_timeout_exceeded]
       warn formatted_event(event, action: "Supervisor wasn't terminated gracefully - shutdown timeout exceeded", **attributes)
@@ -128,7 +130,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def immediate_termination(event)
-    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:supervisor_pid, :supervised_processes))
+    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:process_id, :supervisor_pid, :supervised_processes))
   end
 
   def unhandled_signal_error(event)

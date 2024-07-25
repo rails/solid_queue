@@ -12,7 +12,7 @@ module SolidQueue::Processes
     end
 
     def process_id
-      process.id
+      process&.id
     end
 
     private
