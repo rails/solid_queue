@@ -195,6 +195,72 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     assert_clean_termination
   end
 
+  test "terminate worker individually" do
+    enqueue_store_result_job("pause", pause: 0.5.seconds)
+    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
+
+    worker = find_processes_registered_as("Worker").first
+
+    signal_process(worker.pid, :TERM, wait: 0.1.second)
+
+    # Worker is gone
+    wait_for_registered_processes(2, timeout: 3.second)
+    assert_nil SolidQueue::Process.find_by(id: worker.id)
+
+    # Jobs were completed
+    assert_completed_job_results("pause", :background)
+    assert_completed_job_results("pause", :default)
+
+    # And there's a new worker that has been registered for that queue:
+    wait_for_registered_processes(3, timeout: 3.second)
+    assert_registered_workers_for(:background, :default)
+
+    # And they can process jobs just fine
+    enqueue_store_result_job("no_pause")
+    enqueue_store_result_job("no_pause", :default)
+    wait_for_jobs_to_finish_for(0.2.seconds)
+
+    assert_completed_job_results("no_pause", :background)
+    assert_completed_job_results("no_pause", :default)
+
+    terminate_process(@pid)
+    assert_clean_termination
+  end
+
+  test "kill worker individually" do
+    killed_pause = enqueue_store_result_job("killed_pause", pause: 1.seconds)
+    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
+
+    worker = find_processes_registered_as("Worker").detect { |process| process.metadata["queues"].include? "background" }
+
+    signal_process(worker.pid, :KILL, wait: 0.3.second)
+
+    # Worker didn't have time to clean up or finish the work
+    sleep(0.7.second)
+    assert SolidQueue::Process.exists?(id: worker.id)
+
+    # And there's a new worker that has been registered for the background queue
+    wait_for_registered_processes(4, timeout: 3.second)
+
+    # The job in the background queue was left claimed as the worker couldn't
+    # finish orderly
+    assert_started_job_result("killed_pause")
+    assert_job_status(killed_pause, :claimed)
+    # The other one could finish
+    assert_completed_job_results("pause", :default)
+
+    # The two current workers can process jobs just fine
+    enqueue_store_result_job("no_pause")
+    enqueue_store_result_job("no_pause", :default)
+    wait_for_jobs_to_finish_for(0.5.seconds)
+
+    assert_completed_job_results("no_pause", :background)
+    assert_completed_job_results("no_pause", :default)
+
+    terminate_process(@pid)
+    assert_clean_termination
+  end
+
   private
     def assert_clean_termination
       wait_for_registered_processes 0, timeout: 0.2.second
