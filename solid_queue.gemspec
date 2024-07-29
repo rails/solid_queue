@@ -10,6 +10,11 @@ Gem::Specification.new do |spec|
   spec.description = "Database-backed Active Job backend."
   spec.license     = "MIT"
 
+  spec.post_install_message = <<~MESSAGE
+    Upgrading to Solid Queue 0.4.x? There are some breaking changes about how Solid Queue is started. Check
+    https://github.com/rails/solid_cache/blob/main/UPGRADING.md for upgrade instructions.
+  MESSAGE
+
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/rails/solid_queue"
 
