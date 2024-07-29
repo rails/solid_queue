@@ -36,6 +36,11 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_equal 2, configuration.workers.count
     assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
     assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
+
+    config_as_hash = { workers: [ background_worker, background_worker ] }
+    configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
+    assert_empty configuration.dispatchers
+    assert_equal 2, configuration.workers.count
   end
 
   test "max number of threads" do

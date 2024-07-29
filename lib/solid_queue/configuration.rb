@@ -55,13 +55,17 @@ module SolidQueue
       end
 
       def workers_options
-        @workers_options ||= (raw_config[:workers] || [ WORKER_DEFAULTS ])
+        @workers_options ||= options_from_raw_config(:workers, WORKER_DEFAULTS)
           .map { |options| options.dup.symbolize_keys }
       end
 
       def dispatchers_options
-        @dispatchers_options ||= (raw_config[:dispatchers] || [ DISPATCHER_DEFAULTS ])
+        @dispatchers_options ||= options_from_raw_config(:dispatchers, DISPATCHER_DEFAULTS)
           .map { |options| options.dup.symbolize_keys }
+      end
+
+      def options_from_raw_config(key, defaults)
+        raw_config.empty? ? [ defaults ] : Array(raw_config[key])
       end
 
       def parse_recurring_tasks(tasks)
