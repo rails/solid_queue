@@ -17,7 +17,8 @@ module SolidQueue
       recurring_tasks: []
     }
 
-    def initialize(load_from: nil)
+    def initialize(mode: :fork, load_from: nil)
+      @mode = mode.to_s.inquiry
       @raw_config = config_from(load_from)
     end
 
@@ -27,7 +28,11 @@ module SolidQueue
 
     def workers
       workers_options.flat_map do |worker_options|
-        processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+        processes = if mode.fork?
+          worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+        else
+          WORKER_DEFAULTS[:processes]
+        end
         processes.times.map { Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
       end
     end
@@ -45,7 +50,7 @@ module SolidQueue
     end
 
     private
-      attr_reader :raw_config
+      attr_reader :raw_config, :mode
 
       DEFAULT_CONFIG_FILE_PATH = "config/solid_queue.yml"
 
