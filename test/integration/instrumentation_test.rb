@@ -306,7 +306,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert events.size >= 2
     events.each do |event|
-      assert_event event, "enqueue_recurring_task", task: :example_task
+      assert_event event, "enqueue_recurring_task", task: "example_task"
     end
 
     active_job_ids = SolidQueue::Job.all.map(&:active_job_id)
@@ -333,7 +333,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert events.size >= 1
     event = events.last
 
-    assert_event event, "enqueue_recurring_task", task: :example_task, enqueue_error: "ActiveRecord::Deadlocked: ActiveRecord::Deadlocked"
+    assert_event event, "enqueue_recurring_task", task: "example_task", enqueue_error: "ActiveRecord::Deadlocked: ActiveRecord::Deadlocked"
     assert event.last[:at].present?
     assert_nil event.last[:other_adapter]
   end
@@ -354,7 +354,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert events.size >= 1
     event = events.last
 
-    assert_event event, "enqueue_recurring_task", task: :example_task, enqueue_error: "All is broken"
+    assert_event event, "enqueue_recurring_task", task: "example_task", enqueue_error: "All is broken"
     assert event.last[:at].present?
     assert event.last[:other_adapter]
   ensure

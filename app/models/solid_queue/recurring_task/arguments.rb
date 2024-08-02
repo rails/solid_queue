@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require "active_job/arguments"
+
 module SolidQueue
   class RecurringTask::Arguments
     class << self
@@ -6,7 +10,7 @@ module SolidQueue
       end
 
       def dump(data)
-        ActiveSupport::JSON.dump(ActiveJob::Arguments.serialize(data)) unless data.nil?
+        ActiveSupport::JSON.dump(ActiveJob::Arguments.serialize(Array(data)))
       end
     end
   end

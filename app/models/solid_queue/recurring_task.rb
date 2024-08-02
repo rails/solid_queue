@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "fugit"
 
 module SolidQueue
@@ -6,6 +8,8 @@ module SolidQueue
 
     validate :supported_schedule
     validate :existing_job_class
+
+    scope :static, -> { where(static: true) }
 
     class << self
       def wrap(args)
@@ -51,12 +55,8 @@ module SolidQueue
       "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original} ]"
     end
 
-    def to_h
-      {
-        schedule: schedule,
-        class_name: class_name,
-        arguments: arguments
-      }
+    def attributes_for_upsert
+      attributes.without("id", "created_at", "updated_at")
     end
 
     private
@@ -71,7 +71,6 @@ module SolidQueue
           errors.add :class_name, :undefined, message: "doesn't correspond to an existing class"
         end
       end
-
 
       def using_solid_queue_adapter?
         job_class.queue_adapter_name.inquiry.solid_queue?

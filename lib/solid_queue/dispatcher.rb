@@ -4,8 +4,8 @@ module SolidQueue
   class Dispatcher < Processes::Poller
     attr_accessor :batch_size, :concurrency_maintenance, :recurring_schedule
 
-    after_boot :start_concurrency_maintenance, :load_recurring_schedule
-    before_shutdown :stop_concurrency_maintenance, :unload_recurring_schedule
+    after_boot :start_concurrency_maintenance, :schedule_recurring_tasks
+    before_shutdown :stop_concurrency_maintenance, :unschedule_recurring_tasks
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
@@ -19,7 +19,7 @@ module SolidQueue
     end
 
     def metadata
-      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.tasks.presence)
+      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.task_keys.presence)
     end
 
     private
@@ -38,16 +38,16 @@ module SolidQueue
         concurrency_maintenance&.start
       end
 
-      def load_recurring_schedule
-        recurring_schedule.load_tasks
+      def schedule_recurring_tasks
+        recurring_schedule.schedule_tasks
       end
 
       def stop_concurrency_maintenance
         concurrency_maintenance&.stop
       end
 
-      def unload_recurring_schedule
-        recurring_schedule.unload_tasks
+      def unschedule_recurring_tasks
+        recurring_schedule.unschedule_tasks
       end
 
       def all_work_completed?

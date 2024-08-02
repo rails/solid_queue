@@ -51,8 +51,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal "Dispatcher", process.kind
 
     schedule_from_metadata = process.metadata["recurring_schedule"]
-    assert_equal 1, schedule_from_metadata.size
-    assert_equal({ "class_name" => "AddToBufferJob", "schedule" => "every hour", "arguments" => [ 42 ] }, schedule_from_metadata["example_task"])
+    assert_equal [ "example_task" ], schedule_from_metadata
   ensure
     with_recurring_schedule.stop
   end
