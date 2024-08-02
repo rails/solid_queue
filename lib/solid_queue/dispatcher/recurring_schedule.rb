@@ -43,7 +43,7 @@ module SolidQueue
 
     private
       def persist_tasks
-        SolidQueue::RecurringTask.upsert_all configured_tasks.map(&:attributes_for_upsert), record_timestamps: true
+        SolidQueue::RecurringTask.create_or_update_all configured_tasks
       end
 
       def reload_tasks

@@ -19,6 +19,17 @@ module SolidQueue
       def from_configuration(key, **options)
         new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
       end
+
+      def create_or_update_all(tasks)
+        if connection.supports_insert_conflict_target?
+          # PostgreSQL fails and aborts the current transaction when it hits a duplicate key conflict
+          # during two concurrent INSERTs for the same value of an unique index. We need to explicitly
+          # indicate unique_by to ignore duplicate rows by this value when inserting
+          upsert_all tasks.map(&:attributes_for_upsert), unique_by: :key
+        else
+          upsert_all tasks.map(&:attributes_for_upsert)
+        end
+      end
     end
 
     def delay_from_now
