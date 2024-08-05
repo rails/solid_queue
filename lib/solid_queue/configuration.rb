@@ -17,38 +17,30 @@ module SolidQueue
       recurring_tasks: []
     }
 
-    def initialize(mode: :work, load_from: nil)
-      @mode = mode
+    def initialize(mode: :fork, load_from: nil)
+      @mode = mode.to_s.inquiry
       @raw_config = config_from(load_from)
     end
 
     def processes
-      case mode
-      when :dispatch then dispatchers
-      when :work     then workers
-      when :all      then dispatchers + workers
-      else           raise "Invalid mode #{mode}"
-      end
+      dispatchers + workers
     end
 
     def workers
-      if mode.in? %i[ work all]
-        workers_options.flat_map do |worker_options|
-          processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
-          processes.times.map { Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
+      workers_options.flat_map do |worker_options|
+        processes = if mode.fork?
+          worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+        else
+          WORKER_DEFAULTS[:processes]
         end
-      else
-        []
+        processes.times.map { Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
       end
     end
 
     def dispatchers
-      if mode.in? %i[ dispatch all]
-        dispatchers_options.map do |dispatcher_options|
-          recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
-
-          Dispatcher.new **dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
-        end
+      dispatchers_options.map do |dispatcher_options|
+        recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
+        Dispatcher.new **dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
       end
     end
 
@@ -68,13 +60,17 @@ module SolidQueue
       end
 
       def workers_options
-        @workers_options ||= (raw_config[:workers] || [ WORKER_DEFAULTS ])
+        @workers_options ||= options_from_raw_config(:workers, WORKER_DEFAULTS)
           .map { |options| options.dup.symbolize_keys }
       end
 
       def dispatchers_options
-        @dispatchers_options ||= (raw_config[:dispatchers] || [ DISPATCHER_DEFAULTS ])
+        @dispatchers_options ||= options_from_raw_config(:dispatchers, DISPATCHER_DEFAULTS)
           .map { |options| options.dup.symbolize_keys }
+      end
+
+      def options_from_raw_config(key, defaults)
+        raw_config.empty? ? [ defaults ] : Array(raw_config[key])
       end
 
       def parse_recurring_tasks(tasks)

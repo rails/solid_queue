@@ -7,18 +7,30 @@ module SolidQueue::Processes
     attr_writer :mode
 
     def start
-      @stopping = false
+      @stopped = false
 
       SolidQueue.instrument(:start_process, process: self) do
         run_callbacks(:boot) { boot }
       end
 
-      run
+      if running_async?
+        @thread = create_thread { run }
+      else
+        run
+      end
     end
 
     def stop
-      @stopping = true
+      @stopped = true
       @thread&.join
+    end
+
+    def name
+      @name ||= [ kind.downcase, SecureRandom.hex(6) ].join("-")
+    end
+
+    def alive?
+      !running_async? || @thread.alive?
     end
 
     private
@@ -29,22 +41,22 @@ module SolidQueue::Processes
       end
 
       def boot
-        if supervised?
+        if running_as_fork?
           register_signal_handlers
           set_procline
         end
       end
 
       def shutting_down?
-        stopping? || supervisor_went_away? || finished?
+        stopped? || (running_as_fork? && supervisor_went_away?) || finished?
       end
 
       def run
         raise NotImplementedError
       end
 
-      def stopping?
-        @stopping
+      def stopped?
+        @stopped
       end
 
       def finished?
@@ -60,6 +72,25 @@ module SolidQueue::Processes
 
       def running_inline?
         mode.inline?
+      end
+
+      def running_async?
+        mode.async?
+      end
+
+      def running_as_fork?
+        mode.fork?
+      end
+
+
+      def create_thread(&block)
+        Thread.new do
+          Thread.current.name = name
+          block.call
+        rescue Exception => exception
+          handle_thread_error(exception)
+          raise
+        end
       end
   end
 end

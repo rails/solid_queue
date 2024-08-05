@@ -7,6 +7,10 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Dispatch scheduled jobs", **event.payload.slice(:batch_size, :size))
   end
 
+  def claim(event)
+    debug formatted_event(event, action: "Claim jobs", **event.payload.slice(:process_id, :job_ids, :claimed_job_ids, :size))
+  end
+
   def release_many_claimed(event)
     debug formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
   end
@@ -43,17 +47,13 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     attributes = event.payload.slice(:task, :active_job_id, :enqueue_error)
     attributes[:at] = event.payload[:at]&.iso8601
 
-    if event.payload[:other_adapter]
-      action = attributes[:active_job_id].present? ? "Enqueued recurring task outside Solid Queue" : "Error enqueuing recurring task"
-      info formatted_event(event, action: action, **attributes)
+    if attributes[:active_job_id].nil? && event.payload[:skipped].nil?
+      error formatted_event(event, action: "Error enqueuing recurring task", **attributes)
+    elsif event.payload[:other_adapter]
+      debug formatted_event(event, action: "Enqueued recurring task outside Solid Queue", **attributes)
     else
-      action = case
-      when event.payload[:skipped].present? then "Skipped recurring task – already dispatched"
-      when attributes[:active_job_id].nil?  then "Error enqueuing recurring task"
-      else                                       "Enqueued recurring task"
-      end
-
-      info formatted_event(event, action: action, **attributes)
+      action = event.payload[:skipped].present? ? "Skipped recurring task – already dispatched" : "Enqueued recurring task"
+      debug formatted_event(event, action: action, **attributes)
     end
   end
 
@@ -62,7 +62,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     attributes = {
       pid: process.pid,
-      hostname: process.hostname
+      hostname: process.hostname,
+      process_id: process.process_id
     }.merge(process.metadata)
 
     info formatted_event(event, action: "Started #{process.kind}", **attributes)
@@ -73,15 +74,16 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     attributes = {
       pid: process.pid,
-      hostname: process.hostname
+      hostname: process.hostname,
+      process_id: process.process_id
     }.merge(process.metadata)
 
-    info formatted_event(event, action: "Shut down #{process.kind}", **attributes)
+    info formatted_event(event, action: "Shutdown #{process.kind}", **attributes)
   end
 
   def register_process(event)
     process_kind = event.payload[:kind]
-    attributes = event.payload.slice(:pid, :hostname)
+    attributes = event.payload.slice(:pid, :hostname, :process_id)
 
     if error = event.payload[:error]
       warn formatted_event(event, action: "Error registering #{process_kind}", **attributes.merge(error: formatted_error(error)))
@@ -98,7 +100,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       pid: process.pid,
       hostname: process.hostname,
       last_heartbeat_at: process.last_heartbeat_at.iso8601,
-      claimed_size: process.claimed_executions.size,
+      claimed_size: event.payload[:claimed_size],
       pruned: event.payload[:pruned]
     }
 
@@ -118,7 +120,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def graceful_termination(event)
-    attributes = event.payload.slice(:supervisor_pid, :supervised_pids)
+    attributes = event.payload.slice(:process_id, :supervisor_pid, :supervised_processes)
 
     if event.payload[:shutdown_timeout_exceeded]
       warn formatted_event(event, action: "Supervisor wasn't terminated gracefully - shutdown timeout exceeded", **attributes)
@@ -128,7 +130,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def immediate_termination(event)
-    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:supervisor_pid, :supervised_pids))
+    info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:process_id, :supervisor_pid, :supervised_processes))
   end
 
   def unhandled_signal_error(event)

@@ -15,9 +15,14 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def claiming(job_ids, process_id, &block)
       job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
 
-      insert_all!(job_data)
-      where(job_id: job_ids, process_id: process_id).load.tap do |claimed|
-        block.call(claimed)
+      SolidQueue.instrument(:claim, process_id: process_id, job_ids: job_ids) do |payload|
+        insert_all!(job_data)
+        where(job_id: job_ids, process_id: process_id).load.tap do |claimed|
+          block.call(claimed)
+
+          payload[:size] = claimed.size
+          payload[:claimed_job_ids] = claimed.map(&:job_id)
+        end
       end
     end
 

@@ -11,7 +11,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     default_worker = { queues: "default", polling_interval: 0.1, processes: 3, threads: 2 }
     dispatcher = { polling_interval: 0.1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
-    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
+    @pid = run_supervisor_as_fork(load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
 
     wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + dispatcher + supervisor
   end
@@ -169,7 +169,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "don't block claimed executions that get released" do
-    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 3.seconds)
+    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
 
     sleep(0.2)
@@ -177,7 +177,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # This won't leave time to the job to finish
     signal_process(@pid, :TERM, wait: 0.1.second)
-    sleep(SolidQueue.shutdown_timeout + 0.2.seconds)
+    sleep(SolidQueue.shutdown_timeout + 0.6.seconds)
 
     assert_not job.reload.finished?
     assert job.reload.ready?

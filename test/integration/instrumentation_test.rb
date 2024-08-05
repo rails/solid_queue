@@ -18,6 +18,25 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_event events.first, "dispatch_scheduled", batch_size: 10, size: 8
   end
 
+  test "claiming jobs emits claim events" do
+    3.times { StoreResultJob.perform_later(42) }
+    process = nil
+    jobs = SolidQueue::Job.last(3)
+
+    events = subscribed("claim.solid_queue") do
+      worker = SolidQueue::Worker.new.tap(&:start)
+
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
+      process = SolidQueue::Process.last
+
+      worker.stop
+      wait_for_registered_processes(0, timeout: 3.second)
+    end
+
+    assert_equal 1, events.size
+    assert_event events.first, "claim", process_id: process.id, job_ids: jobs.map(&:id), claimed_job_ids: jobs.map(&:id), size: 3
+  end
+
   test "stopping a worker with claimed executions emits release_claimed events" do
     StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
@@ -69,8 +88,27 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 2, events.size
     register_event, deregister_event = events
-    assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid
+    assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid, process_id: process.id
     assert_event deregister_event, "deregister_process", process: process, pruned: false, claimed_size: 1
+  end
+
+  test "starting and stopping a dispatcher emits register_process and deregister_process events" do
+    process = nil
+
+    events = subscribed(/(register|deregister)_process\.solid_queue/) do
+      dispatcher = SolidQueue::Dispatcher.new.tap(&:start)
+      wait_for_registered_processes(1, timeout: 3.second)
+
+      process = SolidQueue::Process.last
+
+      dispatcher.stop
+      wait_for_registered_processes(0, timeout: 3.second)
+    end
+
+    assert_equal 2, events.size
+    register_event, deregister_event = events
+    assert_event register_event, "register_process", kind: "Dispatcher", pid: ::Process.pid, process_id: process.id
+    assert_event deregister_event, "deregister_process", process: process, pruned: false
   end
 
   test "pruning processes emit prune_processes and deregister_process events" do

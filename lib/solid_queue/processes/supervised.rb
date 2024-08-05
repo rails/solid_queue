@@ -9,7 +9,6 @@ module SolidQueue::Processes
     end
 
     def supervised_by(process)
-      self.mode = :supervised
       @supervisor = process
     end
 
@@ -19,11 +18,11 @@ module SolidQueue::Processes
       end
 
       def supervisor_went_away?
-        supervised? && supervisor&.pid != ::Process.ppid
+        supervised? && supervisor.pid != ::Process.ppid
       end
 
       def supervised?
-        mode.supervised?
+        supervisor.present?
       end
 
       def register_signal_handlers

@@ -2,11 +2,12 @@
 
 require "test_helper"
 
-class ProcessLifecycleTest < ActiveSupport::TestCase
+class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @pid = run_supervisor_as_fork
+    config_as_hash = { workers: [ { queues: :background }, { queues: :default, threads: 5 } ], dispatchers: [] }
+    @pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
 
     wait_for_registered_processes(3, timeout: 3.second)
     assert_registered_workers_for(:background, :default)
@@ -17,6 +18,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
 
     SolidQueue::Process.destroy_all
     SolidQueue::Job.destroy_all
+    JobResult.delete_all
   end
 
   test "enqueue jobs in multiple queues" do
@@ -142,13 +144,13 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   test "process some jobs that raise errors" do
-    enqueue_store_result_job("no error", :background, 2)
-    enqueue_store_result_job("no error", :default, 2)
-    error1 = enqueue_store_result_job("error", :background, 1, exception: RuntimeError)
-    enqueue_store_result_job("no error", :background, 1, pause: 0.03)
-    error2 = enqueue_store_result_job("error", :background, 1, exception: RuntimeError, pause: 0.05)
-    enqueue_store_result_job("no error", :default, 2, pause: 0.01)
-    error3 = enqueue_store_result_job("error", :default, 1, exception: RuntimeError)
+    2.times { enqueue_store_result_job("no error", :background) }
+    2.times { enqueue_store_result_job("no error", :default) }
+    error1 = enqueue_store_result_job("error", :background, exception: RuntimeError)
+    enqueue_store_result_job("no error", :background, pause: 0.03)
+    error2 = enqueue_store_result_job("error", :background, exception: RuntimeError, pause: 0.05)
+    2.times { enqueue_store_result_job("no error", :default, pause: 0.01) }
+    error3 = enqueue_store_result_job("error", :default, exception: RuntimeError)
 
     wait_for_jobs_to_finish_for(0.5.seconds)
 
@@ -165,12 +167,15 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
   end
 
   test "process a job that exits" do
-    enqueue_store_result_job("no exit", :background, 2)
-    enqueue_store_result_job("no exit", :default, 2)
-    enqueue_store_result_job("paused no exit", :default, 1, pause: 0.5)
-    exit_job = enqueue_store_result_job("exit", :background, 1, exit: true, pause: 0.2)
-    pause_job = enqueue_store_result_job("exit", :background, 1, pause: 0.3)
-    enqueue_store_result_job("no exit", :background, 2)
+    2.times do
+      enqueue_store_result_job("no exit", :background)
+      enqueue_store_result_job("no exit", :default)
+    end
+    enqueue_store_result_job("paused no exit", :default, pause: 0.5)
+    exit_job = enqueue_store_result_job("exit", :background, exit: true, pause: 0.2)
+    pause_job = enqueue_store_result_job("exit", :background, pause: 0.3)
+
+    2.times { enqueue_store_result_job("no exit", :background) }
 
     wait_for_jobs_to_finish_for(5.seconds)
 
@@ -190,6 +195,72 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     assert_clean_termination
   end
 
+  test "terminate worker individually" do
+    enqueue_store_result_job("pause", pause: 0.5.seconds)
+    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
+
+    worker = find_processes_registered_as("Worker").first
+
+    signal_process(worker.pid, :TERM, wait: 0.1.second)
+
+    # Worker is gone
+    wait_for_registered_processes(2, timeout: 3.second)
+    assert_nil SolidQueue::Process.find_by(id: worker.id)
+
+    # Jobs were completed
+    assert_completed_job_results("pause", :background)
+    assert_completed_job_results("pause", :default)
+
+    # And there's a new worker that has been registered for that queue:
+    wait_for_registered_processes(3, timeout: 3.second)
+    assert_registered_workers_for(:background, :default)
+
+    # And they can process jobs just fine
+    enqueue_store_result_job("no_pause")
+    enqueue_store_result_job("no_pause", :default)
+    wait_for_jobs_to_finish_for(0.2.seconds)
+
+    assert_completed_job_results("no_pause", :background)
+    assert_completed_job_results("no_pause", :default)
+
+    terminate_process(@pid)
+    assert_clean_termination
+  end
+
+  test "kill worker individually" do
+    killed_pause = enqueue_store_result_job("killed_pause", pause: 1.seconds)
+    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
+
+    worker = find_processes_registered_as("Worker").detect { |process| process.metadata["queues"].include? "background" }
+
+    signal_process(worker.pid, :KILL, wait: 0.3.second)
+
+    # Worker didn't have time to clean up or finish the work
+    sleep(0.7.second)
+    assert SolidQueue::Process.exists?(id: worker.id)
+
+    # And there's a new worker that has been registered for the background queue
+    wait_for_registered_processes(4, timeout: 3.second)
+
+    # The job in the background queue was left claimed as the worker couldn't
+    # finish orderly
+    assert_started_job_result("killed_pause")
+    assert_job_status(killed_pause, :claimed)
+    # The other one could finish
+    assert_completed_job_results("pause", :default)
+
+    # The two current workers can process jobs just fine
+    enqueue_store_result_job("no_pause")
+    enqueue_store_result_job("no_pause", :default)
+    wait_for_jobs_to_finish_for(0.5.seconds)
+
+    assert_completed_job_results("no_pause", :background)
+    assert_completed_job_results("no_pause", :default)
+
+    terminate_process(@pid)
+    assert_clean_termination
+  end
+
   private
     def assert_clean_termination
       wait_for_registered_processes 0, timeout: 0.2.second
@@ -206,7 +277,7 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_supervisor
-      processes = find_processes_registered_as("Supervisor")
+      processes = find_processes_registered_as("Supervisor(fork)")
       assert_equal 1, processes.count
       assert_equal @pid, processes.first.pid
     end
@@ -215,10 +286,8 @@ class ProcessLifecycleTest < ActiveSupport::TestCase
       assert_empty find_processes_registered_as("Worker").to_a
     end
 
-    def enqueue_store_result_job(value, queue_name = :background, count = 1, **options)
-      count.times.collect { StoreResultJob.set(queue: queue_name).perform_later(value, **options) }.then do |jobs|
-        jobs.one? ? jobs.first : jobs
-      end
+    def enqueue_store_result_job(value, queue_name = :background, **options)
+      StoreResultJob.set(queue: queue_name).perform_later(value, **options)
     end
 
     def assert_completed_job_results(value, queue_name = :background, count = 1)

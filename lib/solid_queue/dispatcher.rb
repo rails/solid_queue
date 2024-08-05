@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Dispatcher < Processes::Base
-    include Processes::Poller
-
+  class Dispatcher < Processes::Poller
     attr_accessor :batch_size, :concurrency_maintenance, :recurring_schedule
 
     after_boot :start_concurrency_maintenance, :load_recurring_schedule
@@ -13,10 +11,11 @@ module SolidQueue
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
 
       @batch_size = options[:batch_size]
-      @polling_interval = options[:polling_interval]
 
       @concurrency_maintenance = ConcurrencyMaintenance.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_maintenance]
       @recurring_schedule = RecurringSchedule.new(options[:recurring_tasks])
+
+      super(**options)
     end
 
     def metadata

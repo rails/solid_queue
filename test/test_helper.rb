@@ -47,7 +47,7 @@ class ActiveSupport::TestCase
 
     def run_supervisor_as_fork(**options)
       fork do
-        SolidQueue::Supervisor.start(**options)
+        SolidQueue::Supervisor.start(mode: :fork, **options)
       end
     end
 

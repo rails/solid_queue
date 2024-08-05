@@ -31,7 +31,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
     time = Time.now
     instrument "enqueue_recurring_task.solid_queue", task: :example_task, active_job_id: "b944ddbc-6a37-43c0-b661-4b56e57195f5", at: time
 
-    assert_match_logged :info, "Enqueued recurring task", "task: :example_task, active_job_id: \"b944ddbc-6a37-43c0-b661-4b56e57195f5\", at: \"#{time.iso8601}\""
+    assert_match_logged :debug, "Enqueued recurring task", "task: :example_task, active_job_id: \"b944ddbc-6a37-43c0-b661-4b56e57195f5\", at: \"#{time.iso8601}\""
   end
 
   test "recurring task skipped" do
@@ -39,7 +39,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
     time = Time.now
     instrument "enqueue_recurring_task.solid_queue", task: :example_task, skipped: true, at: time
 
-    assert_match_logged :info, "Skipped recurring task – already dispatched", "task: :example_task, at: \"#{time.iso8601}\""
+    assert_match_logged :debug, "Skipped recurring task – already dispatched", "task: :example_task, at: \"#{time.iso8601}\""
   end
 
   test "error enqueuing recurring task" do
@@ -47,7 +47,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
     time = Time.now
     instrument "enqueue_recurring_task.solid_queue", task: :example_task, enqueue_error: "Everything is broken", at: time
 
-    assert_match_logged :info, "Error enqueuing recurring task", "task: :example_task, enqueue_error: \"Everything is broken\", at: \"#{time.iso8601}\""
+    assert_match_logged :error, "Error enqueuing recurring task", "task: :example_task, enqueue_error: \"Everything is broken\", at: \"#{time.iso8601}\""
   end
 
   test "deregister process" do
@@ -55,7 +55,7 @@ class LogSubscriberTest < ActiveSupport::TestCase
     last_heartbeat_at = process.last_heartbeat_at.iso8601
 
     attach_log_subscriber
-    instrument "deregister_process.solid_queue", process: process, pruned: false
+    instrument "deregister_process.solid_queue", process: process, pruned: false, claimed_size: 0
 
     assert_match_logged :info, "Deregister Worker", "process_id: #{process.id}, pid: 42, hostname: \"localhost\", last_heartbeat_at: \"#{last_heartbeat_at}\", claimed_size: 0, pruned: false"
   end

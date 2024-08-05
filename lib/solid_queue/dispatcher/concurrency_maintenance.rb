@@ -25,7 +25,7 @@ module SolidQueue
     end
 
     def stop
-      @concurrency_maintenance_task.shutdown
+      @concurrency_maintenance_task&.shutdown
     end
 
     private

@@ -11,12 +11,16 @@ module SolidQueue::Processes
       after_shutdown :deregister
     end
 
+    def process_id
+      process&.id
+    end
+
     private
       attr_accessor :process
 
       def register
         @process = SolidQueue::Process.register \
-          kind: self.class.name.demodulize,
+          kind: kind,
           pid: pid,
           hostname: hostname,
           supervisor: try(:supervisor),
@@ -34,6 +38,10 @@ module SolidQueue::Processes
       def launch_heartbeat
         @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
           wrap_in_app_executor { heartbeat }
+        end
+
+        @heartbeat_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
         end
 
         @heartbeat_task.execute
