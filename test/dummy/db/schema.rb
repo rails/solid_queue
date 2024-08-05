@@ -104,9 +104,13 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_19_134516) do
   create_table "solid_queue_recurring_tasks", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "key", null: false
     t.string "schedule", null: false
-    t.string "class_name", null: false
+    t.string "command", limit: 2048
+    t.string "class_name"
     t.text "arguments"
+    t.string "queue_name"
+    t.integer "priority", default: 0
     t.boolean "static", default: true
+    t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_solid_queue_recurring_tasks_on_key", unique: true
