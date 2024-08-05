@@ -17,6 +17,17 @@ module SolidQueue
       def signal_all(jobs)
         Proxy.signal_all(jobs)
       end
+
+      # Requires a unique index on key
+      def create_unique_by(attributes)
+        if connection.supports_insert_conflict_target?
+          insert({ **attributes }, unique_by: :key).any?
+        else
+          create!(**attributes)
+        end
+      rescue ActiveRecord::RecordNotUnique
+        false
+      end
     end
 
     class Proxy
@@ -44,35 +55,22 @@ module SolidQueue
 
         attr_accessor :job
 
-        def attempt_creation_with_insert_on_conflict
-          results = Semaphore.insert({ key: key, value: limit - 1, expires_at: expires_at }, unique_by: :key)
-
-          if results.length.zero?
-            limit == 1 ? false : attempt_decrement
-          else
+        def attempt_creation
+          if Semaphore.create_unique_by(key: key, value: limit - 1, expires_at: expires_at)
             true
+          else
+            check_limit_or_decrement
           end
         end
 
-        def attempt_creation_with_create_and_exception_handling
-          Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
-          true
-        rescue ActiveRecord::RecordNotUnique
-          limit == 1 ? false : attempt_decrement
-        end
-
-        if ActiveRecord::Base.connection.adapter_name == "PostgreSQL"
-          alias attempt_creation attempt_creation_with_insert_on_conflict
-        else
-          alias attempt_creation attempt_creation_with_create_and_exception_handling
-        end
+        def check_limit_or_decrement = limit == 1 ? false : attempt_decrement
 
         def attempt_decrement
-          Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
+          Semaphore.available.where(key: key).update_all(["value = value - 1, expires_at = ?", expires_at]) > 0
         end
 
         def attempt_increment
-          Semaphore.where(key: key, value: ...limit).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
+          Semaphore.where(key: key, value: ...limit).update_all(["value = value + 1, expires_at = ?", expires_at]) > 0
         end
 
         def key
