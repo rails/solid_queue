@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
 
   spec.post_install_message = <<~MESSAGE
     Upgrading to Solid Queue 0.4.x? There are some breaking changes about how Solid Queue is started. Check
-    https://github.com/rails/solid_cache/blob/main/UPGRADING.md for upgrade instructions.
+    https://github.com/rails/solid_queue/blob/main/UPGRADING.md for upgrade instructions.
   MESSAGE
 
   spec.metadata["homepage_uri"] = spec.homepage
