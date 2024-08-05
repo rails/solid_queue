@@ -66,11 +66,11 @@ module SolidQueue
         def check_limit_or_decrement = limit == 1 ? false : attempt_decrement
 
         def attempt_decrement
-          Semaphore.available.where(key: key).update_all(["value = value - 1, expires_at = ?", expires_at]) > 0
+          Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
         end
 
         def attempt_increment
-          Semaphore.where(key: key, value: ...limit).update_all(["value = value + 1, expires_at = ?", expires_at]) > 0
+          Semaphore.where(key: key, value: ...limit).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
         end
 
         def key

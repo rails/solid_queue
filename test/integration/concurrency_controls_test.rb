@@ -83,7 +83,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # C would have started in the beginning, seeing the status empty, and would finish after
     # all other jobs, so it'll do the last update with only itself
-    assert_stored_sequence(@result, ["C"])
+    assert_stored_sequence(@result, [ "C" ])
   end
 
   test "run several jobs over the same record sequentially, with some of them failing" do
@@ -99,7 +99,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(3.seconds)
     assert_equal 3, SolidQueue::FailedExecution.count
 
-    assert_stored_sequence @result, ["B", "D", "F"] + ("G".."K").to_a
+    assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
   end
 
   test "rely on dispatcher to unblock blocked executions with an available semaphore" do
@@ -133,7 +133,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
-    assert_stored_sequence @result, ("A".."K").to_a, ["A", "C", "B"] + ("D".."K").to_a
+    assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
   end
 
   test "rely on dispatcher to unblock blocked executions with an expired semaphore" do
@@ -165,7 +165,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
-    assert_stored_sequence @result, ("A".."K").to_a, ["A", "C", "B"] + ("D".."K").to_a
+    assert_stored_sequence @result, ("A".."K").to_a, [ "A", "C", "B" ] + ("D".."K").to_a
   end
 
   test "don't block claimed executions that get released" do
