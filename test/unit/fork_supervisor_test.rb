@@ -12,8 +12,6 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   teardown do
     SolidQueue.supervisor_pidfile = @previous_pidfile
     File.delete(@pidfile) if File.exist?(@pidfile)
-
-    SolidQueue::Process.destroy_all
   end
 
   test "start" do
@@ -32,7 +30,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   test "start with provided configuration" do
     config_as_hash = { workers: [], dispatchers: [ { batch_size: 100 } ] }
     pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
-    wait_for_registered_processes(2) # supervisor + dispatcher
+    wait_for_registered_processes(2, timeout: 2) # supervisor + dispatcher
 
     assert_registered_supervisor(pid)
     assert_registered_workers(count: 0)

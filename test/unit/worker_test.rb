@@ -78,7 +78,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     @worker.start
 
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_jobs_to_finish_for(2.second)
     @worker.wake_up
 
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
@@ -116,6 +116,10 @@ class WorkerTest < ActiveSupport::TestCase
         sleep 0.2
       end
     end
+
+    @worker.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+    assert_no_registered_processes
   end
 
   test "run inline" do

@@ -52,7 +52,6 @@ module SolidQueue
       end
 
       private
-
         attr_accessor :job
 
         def attempt_creation
@@ -63,7 +62,9 @@ module SolidQueue
           end
         end
 
-        def check_limit_or_decrement = limit == 1 ? false : attempt_decrement
+        def check_limit_or_decrement
+          limit == 1 ? false : attempt_decrement
+        end
 
         def attempt_decrement
           Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0

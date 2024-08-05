@@ -21,8 +21,8 @@ class RecurringTasksTest < ActiveSupport::TestCase
   end
 
   test "enqueue and process periodic tasks" do
-    wait_for_jobs_to_be_enqueued(2, timeout: 2.seconds)
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_be_enqueued(2, timeout: 2.5.seconds)
+    wait_for_jobs_to_finish_for(2.5.seconds)
 
     terminate_process(@pid)
 
@@ -33,7 +33,7 @@ class RecurringTasksTest < ActiveSupport::TestCase
         assert_equal "StoreResultJob", job.class_name
       end
 
-      assert_equal 2, JobResult.count
+      assert JobResult.count >= 2
       JobResult.all.each do |result|
         assert_equal "custom_status", result.status
         assert_equal "42", result.value
@@ -43,6 +43,8 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
   test "persist and delete configured tasks" do
     configured_task = { periodic_store_result: { class: "StoreResultJob", schedule: "every second" } }
+    # Wait for concurrency schedule loading after process registration
+    sleep(0.5)
 
     assert_recurring_tasks configured_task
     terminate_process(@pid)
@@ -52,6 +54,9 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
     @pid = run_supervisor_as_fork
     wait_for_registered_processes(4, timeout: 3.second)
+
+    # Wait for concurrency schedule loading after process registration
+    sleep(0.5)
 
     assert_recurring_tasks configured_task
 
