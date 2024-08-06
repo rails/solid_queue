@@ -33,8 +33,6 @@ module SolidQueue
     def unschedule_tasks
       scheduled_tasks.values.each(&:cancel)
       scheduled_tasks.clear
-
-      wrap_in_app_executor { delete_tasks }
     end
 
     def task_keys
@@ -48,10 +46,6 @@ module SolidQueue
 
       def reload_tasks
         @configured_tasks = SolidQueue::RecurringTask.where(key: task_keys)
-      end
-
-      def delete_tasks
-        SolidQueue::RecurringTask.static.delete_all
       end
 
       def schedule(task)

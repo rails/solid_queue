@@ -48,9 +48,9 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
     assert_recurring_tasks configured_task
     terminate_process(@pid)
-    assert_recurring_tasks []
 
-    SolidQueue::RecurringTask.create!(key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every minute", arguments: [ 42 ])
+    task = SolidQueue::RecurringTask.find_by(key: "periodic_store_result")
+    task.update!(class_name: "StoreResultJob", schedule: "every minute", arguments: [ 42 ])
 
     @pid = run_supervisor_as_fork
     wait_for_registered_processes(4, timeout: 3.second)
@@ -75,8 +75,6 @@ class RecurringTasksTest < ActiveSupport::TestCase
     terminate_process(@pid)
     dispatcher1.stop
     dispatcher2.stop
-
-    assert_recurring_tasks []
   end
 
   private
