@@ -183,7 +183,22 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert job.reload.ready?
   end
 
+  test "verify transactions remain valid after Job creation conflicts via limits_concurrency" do
+    ActiveRecord::Base.transaction do
+      SequentialUpdateResultJob.perform_later(@result, name: "A", pause: 0.2.seconds)
+      SequentialUpdateResultJob.perform_later(@result, name: "B")
+
+      begin
+        assert_equal 2, SolidQueue::Job.count
+        assert true, "Transaction state valid"
+      rescue ActiveRecord::StatementInvalid
+        assert false, "Transaction state unexpectedly invalid"
+      end
+    end
+  end
+
   private
+
     def assert_stored_sequence(result, *sequences)
       expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }
       skip_active_record_query_cache do

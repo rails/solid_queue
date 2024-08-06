@@ -17,6 +17,17 @@ module SolidQueue
       def signal_all(jobs)
         Proxy.signal_all(jobs)
       end
+
+      # Requires a unique index on key
+      def create_unique_by(attributes)
+        if connection.supports_insert_conflict_target?
+          insert({ **attributes }, unique_by: :key).any?
+        else
+          create!(**attributes)
+        end
+      rescue ActiveRecord::RecordNotUnique
+        false
+      end
     end
 
     class Proxy
@@ -41,17 +52,18 @@ module SolidQueue
       end
 
       private
+
         attr_accessor :job
 
         def attempt_creation
-          Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
-          true
-        rescue ActiveRecord::RecordNotUnique
-          if limit == 1 then false
+          if Semaphore.create_unique_by(key: key, value: limit - 1, expires_at: expires_at)
+            true
           else
-            attempt_decrement
+            check_limit_or_decrement
           end
         end
+
+        def check_limit_or_decrement = limit == 1 ? false : attempt_decrement
 
         def attempt_decrement
           Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
