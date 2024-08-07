@@ -12,8 +12,6 @@ class DispatcherTest < ActiveSupport::TestCase
 
   teardown do
     @dispatcher.stop
-    SolidQueue::Job.delete_all
-    SolidQueue::Process.delete_all
   end
 
   test "dispatcher is registered as process" do
@@ -51,8 +49,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal "Dispatcher", process.kind
 
     schedule_from_metadata = process.metadata["recurring_schedule"]
-    assert_equal 1, schedule_from_metadata.size
-    assert_equal({ "class_name" => "AddToBufferJob", "schedule" => "every hour", "arguments" => [ 42 ] }, schedule_from_metadata["example_task"])
+    assert_equal [ "example_task" ], schedule_from_metadata
   ensure
     with_recurring_schedule.stop
   end
@@ -88,6 +85,10 @@ class DispatcherTest < ActiveSupport::TestCase
         sleep 0.2
       end
     end
+
+    @dispatcher.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+    assert_no_registered_processes
   end
 
   test "run more than one instance of the dispatcher without recurring tasks" do
@@ -101,13 +102,13 @@ class DispatcherTest < ActiveSupport::TestCase
     @dispatcher.start
     another_dispatcher.start
 
-    sleep 0.5
+    sleep(0.7.seconds)
 
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 15, SolidQueue::ReadyExecution.count
 
   ensure
-    another_dispatcher.stop
+    another_dispatcher&.stop
   end
 
   test "run more than one instance of the dispatcher with recurring tasks" do

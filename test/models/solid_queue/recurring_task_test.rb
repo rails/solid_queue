@@ -1,6 +1,6 @@
 require "test_helper"
 
-class RecurringTaskTest < ActiveSupport::TestCase
+class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
   class JobWithoutArguments < ApplicationJob
     def perform
       JobBuffer.add "job_without_arguments"
@@ -114,6 +114,16 @@ class RecurringTaskTest < ActiveSupport::TestCase
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every second")
     assert task.valid?
     assert task.to_s.ends_with? "[ * * * * * * ]"
+
+    # Empty schedule
+    assert_not SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::JobWithoutArguments").valid?
+  end
+
+  test "undefined job class" do
+    assert_not recurring_task_with(class_name: "UnknownJob").valid?
+
+    # Empty class name
+    assert_not SolidQueue::RecurringTask.new(key: "task-id", schedule: "every minute").valid?
   end
 
   private
@@ -130,6 +140,6 @@ class RecurringTaskTest < ActiveSupport::TestCase
     end
 
     def recurring_task_with(class_name:, schedule: "every hour", args: nil)
-      SolidQueue::Dispatcher::RecurringTask.from_configuration("task-id", class: "RecurringTaskTest::#{class_name}", schedule: schedule, args: args)
+      SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, arguments: args)
     end
 end

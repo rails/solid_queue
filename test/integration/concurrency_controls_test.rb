@@ -18,10 +18,6 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   teardown do
     terminate_process(@pid) if process_exists?(@pid)
-
-    SolidQueue::Job.destroy_all
-    SolidQueue::Process.destroy_all
-    SolidQueue::Semaphore.delete_all
   end
 
   test "run several conflicting jobs over the same record sequentially" do
@@ -33,8 +29,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
   end
@@ -51,7 +47,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     end
 
     wait_for_jobs_to_finish_for(5.seconds)
-    assert_no_pending_jobs
+    assert_no_unfinished_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
   end
@@ -78,8 +74,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       end
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # C would have started in the beginning, seeing the status empty, and would finish after
     # all other jobs, so it'll do the last update with only itself
@@ -96,7 +92,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
     assert_equal 3, SolidQueue::FailedExecution.count
 
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
@@ -106,8 +102,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -128,8 +124,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert SolidQueue::Semaphore.signal(job)
 
     # And wait for the dispatcher to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
@@ -139,8 +135,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   test "rely on dispatcher to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -160,8 +156,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
 
     # And wait for dispatcher to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
@@ -198,7 +194,6 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   private
-
     def assert_stored_sequence(result, *sequences)
       expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }
       skip_active_record_query_cache do

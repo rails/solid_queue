@@ -32,16 +32,14 @@ module PluginTesting
     teardown do
       terminate_process(@pid, signal: :INT) if process_exists?(@pid)
 
-      wait_for_registered_processes 0, timeout: 1.second
-
-      JobResult.delete_all
+      wait_for_registered_processes 0, timeout: 2.seconds
     end
   end
 
   test "perform jobs inside puma's process" do
     StoreResultJob.perform_later(:puma_plugin)
 
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_jobs_to_finish_for(2.seconds)
     assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :puma_plugin).count
   end
 

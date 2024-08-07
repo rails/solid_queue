@@ -32,14 +32,24 @@ class ActiveSupport::TestCase
     if SolidQueue.supervisor_pidfile && File.exist?(SolidQueue.supervisor_pidfile)
       File.delete(SolidQueue.supervisor_pidfile)
     end
+
+    unless self.class.use_transactional_tests
+      SolidQueue::Job.destroy_all
+      SolidQueue::Process.destroy_all
+      SolidQueue::Semaphore.delete_all
+      SolidQueue::RecurringTask.delete_all
+      JobResult.delete_all
+    end
   end
 
   private
-    def wait_for_jobs_to_finish_for(timeout = 1.second)
-      wait_while_with_timeout(timeout) { SolidQueue::Job.where(finished_at: nil).any? }
+    def wait_for_jobs_to_finish_for(timeout = 1.second, except: [])
+      wait_while_with_timeout(timeout) do
+        SolidQueue::Job.where.not(active_job_id: Array(except).map(&:job_id)).where(finished_at: nil).any?
+      end
     end
 
-    def assert_no_pending_jobs
+    def assert_no_unfinished_jobs
       skip_active_record_query_cache do
         assert SolidQueue::Job.where(finished_at: nil).none?
       end

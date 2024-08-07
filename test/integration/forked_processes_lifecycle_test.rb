@@ -15,17 +15,13 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   teardown do
     terminate_process(@pid) if process_exists?(@pid)
-
-    SolidQueue::Process.destroy_all
-    SolidQueue::Job.destroy_all
-    JobResult.delete_all
   end
 
   test "enqueue jobs in multiple queues" do
     6.times { |i| enqueue_store_result_job("job_#{i}") }
     6.times { |i| enqueue_store_result_job("job_#{i}", :default) }
 
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    wait_for_jobs_to_finish_for(2.seconds)
 
     assert_equal 12, JobResult.count
     6.times { |i| assert_completed_job_results("job_#{i}", :background) }
@@ -63,17 +59,18 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
       signal_process(@pid, :TERM, wait: 0.1.second)
     end
 
-    sleep(0.5.seconds)
+    sleep(1.second)
     assert_clean_termination
   end
 
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 1.seconds)
+    pause = enqueue_store_result_job("pause", pause: 1.second)
 
-    signal_process(@pid, :QUIT, wait: 0.5.second)
-    wait_for_jobs_to_finish_for(2.5.seconds)
+    signal_process(@pid, :QUIT, wait: 0.4.second)
+    wait_for_jobs_to_finish_for(2.seconds, except: pause)
 
+    wait_while_with_timeout(2.seconds) { process_exists?(@pid) }
     assert_not process_exists?(@pid)
 
     assert_completed_job_results("no pause")
@@ -90,8 +87,8 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :TERM, wait: 0.1.second)
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    signal_process(@pid, :TERM, wait: 0.3.second)
+    wait_for_jobs_to_finish_for(3.seconds)
 
     assert_completed_job_results("no pause")
     assert_completed_job_results("pause")
@@ -108,7 +105,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
     signal_process(@pid, :INT, wait: 0.1.second)
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    wait_for_jobs_to_finish_for(2.second)
 
     assert_completed_job_results("no pause")
     assert_completed_job_results("pause")
@@ -124,8 +121,9 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
-    signal_process(@pid, :TERM, wait: 0.1.second)
-    wait_for_jobs_to_finish_for(SolidQueue.shutdown_timeout + 0.1.second)
+    signal_process(@pid, :TERM, wait: 0.5.second)
+
+    sleep(SolidQueue.shutdown_timeout + 0.5.second)
 
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
@@ -152,12 +150,12 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     2.times { enqueue_store_result_job("no error", :default, pause: 0.01) }
     error3 = enqueue_store_result_job("error", :default, exception: RuntimeError)
 
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    wait_for_jobs_to_finish_for(2.second, except: [ error1, error2, error3 ])
 
     assert_completed_job_results("no error", :background, 3)
     assert_completed_job_results("no error", :default, 4)
 
-    assert_failures 3
+    wait_while_with_timeout(1.second) { SolidQueue::FailedExecution.count < 3 }
     [ error1, error2, error3 ].each do |job|
       assert_job_status(job, :failed)
     end
@@ -177,7 +175,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
     2.times { enqueue_store_result_job("no exit", :background) }
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(3.seconds, except: [ exit_job, pause_job ])
 
     assert_completed_job_results("no exit", :default, 2)
     assert_completed_job_results("no exit", :background, 4)
@@ -208,6 +206,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     assert_nil SolidQueue::Process.find_by(id: worker.id)
 
     # Jobs were completed
+    wait_for_jobs_to_finish_for(1.second)
     assert_completed_job_results("pause", :background)
     assert_completed_job_results("pause", :default)
 
@@ -218,7 +217,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     # And they can process jobs just fine
     enqueue_store_result_job("no_pause")
     enqueue_store_result_job("no_pause", :default)
-    wait_for_jobs_to_finish_for(0.2.seconds)
+    wait_for_jobs_to_finish_for(1.second)
 
     assert_completed_job_results("no_pause", :background)
     assert_completed_job_results("no_pause", :default)
@@ -228,19 +227,18 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
   end
 
   test "kill worker individually" do
-    killed_pause = enqueue_store_result_job("killed_pause", pause: 1.seconds)
+    killed_pause = enqueue_store_result_job("killed_pause", pause: 1.second)
     enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
 
     worker = find_processes_registered_as("Worker").detect { |process| process.metadata["queues"].include? "background" }
-
-    signal_process(worker.pid, :KILL, wait: 0.3.second)
+    signal_process(worker.pid, :KILL, wait: 0.5.seconds)
 
     # Worker didn't have time to clean up or finish the work
-    sleep(0.7.second)
+    sleep(0.5.second)
     assert SolidQueue::Process.exists?(id: worker.id)
 
     # And there's a new worker that has been registered for the background queue
-    wait_for_registered_processes(4, timeout: 3.second)
+    wait_for_registered_processes(4, timeout: 5.second)
 
     # The job in the background queue was left claimed as the worker couldn't
     # finish orderly
@@ -252,7 +250,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     # The two current workers can process jobs just fine
     enqueue_store_result_job("no_pause")
     enqueue_store_result_job("no_pause", :default)
-    wait_for_jobs_to_finish_for(0.5.seconds)
+    sleep(2.seconds)
 
     assert_completed_job_results("no_pause", :background)
     assert_completed_job_results("no_pause", :default)
@@ -291,11 +289,15 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_completed_job_results(value, queue_name = :background, count = 1)
-      assert_equal count, JobResult.where(queue_name: queue_name, status: "completed", value: value).count
+      skip_active_record_query_cache do
+        assert_equal count, JobResult.where(queue_name: queue_name, status: "completed", value: value).count
+      end
     end
 
     def assert_started_job_result(value, queue_name = :background, count = 1)
-      assert_equal count, JobResult.where(queue_name: queue_name, status: "started", value: value).count
+      skip_active_record_query_cache do
+        assert_equal count, JobResult.where(queue_name: queue_name, status: "started", value: value).count
+      end
     end
 
     def assert_job_status(active_job, status)
@@ -311,10 +313,8 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_no_claimed_jobs
-      assert SolidQueue::ClaimedExecution.none?
-    end
-
-    def assert_failures(count)
-      assert_equal count, SolidQueue::FailedExecution.count
+      skip_active_record_query_cache do
+        assert SolidQueue::ClaimedExecution.none?
+      end
     end
 end

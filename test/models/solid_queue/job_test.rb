@@ -3,11 +3,6 @@ require "test_helper"
 class SolidQueue::JobTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
-  teardown do
-    SolidQueue::Job.destroy_all
-    JobResult.delete_all
-  end
-
   class NonOverlappingJob < ApplicationJob
     limits_concurrency key: ->(job_result, **) { job_result }
 

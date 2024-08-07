@@ -1,24 +1,35 @@
+# frozen_string_literal: true
+
 require "fugit"
 
 module SolidQueue
-  class Dispatcher::RecurringTask
+  class RecurringTask < Record
+    serialize :arguments, coder: Arguments, default: []
+
+    validate :supported_schedule
+    validate :existing_job_class
+
+    scope :static, -> { where(static: true) }
+
     class << self
       def wrap(args)
         args.is_a?(self) ? args : from_configuration(args.first, **args.second)
       end
 
       def from_configuration(key, **options)
-        new(key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
+        new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
       end
-    end
 
-    attr_reader :key, :schedule, :class_name, :arguments
-
-    def initialize(key, class_name:, schedule:, arguments: nil)
-      @key = key
-      @class_name = class_name
-      @schedule = schedule
-      @arguments = Array(arguments)
+      def create_or_update_all(tasks)
+        if connection.supports_insert_conflict_target?
+          # PostgreSQL fails and aborts the current transaction when it hits a duplicate key conflict
+          # during two concurrent INSERTs for the same value of an unique index. We need to explicitly
+          # indicate unique_by to ignore duplicate rows by this value when inserting
+          upsert_all tasks.map(&:attributes_for_upsert), unique_by: :key
+        else
+          upsert_all tasks.map(&:attributes_for_upsert)
+        end
+      end
     end
 
     def delay_from_now
@@ -51,23 +62,27 @@ module SolidQueue
       end
     end
 
-    def valid?
-      parsed_schedule.instance_of?(Fugit::Cron)
-    end
-
     def to_s
       "#{class_name}.perform_later(#{arguments.map(&:inspect).join(",")}) [ #{parsed_schedule.original} ]"
     end
 
-    def to_h
-      {
-        schedule: schedule,
-        class_name: class_name,
-        arguments: arguments
-      }
+    def attributes_for_upsert
+      attributes.without("id", "created_at", "updated_at")
     end
 
     private
+      def supported_schedule
+        unless parsed_schedule.instance_of?(Fugit::Cron)
+          errors.add :schedule, :unsupported, message: "is not a supported recurring schedule"
+        end
+      end
+
+      def existing_job_class
+        unless job_class.present?
+          errors.add :class_name, :undefined, message: "doesn't correspond to an existing class"
+        end
+      end
+
       def using_solid_queue_adapter?
         job_class.queue_adapter_name.inquiry.solid_queue?
       end
@@ -88,12 +103,13 @@ module SolidQueue
         end
       end
 
+
       def parsed_schedule
         @parsed_schedule ||= Fugit.parse(schedule)
       end
 
       def job_class
-        @job_class ||= class_name.safe_constantize
+        @job_class ||= class_name&.safe_constantize
       end
   end
 end
