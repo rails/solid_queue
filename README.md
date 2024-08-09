@@ -298,6 +298,18 @@ failed_execution.discard # This will delete the job from the system
 
 However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
+## Batch jobs
+
+```rb
+SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) do
+  5.times.map { |i| SleepyJob.perform_later(i) }
+end
+
+SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) do
+  5.times.map { |i| SleepyJob.perform_later(i) }
+end
+```
+
 ## Puma plugin
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
 ```ruby
