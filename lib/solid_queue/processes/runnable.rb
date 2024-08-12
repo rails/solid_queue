@@ -25,10 +25,6 @@ module SolidQueue::Processes
       @thread&.join
     end
 
-    def name
-      @name ||= [ kind.downcase, SecureRandom.hex(6) ].join("-")
-    end
-
     def alive?
       !running_async? || @thread.alive?
     end

@@ -113,7 +113,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
   test "pruning processes emit prune_processes and deregister_process events" do
     time = Time.now
-    processes = 3.times.collect { |i| SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10 + i, hostname: "localhost", last_heartbeat_at: time) }
+    processes = 3.times.collect { |i| SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10 + i, hostname: "localhost", last_heartbeat_at: time, name: "worker-123#{i}") }
 
     # Heartbeats will expire
     travel_to 3.days.from_now

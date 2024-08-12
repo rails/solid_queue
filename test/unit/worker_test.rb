@@ -19,7 +19,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Worker", process.kind
-    assert_equal({ "queues" => "background", "polling_interval" => 0.2, "thread_pool_size" => 3 }, process.metadata)
+    assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3 }
   end
 
   test "errors on polling are passed to on_thread_error and re-raised" do
@@ -146,5 +146,11 @@ class WorkerTest < ActiveSupport::TestCase
       yield
     ensure
       ActiveRecord::Base.logger = old_logger
+    end
+
+    def assert_metadata(process, metadata)
+      metadata.each do |attr, value|
+        assert_equal value, process.metadata[attr.to_s]
+      end
     end
 end

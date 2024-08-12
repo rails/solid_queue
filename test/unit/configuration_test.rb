@@ -6,20 +6,16 @@ class ConfigurationTest < ActiveSupport::TestCase
       SolidQueue::Configuration.new
     end
 
-    assert_equal 2, configuration.processes.count
-
-    assert_equal 1, configuration.workers.count
-    assert_equal 1, configuration.dispatchers.count
-
-    assert_equal [ "*" ], configuration.workers.first.queues
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size], configuration.dispatchers.first.batch_size
+    assert_equal 2, configuration.configured_processes.count
+    assert_processes configuration, :worker, 1, queues: [ "*" ]
+    assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
   end
 
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
-    assert 3, configuration.processes.count
-    assert_equal 2, configuration.workers.count
-    assert_equal 1, configuration.dispatchers.count
+    assert 3, configuration.configured_processes.count
+    assert_processes configuration, :worker, 2
+    assert_processes configuration, :dispatcher, 1
   end
 
   test "provide configuration as a hash and fill defaults" do
@@ -28,19 +24,14 @@ class ConfigurationTest < ActiveSupport::TestCase
     config_as_hash = { workers: [ background_worker, background_worker ], dispatchers: [ dispatcher ] }
     configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
 
-    assert_equal 1, configuration.dispatchers.count
-    dispatcher = configuration.dispatchers.first
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], dispatcher.polling_interval
-    assert_equal SolidQueue::Configuration::DISPATCHER_DEFAULTS[:concurrency_maintenance_interval], dispatcher.concurrency_maintenance.interval
-
-    assert_equal 2, configuration.workers.count
-    assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
-    assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
+    assert_processes configuration, :dispatcher, 1, polling_interval: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:polling_interval], batch_size: 100
+    assert_processes configuration, :worker, 2, queues: [ "background" ], polling_interval: 10
 
     config_as_hash = { workers: [ background_worker, background_worker ] }
     configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
-    assert_empty configuration.dispatchers
-    assert_equal 2, configuration.workers.count
+
+    assert_processes configuration, :dispatcher, 0
+    assert_processes configuration, :worker, 2
   end
 
   test "max number of threads" do
@@ -53,9 +44,8 @@ class ConfigurationTest < ActiveSupport::TestCase
     config_as_hash = { workers: [ background_worker ] }
     configuration = SolidQueue::Configuration.new(load_from: config_as_hash)
 
-    assert_equal 3, configuration.workers.count
-    assert_equal [ "background" ], configuration.workers.flat_map(&:queues).uniq
-    assert_equal [ 10 ], configuration.workers.map(&:polling_interval).uniq
+    assert_equal 3, configuration.configured_processes.count
+    assert_processes configuration, :worker, 3, queues: [ "background" ], polling_interval: 10
   end
 
   test "ignore processes option on async mode" do
@@ -63,8 +53,17 @@ class ConfigurationTest < ActiveSupport::TestCase
     config_as_hash = { workers: [ background_worker ] }
     configuration = SolidQueue::Configuration.new(mode: :async, load_from: config_as_hash)
 
-    assert_equal 1, configuration.workers.count
-    assert_equal [ "background" ], configuration.workers.first.queues
-    assert_equal 10, configuration.workers.first.polling_interval
+    assert_equal 1, configuration.configured_processes.count
+    assert_processes configuration, :worker, 1, queues: [ "background" ], polling_interval: 10
   end
+
+  private
+    def assert_processes(configuration, kind, count, **attributes)
+      processes = configuration.configured_processes.select { |p| p.kind == kind }.map(&:instantiate)
+      assert_equal count, processes.size
+
+      attributes.each do |attr, value|
+        assert_equal value, processes.map { |p| p.public_send(attr) }.first
+      end
+    end
 end

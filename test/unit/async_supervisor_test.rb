@@ -30,7 +30,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   test "release orphaned executions" do
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
-    process = SolidQueue::Process.register(kind: "Worker", pid: 42)
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
 
     SolidQueue::ReadyExecution.claim("*", 5, process.id)
 

@@ -6,7 +6,9 @@ module SolidQueue
 
     def initialize(*)
       super
+
       @forks = {}
+      @configured_processes = {}
     end
 
     def kind
@@ -14,7 +16,7 @@ module SolidQueue
     end
 
     private
-      attr_reader :forks
+      attr_reader :forks, :configured_processes
 
       def supervise
         loop do
@@ -33,14 +35,17 @@ module SolidQueue
       end
 
       def start_process(configured_process)
-        configured_process.supervised_by process
-        configured_process.mode = :fork
-
-        pid = fork do
-          configured_process.start
+        process_instance = configured_process.instantiate.tap do |instance|
+          instance.supervised_by process
+          instance.mode = :fork
         end
 
-        forks[pid] = configured_process
+        pid = fork do
+          process_instance.start
+        end
+
+        configured_processes[pid] = configured_process
+        forks[pid] = process_instance
       end
 
       def terminate_gracefully
@@ -87,6 +92,7 @@ module SolidQueue
           break unless pid
 
           forks.delete(pid)
+          configured_processes.delete(pid)
         end
       rescue SystemCallError
         # All children already reaped
@@ -96,7 +102,8 @@ module SolidQueue
         SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
           if supervised_fork = forks.delete(pid)
             payload[:fork] = supervised_fork
-            start_process(supervised_fork)
+
+            start_process(configured_processes.delete(pid))
           end
         end
       end

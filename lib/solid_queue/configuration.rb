@@ -2,6 +2,12 @@
 
 module SolidQueue
   class Configuration
+    class Process < Struct.new(:kind, :attributes)
+      def instantiate
+        "SolidQueue::#{kind.to_s.titleize}".safe_constantize.new(**attributes)
+      end
+    end
+
     WORKER_DEFAULTS = {
       queues: "*",
       threads: 3,
@@ -22,26 +28,8 @@ module SolidQueue
       @raw_config = config_from(load_from)
     end
 
-    def processes
+    def configured_processes
       dispatchers + workers
-    end
-
-    def workers
-      workers_options.flat_map do |worker_options|
-        processes = if mode.fork?
-          worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
-        else
-          WORKER_DEFAULTS[:processes]
-        end
-        processes.times.map { Worker.new(**worker_options.with_defaults(WORKER_DEFAULTS)) }
-      end
-    end
-
-    def dispatchers
-      dispatchers_options.map do |dispatcher_options|
-        recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
-        Dispatcher.new **dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
-      end
     end
 
     def max_number_of_threads
@@ -53,6 +41,24 @@ module SolidQueue
       attr_reader :raw_config, :mode
 
       DEFAULT_CONFIG_FILE_PATH = "config/solid_queue.yml"
+
+      def workers
+        workers_options.flat_map do |worker_options|
+          processes = if mode.fork?
+            worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+          else
+            WORKER_DEFAULTS[:processes]
+          end
+          processes.times.map { Process.new(:worker, worker_options.with_defaults(WORKER_DEFAULTS)) }
+        end
+      end
+
+      def dispatchers
+        dispatchers_options.map do |dispatcher_options|
+          recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
+          Process.new :dispatcher, dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
+        end
+      end
 
       def config_from(file_or_hash, env: Rails.env)
         config = load_config_from(file_or_hash)
