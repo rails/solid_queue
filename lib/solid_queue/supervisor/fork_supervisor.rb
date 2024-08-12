@@ -1,6 +1,18 @@
 # frozen_string_literal: true
 
 module SolidQueue
+  class ProcessExitError < RuntimeError
+    def initialize(status)
+      message = case
+      when status.exitstatus.present? then "Process pid=#{status.pid} exited with status #{status.exitstatus}"
+      when status.signaled? then "Process pid=#{status.pid} received unhandled signal #{status.termsig}"
+      else "Process pid=#{status.pid} exited unexpectedly"
+      end
+
+      super(message)
+    end
+  end
+
   class Supervisor::ForkSupervisor < Supervisor
     include Signals, Pidfiled
 
@@ -91,7 +103,10 @@ module SolidQueue
           pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
           break unless pid
 
-          forks.delete(pid)
+          if (terminated_fork = forks.delete(pid)) && !status.exited? || status.exitstatus > 0
+            handle_claimed_jobs_by(terminated_fork, status)
+          end
+
           configured_processes.delete(pid)
         end
       rescue SystemCallError
@@ -100,11 +115,19 @@ module SolidQueue
 
       def replace_fork(pid, status)
         SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
-          if supervised_fork = forks.delete(pid)
-            payload[:fork] = supervised_fork
+          if terminated_fork = forks.delete(pid)
+            payload[:fork] = terminated_fork
+            handle_claimed_jobs_by(terminated_fork, status)
 
             start_process(configured_processes.delete(pid))
           end
+        end
+      end
+
+      def handle_claimed_jobs_by(terminated_fork, status)
+        if registered_process = process.supervisees.find_by(name: terminated_fork.name)
+          error = ProcessExitError.new(status)
+          registered_process.fail_all_claimed_executions_with(error)
         end
       end
 

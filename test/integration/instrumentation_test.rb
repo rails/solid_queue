@@ -89,7 +89,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_equal 2, events.size
     register_event, deregister_event = events
     assert_event register_event, "register_process", kind: "Worker", pid: ::Process.pid, process_id: process.id
-    assert_event deregister_event, "deregister_process", process: process, pruned: false, claimed_size: 1
+    assert_event deregister_event, "deregister_process", process: process, pruned: false
   end
 
   test "starting and stopping a dispatcher emits register_process and deregister_process events" do
@@ -112,11 +112,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "pruning processes emit prune_processes and deregister_process events" do
-    time = Time.now
-    processes = 3.times.collect { |i| SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10 + i, hostname: "localhost", last_heartbeat_at: time, name: "worker-123#{i}") }
-
-    # Heartbeats will expire
-    travel_to 3.days.from_now
+    processes = 3.times.collect { |i| SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10 + i, hostname: "localhost", last_heartbeat_at: 3.days.ago, name: "worker-123#{i}") }
 
     events = subscribed(/.*process.*\.solid_queue/) do
       SolidQueue::Process.prune
@@ -129,8 +125,24 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_event prune_event, "prune_processes", size: 3
     deregister_events.each_with_index do |event, i|
-      assert_event event, "deregister_process", process: processes[i], pruned: true, claimed_size: 0
+      assert_event event, "deregister_process", process: processes[i], pruned: true
     end
+  end
+
+  test "pruning a process with claimed executions emits fail_many_claimed event" do
+    process = SolidQueue::Process.create!(kind: "Worker", supervisor_id: 42, pid: 10, last_heartbeat_at: 3.days.ago, name: "worker-123")
+
+    3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
+    jobs = SolidQueue::Job.last(3)
+
+    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+
+    events = subscribed(/fail.*_claimed\.solid_queue/) do
+      SolidQueue::Process.prune
+    end
+
+    assert_equal 1, events.count
+    assert_event events.first, "fail_many_claimed", process_ids: [ process.id ], job_ids: jobs.map(&:id), size: 3
   end
 
   test "errors when deregistering processes are included in deregister_process events" do

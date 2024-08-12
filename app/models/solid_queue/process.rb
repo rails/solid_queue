@@ -13,10 +13,10 @@ class SolidQueue::Process < SolidQueue::Record
       create!(attributes.merge(last_heartbeat_at: Time.current)).tap do |process|
         payload[:process_id] = process.id
       end
+    rescue Exception => error
+      payload[:error] = error
+      raise
     end
-  rescue Exception => error
-    SolidQueue.instrument :register_process, **attributes.merge(error: error)
-    raise
   end
 
   def heartbeat
@@ -25,8 +25,6 @@ class SolidQueue::Process < SolidQueue::Record
 
   def deregister(pruned: false)
     SolidQueue.instrument :deregister_process, process: self, pruned: pruned do |payload|
-      payload[:claimed_size] = claimed_executions.size if claims_executions?
-
       destroy!
     rescue Exception => error
       payload[:error] = error

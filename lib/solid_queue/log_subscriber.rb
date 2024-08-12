@@ -12,11 +12,15 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def release_many_claimed(event)
-    debug formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
+    info formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
+  end
+
+  def fail_many_claimed(event)
+    warn formatted_event(event, action: "Fail claimed jobs", **event.payload.slice(:job_ids, :process_ids))
   end
 
   def release_claimed(event)
-    debug formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
+    info formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
   end
 
   def retry_all(event)

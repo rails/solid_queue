@@ -190,6 +190,11 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     assert process_exists?(@pid)
     terminate_process(@pid)
 
+    # Since the worker exited abnormally, the jobs it had claimed would be failed now
+    [ exit_job, pause_job ].each do |job|
+      assert_job_status(job, :failed)
+    end
+
     assert_clean_termination
   end
 
@@ -240,10 +245,10 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     # And there's a new worker that has been registered for the background queue
     wait_for_registered_processes(4, timeout: 5.second)
 
-    # The job in the background queue was left claimed as the worker couldn't
-    # finish orderly
+    # The job in the background queue would be failed by the supervisor
+    # when it replaced the killed worker
     assert_started_job_result("killed_pause")
-    assert_job_status(killed_pause, :claimed)
+    assert_job_status(killed_pause, :failed)
     # The other one could finish
     assert_completed_job_results("pause", :default)
 

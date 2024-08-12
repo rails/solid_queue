@@ -58,6 +58,17 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.ready?
   end
 
+  test "fail with error" do
+    claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
+    job = claimed_execution.job
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
+      claimed_execution.failed_with(RuntimeError.new)
+    end
+
+    assert job.reload.failed?
+  end
+
   private
     def prepare_and_claim_job(active_job, process: @process)
       job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)

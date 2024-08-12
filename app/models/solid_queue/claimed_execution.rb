@@ -35,6 +35,18 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       end
     end
 
+    def fail_all_with(error)
+      SolidQueue.instrument(:fail_many_claimed) do |payload|
+        includes(:job).tap do |executions|
+          payload[:size] = executions.size
+          payload[:process_ids] = executions.map(&:process_id).uniq
+          payload[:job_ids] = executions.map(&:job_id).uniq
+
+          executions.each { |execution| execution.failed_with(error) }
+        end
+      end
+    end
+
     def discard_all_in_batches(*)
       raise UndiscardableError, "Can't discard jobs in progress"
     end
@@ -69,6 +81,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     raise UndiscardableError, "Can't discard a job in progress"
   end
 
+  def failed_with(error)
+    transaction do
+      job.failed_with(error)
+      destroy!
+    end
+  end
+
   private
     def execute
       ActiveJob::Base.execute(job.arguments)
@@ -80,13 +99,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def finished
       transaction do
         job.finished!
-        destroy!
-      end
-    end
-
-    def failed_with(error)
-      transaction do
-        job.failed_with(error)
         destroy!
       end
     end

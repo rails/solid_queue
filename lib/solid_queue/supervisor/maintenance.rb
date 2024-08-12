@@ -1,9 +1,15 @@
 module SolidQueue
+  class ProcessMissingError < RuntimeError
+    def initialize
+      super("The process that was running this job no longer exists")
+    end
+  end
+
   module Supervisor::Maintenance
     extend ActiveSupport::Concern
 
     included do
-      after_boot :release_orphaned_executions
+      after_boot :fail_orphaned_executions
     end
 
     private
@@ -27,8 +33,10 @@ module SolidQueue
         wrap_in_app_executor { SolidQueue::Process.prune }
       end
 
-      def release_orphaned_executions
-        wrap_in_app_executor { SolidQueue::ClaimedExecution.orphaned.release_all }
+      def fail_orphaned_executions
+        wrap_in_app_executor do
+          SolidQueue::ClaimedExecution.orphaned.fail_all_with(ProcessMissingError.new)
+        end
       end
   end
 end

@@ -88,7 +88,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     terminate_process(pid)
   end
 
-  test "release orphaned executions" do
+  test "fail orphaned executions" do
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
 
@@ -114,7 +114,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ClaimedExecution.count
-      assert_equal 3, SolidQueue::ReadyExecution.count
+      assert_equal 3, SolidQueue::FailedExecution.count
     end
   end
 
