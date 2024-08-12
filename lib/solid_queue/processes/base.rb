@@ -25,7 +25,7 @@ module SolidQueue
       end
 
       def metadata
-        { name: name }
+        {}
       end
 
       private
