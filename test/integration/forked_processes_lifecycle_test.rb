@@ -104,7 +104,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :INT, wait: 0.1.second)
+    signal_process(@pid, :INT, wait: 0.3.second)
     wait_for_jobs_to_finish_for(2.second)
 
     assert_completed_job_results("no pause")

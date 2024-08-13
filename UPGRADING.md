@@ -1,12 +1,16 @@
 # Upgrading to version 0.6.x
 
 ## New migration in 3 steps
-This version adds a new migration to the `solid_queue_processes` table. This migration adds a new column that needs to be `NOT NULL`. It will run in three steps:
-1. Add the new column, nullable
-2. Backfill existing rows that would have the column as NULL
-3. Make the column not nullable and add a new index
+This version adds two new migrations to modify the `solid_queue_processes` table. The goal of that migration is to add a new column that needs to be `NOT NULL`. This needs to be done with two migrations and the following steps to ensure it happens without downtime and with new processes being able to register just fine:
+1. Run the first migration that adds the new column, nullable
+2. Deploy the updated Solid Queue code that uses this column
+2. Run the second migration. This migration does two things:
+  - Backfill existing rows that would have the column as NULL
+  - Make the column not nullable and add a new index
 
-To install it:
+Besides, it adds another migration with no effects to the `solid_queue_recurring_tasks` table. This one can be run just fine whenever, as the column affected is not used.
+
+To install the migrations:
 ```bash
 $ bin/rails solid_queue:install:migrations
 ```
@@ -17,7 +21,7 @@ Or, if you're using a different database for Solid Queue:
 $ bin/rails solid_queue:install:migrations DATABASE=<the_name_of_your_solid_queue_db>
 ```
 
-And then just run it.
+And then follow the steps above, running first one, then deploying the code, then running the second one.
 
 ## New behaviour when workers are killed
 From this version onwards, when a worker is killed and the supervisor can detect that, it'll fail in-progress jobs claimed by that worker. For this to work correctly, you need to run the above migration and ensure you restart any supervisors you'd have. 
