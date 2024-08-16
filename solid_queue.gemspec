@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
   spec.add_dependency "concurrent-ruby", ">= 1.3.1"
-  spec.add_dependency "fugit", "~> 1.11.0"
+  spec.add_dependency "fugit", "~> 1.11", "> 1.11.1"
 
   spec.add_development_dependency "debug"
   spec.add_development_dependency "mocha"
