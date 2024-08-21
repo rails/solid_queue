@@ -25,7 +25,7 @@ module SolidQueue
       def record(task_key, run_at, &block)
         transaction do
           block.call.tap do |active_job|
-            if active_job
+            if active_job && active_job.successfully_enqueued?
               create_or_insert!(job_id: active_job.provider_job_id, task_key: task_key, run_at: run_at)
             end
           end
