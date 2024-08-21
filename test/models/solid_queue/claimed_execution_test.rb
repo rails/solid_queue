@@ -2,7 +2,7 @@ require "test_helper"
 
 class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   setup do
-    @process = SolidQueue::Process.register(kind: "Worker", pid: 42, metadata: { queue: "background" })
+    @process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123", metadata: { queue: "background" })
   end
 
   test "perform job successfully" do
@@ -56,6 +56,17 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     end
 
     assert job.reload.ready?
+  end
+
+  test "fail with error" do
+    claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
+    job = claimed_execution.job
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
+      claimed_execution.failed_with(RuntimeError.new)
+    end
+
+    assert job.reload.failed?
   end
 
   private

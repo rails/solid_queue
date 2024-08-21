@@ -8,6 +8,8 @@ module SolidQueue::Processes
 
     def initialize(polling_interval:, **options)
       @polling_interval = polling_interval
+
+      super(**options)
     end
 
     def metadata

@@ -51,13 +51,13 @@ class LogSubscriberTest < ActiveSupport::TestCase
   end
 
   test "deregister process" do
-    process = SolidQueue::Process.register(kind: "Worker", pid: 42, hostname: "localhost")
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42, hostname: "localhost", name: "worker-123")
     last_heartbeat_at = process.last_heartbeat_at.iso8601
 
     attach_log_subscriber
     instrument "deregister_process.solid_queue", process: process, pruned: false, claimed_size: 0
 
-    assert_match_logged :info, "Deregister Worker", "process_id: #{process.id}, pid: 42, hostname: \"localhost\", last_heartbeat_at: \"#{last_heartbeat_at}\", claimed_size: 0, pruned: false"
+    assert_match_logged :info, "Deregister Worker", "process_id: #{process.id}, pid: 42, hostname: \"localhost\", name: \"worker-123\", last_heartbeat_at: \"#{last_heartbeat_at}\", claimed_size: 0, pruned: false"
   end
 
   private

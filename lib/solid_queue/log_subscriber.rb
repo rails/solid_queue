@@ -12,11 +12,15 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def release_many_claimed(event)
-    debug formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
+    info formatted_event(event, action: "Release claimed jobs", **event.payload.slice(:size))
+  end
+
+  def fail_many_claimed(event)
+    warn formatted_event(event, action: "Fail claimed jobs", **event.payload.slice(:job_ids, :process_ids))
   end
 
   def release_claimed(event)
-    debug formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
+    info formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
   end
 
   def retry_all(event)
@@ -63,7 +67,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     attributes = {
       pid: process.pid,
       hostname: process.hostname,
-      process_id: process.process_id
+      process_id: process.process_id,
+      name: process.name
     }.merge(process.metadata)
 
     info formatted_event(event, action: "Started #{process.kind}", **attributes)
@@ -75,7 +80,8 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     attributes = {
       pid: process.pid,
       hostname: process.hostname,
-      process_id: process.process_id
+      process_id: process.process_id,
+      name: process.name
     }.merge(process.metadata)
 
     info formatted_event(event, action: "Shutdown #{process.kind}", **attributes)
@@ -83,7 +89,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
   def register_process(event)
     process_kind = event.payload[:kind]
-    attributes = event.payload.slice(:pid, :hostname, :process_id)
+    attributes = event.payload.slice(:pid, :hostname, :process_id, :name)
 
     if error = event.payload[:error]
       warn formatted_event(event, action: "Error registering #{process_kind}", **attributes.merge(error: formatted_error(error)))
@@ -99,6 +105,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       process_id: process.id,
       pid: process.pid,
       hostname: process.hostname,
+      name: process.name,
       last_heartbeat_at: process.last_heartbeat_at.iso8601,
       claimed_size: event.payload[:claimed_size],
       pruned: event.payload[:pruned]
@@ -147,7 +154,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
       termsig: status.termsig
 
     if replaced_fork = event.payload[:fork]
-      info formatted_event(event, action: "Replaced terminated #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname))
+      info formatted_event(event, action: "Replaced terminated #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname, name: replaced_fork.name))
     else
       warn formatted_event(event, action: "Tried to replace forked process but it had already died", **attributes)
     end

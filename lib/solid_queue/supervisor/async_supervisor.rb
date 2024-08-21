@@ -23,10 +23,13 @@ module SolidQueue
       attr_reader :threads
 
       def start_process(configured_process)
-        configured_process.supervised_by process
-        configured_process.start
+        process_instance = configured_process.instantiate.tap do |instance|
+          instance.supervised_by process
+        end
 
-        threads[configured_process.name] = configured_process
+        process_instance.start
+
+        threads[process_instance.name] = process_instance
       end
 
       def stop_threads

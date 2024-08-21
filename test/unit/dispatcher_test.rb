@@ -20,7 +20,7 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
-    assert_equal({ "polling_interval" => 0.1, "batch_size" => 10, "concurrency_maintenance_interval" => 600 }, process.metadata)
+    assert_metadata process, { polling_interval: 0.1, batch_size: 10, concurrency_maintenance_interval: 600 }
   end
 
   test "concurrency maintenance is optional" do
@@ -31,8 +31,7 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
-    assert_equal({ "polling_interval" => 0.1, "batch_size" => 10 }, process.metadata)
-
+    assert_metadata process, polling_interval: 0.1, batch_size: 10
   ensure
     no_concurrency_maintenance_dispatcher.stop
   end
@@ -48,8 +47,7 @@ class DispatcherTest < ActiveSupport::TestCase
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
 
-    schedule_from_metadata = process.metadata["recurring_schedule"]
-    assert_equal [ "example_task" ], schedule_from_metadata
+    assert_metadata process, recurring_schedule: [ "example_task" ]
   ensure
     with_recurring_schedule.stop
   end
@@ -141,5 +139,11 @@ class DispatcherTest < ActiveSupport::TestCase
       yield
     ensure
       ActiveRecord::Base.logger = old_logger
+    end
+
+    def assert_metadata(process, metadata)
+      metadata.each do |attr, value|
+        assert_equal value, process.metadata[attr.to_s]
+      end
     end
 end

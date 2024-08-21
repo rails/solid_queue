@@ -16,6 +16,7 @@ module SolidQueue
 
     def initialize(configuration)
       @configuration = configuration
+      super
     end
 
     def start
@@ -44,7 +45,7 @@ module SolidQueue
       end
 
       def start_processes
-        configuration.processes.each { |configured_process| start_process(configured_process) }
+        configuration.configured_processes.each { |configured_process| start_process(configured_process) }
       end
 
       def stopped?
