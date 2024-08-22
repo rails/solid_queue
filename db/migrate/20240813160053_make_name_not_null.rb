@@ -11,6 +11,6 @@ class MakeNameNotNull < ActiveRecord::Migration[7.1]
 
   def down
     remove_index :solid_queue_processes, [ :name, :supervisor_id ]
-    change_column :solid_queue_processes, :name, :string, null: false
+    change_column :solid_queue_processes, :name, :string, null: true
   end
 end
