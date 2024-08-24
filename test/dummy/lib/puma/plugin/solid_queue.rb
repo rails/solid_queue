@@ -1,3 +1,18 @@
+# A plugin you can use if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor
+# and manage it. You just need to copy the plugin to lib/puma/plugin/solid_queue.rb and then add
+# plugin :solid_queue
+# to your `puma.rb` configuration.
+#
+# By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in
+# different processes. This provides the best isolation and performance, but can have additional memory usage.
+# Alternatively, workers and dispatchers can be run within the same Puma process(s). To do so just
+# configure the plugin as:
+#
+# plugin :solid_queue
+# solid_queue_mode :async
+#
+# Note that in this case, the `processes` configuration option will be ignored.
+#
 require "puma/plugin"
 
 Puma::Plugin.create do

@@ -298,13 +298,8 @@ failed_execution.discard # This will delete the job from the system
 
 However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
-## Puma plugin
-We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
-```ruby
-plugin :solid_queue
-```
-to your `puma.rb` configuration.
-
+## Running with Puma
+You can use [a plugin](https://gist.github.com/rosa/ca8fde4bee5a2734dc3a31c89c3d26cd) to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it.
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
