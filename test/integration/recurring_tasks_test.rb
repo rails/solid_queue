@@ -78,10 +78,6 @@ class RecurringTasksTest < ActiveSupport::TestCase
   end
 
   private
-    def wait_for_jobs_to_be_enqueued(count, timeout: 1.second)
-      wait_while_with_timeout(timeout) { SolidQueue::Job.count < count }
-    end
-
     def assert_recurring_tasks(expected_tasks)
       skip_active_record_query_cache do
         assert_equal expected_tasks.count, SolidQueue::RecurringTask.count

@@ -100,11 +100,10 @@ class DispatcherTest < ActiveSupport::TestCase
     @dispatcher.start
     another_dispatcher.start
 
-    sleep(0.7.seconds)
+    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
 
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 15, SolidQueue::ReadyExecution.count
-
   ensure
     another_dispatcher&.stop
   end

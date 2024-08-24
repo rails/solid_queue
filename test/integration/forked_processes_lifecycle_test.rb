@@ -316,10 +316,4 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
         assert job.public_send("#{status}?")
       end
     end
-
-    def assert_no_claimed_jobs
-      skip_active_record_query_cache do
-        assert SolidQueue::ClaimedExecution.none?
-      end
-    end
 end

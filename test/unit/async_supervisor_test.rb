@@ -61,17 +61,4 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     def run_supervisor_async(**kwargs)
       SolidQueue::Supervisor.start(mode: :async, **kwargs)
     end
-
-    def assert_registered_processes(kind:, supervisor_id: nil, count: 1)
-      processes = SolidQueue::Process.where(kind: kind)
-      assert_equal count, processes.count
-
-      processes.each do |process|
-        if supervisor_id.present?
-          assert_equal supervisor_id, process.supervisor_id
-        else
-          assert_nil process.supervisor_id
-        end
-      end
-    end
 end
