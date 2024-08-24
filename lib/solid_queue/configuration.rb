@@ -23,6 +23,11 @@ module SolidQueue
       recurring_tasks: []
     }
 
+    DEFAULT_CONFIG = {
+      workers: [ WORKER_DEFAULTS ],
+      dispatchers: [ DISPATCHER_DEFAULTS ]
+    }
+
     def initialize(mode: :fork, load_from: nil)
       @mode = mode.to_s.inquiry
       @raw_config = config_from(load_from)
@@ -61,22 +66,27 @@ module SolidQueue
       end
 
       def config_from(file_or_hash, env: Rails.env)
-        config = load_config_from(file_or_hash)
-        config[env.to_sym] ? config[env.to_sym] : config
+        load_config_from(file_or_hash).then do |config|
+          config = config[env.to_sym] ? config[env.to_sym] : config
+          if (config.keys & DEFAULT_CONFIG.keys).any? then config
+          else
+            DEFAULT_CONFIG
+          end
+        end
       end
 
       def workers_options
-        @workers_options ||= options_from_raw_config(:workers, WORKER_DEFAULTS)
+        @workers_options ||= options_from_raw_config(:workers)
           .map { |options| options.dup.symbolize_keys }
       end
 
       def dispatchers_options
-        @dispatchers_options ||= options_from_raw_config(:dispatchers, DISPATCHER_DEFAULTS)
+        @dispatchers_options ||= options_from_raw_config(:dispatchers)
           .map { |options| options.dup.symbolize_keys }
       end
 
-      def options_from_raw_config(key, defaults)
-        raw_config.empty? ? [ defaults ] : Array(raw_config[key])
+      def options_from_raw_config(key)
+        Array(raw_config[key])
       end
 
       def parse_recurring_tasks(tasks)
