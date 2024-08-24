@@ -9,8 +9,12 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
 
-        klass = mode == :fork ? ForkSupervisor : AsyncSupervisor
-        klass.new(configuration).tap(&:start)
+        if configuration.configured_processes.any?
+          klass = mode == :fork ? ForkSupervisor : AsyncSupervisor
+          klass.new(configuration).tap(&:start)
+        else
+          abort "No workers or processed configured. Exiting..."
+        end
       end
     end
 

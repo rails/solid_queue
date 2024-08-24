@@ -41,6 +41,16 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
+  test "start with empty configuration" do
+    config_as_hash = { workers: [], dispatchers: [] }
+
+    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    sleep(0.5)
+    assert_no_registered_processes
+
+    assert_not process_exists?(pid)
+  end
+
   test "create and delete pidfile" do
     assert_not File.exist?(@pidfile)
 
