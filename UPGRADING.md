@@ -1,3 +1,6 @@
+# Upgrading to version 1.x
+The value returned for `enqueue_after_transaction_commit?` has changed to `true`, and it's no longer configurable. If you want to change this, you need to use Active Job's configuration options.
+
 # Upgrading to version 0.9.x
 This version has two breaking changes regarding configuration:
 - The default configuration file has changed from `config/solid_queue.yml` to `config/queue.yml`.

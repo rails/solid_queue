@@ -234,7 +234,6 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
-- `enqueue_after_transaction_commit`: whether the job queuing is deferred to after the current Active Record transaction is committed. The default is `false`. [Read more](https://github.com/rails/rails/pull/51426).
 
 ## Errors when enqueuing
 
@@ -318,6 +317,29 @@ We provide a Puma plugin if you want to run the Solid Queue's supervisor togethe
 plugin :solid_queue
 ```
 to your `puma.rb` configuration.
+
+
+## Jobs and transactional integrity
+:warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and viceversa, and ensuring that your job won't be enqueued until the transaction within which you're enqueing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
+
+Because this can be quite tricky and many people shouldn't need to worry about it, by default Solid Queue is configured in a different database as the main app, **job enqueuing is deferred until any ongoing transaction is committed** thanks to Active Job's built-in capability to do this. This means that even if you run Solid Queue in the same DB as your app, you won't be taking advantage of this transactional integrity.
+
+If you prefer to change this, you can set [`config.active_job.enqueue_after_transaction_commit`](https://edgeguides.rubyonrails.org/configuring.html#config-active-job-enqueue-after-transaction-commit) to `never`. You can also set this on a per-job basis.
+
+If you set that to `never` but still want to make sure you're not inadvertently on transactional integrity, you can make sure that:
+- Your jobs relying on specific data are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
+- Or, you configure a different database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
+
+  ```ruby
+  class ApplicationRecord < ActiveRecord::Base
+    self.abstract_class = true
+
+    connects_to database: { writing: :primary, reading: :replica }
+  ```
+
+  ```ruby
+  config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
+  ```
 
 ## Recurring tasks
 
