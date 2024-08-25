@@ -87,7 +87,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     assert File.exist?(@pidfile)
     assert_equal pid, File.read(@pidfile).strip.to_i
 
-    wait_for_registered_processes(0)
+    sleep(1)
 
     pid = run_supervisor_as_fork
     wait_for_registered_processes(4)

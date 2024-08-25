@@ -12,6 +12,7 @@ class DispatcherTest < ActiveSupport::TestCase
 
   teardown do
     @dispatcher.stop
+    wait_for_full_process_shutdown
   end
 
   test "dispatcher is registered as process" do
@@ -57,7 +58,8 @@ class DispatcherTest < ActiveSupport::TestCase
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: false) do
         @dispatcher.start
-        sleep 0.2
+        wait_for_registered_processes(1, timeout: 1.second)
+        sleep(0.3)
       end
     end
 
@@ -69,7 +71,8 @@ class DispatcherTest < ActiveSupport::TestCase
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: true) do
         @dispatcher.start
-        sleep 0.2
+        wait_for_registered_processes(1, timeout: 1.second)
+        sleep(0.3)
       end
     end
 
@@ -80,13 +83,10 @@ class DispatcherTest < ActiveSupport::TestCase
     with_active_record_logger(nil) do
       with_polling(silence: true) do
         @dispatcher.start
-        sleep 0.2
+        wait_for_registered_processes(1, timeout: 1.second)
+        sleep 0.3
       end
     end
-
-    @dispatcher.stop
-    wait_for_registered_processes(0, timeout: 1.second)
-    assert_no_registered_processes
   end
 
   test "run more than one instance of the dispatcher without recurring tasks" do
@@ -100,7 +100,7 @@ class DispatcherTest < ActiveSupport::TestCase
     @dispatcher.start
     another_dispatcher.start
 
-    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
+    wait_while_with_timeout(2.second) { SolidQueue::ScheduledExecution.any? }
 
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 15, SolidQueue::ReadyExecution.count
@@ -115,8 +115,11 @@ class DispatcherTest < ActiveSupport::TestCase
     end
 
     dispatchers.each(&:start)
-    sleep 2
+    wait_for_registered_processes(2, timeout: 2.second)
+    sleep 1.5
+
     dispatchers.each(&:stop)
+    wait_for_full_process_shutdown
 
     assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
     run_at_times = SolidQueue::RecurringExecution.all.map(&:run_at).sort

@@ -118,8 +118,7 @@ class WorkerTest < ActiveSupport::TestCase
     end
 
     @worker.stop
-    wait_for_registered_processes(0, timeout: 1.second)
-    assert_no_registered_processes
+    wait_for_full_process_shutdown
   end
 
   test "run inline" do

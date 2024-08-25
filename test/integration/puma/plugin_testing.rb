@@ -31,8 +31,6 @@ module PluginTesting
 
     teardown do
       terminate_process(@pid, signal: :INT) if process_exists?(@pid)
-
-      wait_for_registered_processes 0, timeout: 2.seconds
     end
   end
 
