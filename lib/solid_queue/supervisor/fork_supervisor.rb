@@ -16,22 +16,6 @@ module SolidQueue
     private
       attr_reader :forks, :configured_processes
 
-      def supervise
-        loop do
-          break if stopped?
-
-          procline "supervising #{forks.keys.join(", ")}"
-          process_signal_queue
-
-          unless stopped?
-            reap_and_replace_terminated_forks
-            interruptible_sleep(1.second)
-          end
-        end
-      ensure
-        shutdown
-      end
-
       def start_process(configured_process)
         process_instance = configured_process.instantiate.tap do |instance|
           instance.supervised_by process
@@ -46,29 +30,36 @@ module SolidQueue
         forks[pid] = process_instance
       end
 
-      def terminate_gracefully
-        instrument_termination(:graceful) do |payload|
-          payload[:supervised_processes] = forks.keys
+      def supervised_processes
+        forks.keys
+      end
 
-          term_forks
+      def supervise
+        loop do
+          break if stopped?
 
-          Timer.wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
-            reap_terminated_forks
+          set_procline
+          process_signal_queue
+
+          unless stopped?
+            reap_and_replace_terminated_forks
+            interruptible_sleep(1.second)
           end
+        end
+      ensure
+        shutdown
+      end
 
-          unless all_forks_terminated?
-            payload[:shutdown_timeout_exceeded] = true
-            terminate_immediately
-          end
+      def perform_graceful_termination
+        term_forks
+
+        Timer.wait_until(SolidQueue.shutdown_timeout, -> { all_processes_terminated? }) do
+          reap_terminated_forks
         end
       end
 
-      def terminate_immediately
-        instrument_termination(:immediate) do |payload|
-          payload[:supervised_processes] = forks.keys
-
-          quit_forks
-        end
+      def perform_immediate_termination
+        quit_forks
       end
 
       def term_forks
@@ -121,7 +112,7 @@ module SolidQueue
         end
       end
 
-      def all_forks_terminated?
+      def all_processes_terminated?
         forks.empty?
       end
   end

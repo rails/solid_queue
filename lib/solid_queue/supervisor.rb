@@ -56,15 +56,45 @@ module SolidQueue
         @stopped
       end
 
-      def supervise
+      def set_procline
+        procline "supervising #{supervised_processes.join(", ")}"
       end
 
       def start_process(configured_process)
         raise NotImplementedError
       end
 
-      def instrument_termination(type, &block)
-        SolidQueue.instrument("#{type}_termination".to_sym, process_id: process_id, supervisor_pid: ::Process.pid, &block)
+      def terminate_gracefully
+        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do |payload|
+          perform_graceful_termination
+
+          unless all_processes_terminated?
+            payload[:shutdown_timeout_exceeded] = true
+            terminate_immediately
+          end
+        end
+      end
+
+      def terminate_immediately
+        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do
+          perform_immediate_termination
+        end
+      end
+
+      def perform_graceful_termination
+        raise NotImplementedError
+      end
+
+      def perform_immediate_termination
+        raise NotImplementedError
+      end
+
+      def supervised_processes
+        raise NotImplementedError
+      end
+
+      def all_processes_terminated?
+        raise NotImplementedError
       end
 
       def shutdown

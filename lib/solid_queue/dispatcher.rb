@@ -55,7 +55,7 @@ module SolidQueue
       end
 
       def set_procline
-        procline "waiting"
+        procline "dispatching every #{polling_interval.seconds} seconds"
       end
   end
 end

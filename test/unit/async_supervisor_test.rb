@@ -3,8 +3,8 @@ require "test_helper"
 class AsyncSupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
-  test "start as sidecar" do
-    supervisor = run_supervisor_as_sidecar
+  test "start as non-standalone" do
+    supervisor = run_non_standalone_supervisor
     wait_for_registered_processes(4)
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -16,7 +16,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
-  test "start as separate process" do
+  test "start standalone" do
     pid = run_supervisor_as_fork(mode: :async)
     wait_for_registered_processes(4)
 
@@ -28,9 +28,9 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
-  test "start as sidecar with provided configuration" do
+  test "start as non-standalone with provided configuration" do
     config_as_hash = { workers: [], dispatchers: [ { batch_size: 100 } ] }
-    supervisor = run_supervisor_as_sidecar(load_configuration_from: config_as_hash)
+    supervisor = run_non_standalone_supervisor(load_configuration_from: config_as_hash)
     wait_for_registered_processes(2) # supervisor + dispatcher
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -61,7 +61,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
       dispatchers: []
     }
 
-    supervisor = run_supervisor_as_sidecar(load_configuration_from: config_as_hash)
+    supervisor = run_non_standalone_supervisor(load_configuration_from: config_as_hash)
     wait_for_registered_processes(3)
     assert_registered_processes(kind: "Supervisor(async)")
 
@@ -72,7 +72,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def run_supervisor_as_sidecar(**kwargs)
-      SolidQueue::Supervisor.start(mode: :async, sidecar: true, **kwargs)
+    def run_non_standalone_supervisor(**kwargs)
+      SolidQueue::Supervisor.start(mode: :async, standalone: false, **kwargs)
     end
 end

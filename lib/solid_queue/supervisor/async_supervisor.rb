@@ -2,12 +2,12 @@
 
 module SolidQueue
   class Supervisor::AsyncSupervisor < Supervisor
-    skip_callback :boot, :before, :register_signal_handlers, if: :sidecar?
+    skip_callback :boot, :before, :register_signal_handlers, unless: :standalone?
 
-    def initialize(*, sidecar: false)
+    def initialize(*, standalone: true)
       super
 
-      @sidecar = sidecar
+      @standalone = standalone
       @threads = Concurrent::Map.new
     end
 
@@ -26,8 +26,8 @@ module SolidQueue
     private
       attr_reader :threads
 
-      def sidecar?
-        @sidecar
+      def standalone?
+        @standalone
       end
 
       def start_process(configured_process)
@@ -36,16 +36,19 @@ module SolidQueue
         end
 
         process_instance.start
-
         threads[process_instance.name] = process_instance
       end
 
+      def supervised_processes
+        threads.keys
+      end
+
       def supervise
-        unless sidecar?
+        if standalone?
           loop do
             break if stopped?
 
-            procline "supervising #{threads.keys.join(", ")}"
+            set_procline
             process_signal_queue
 
             interruptible_sleep(10.second) unless stopped?
@@ -61,26 +64,15 @@ module SolidQueue
         stop_threads.each { |thr| thr.join(SolidQueue.shutdown_timeout) }
       end
 
-      def terminate_gracefully
-        instrument_termination(:graceful) do |payload|
-          payload[:supervised_processes] = threads.keys
-
-          unless all_threads_terminated?
-            payload[:shutdown_timeout_exceeded] = true
-            terminate_immediately
-          end
-        end
+      def perform_graceful_termination
+        # All done when stopping
       end
 
-      def terminate_immediately
-        instrument_termination(:immediate) do |payload|
-          payload[:supervised_processes] = threads.keys
-
-          exit!
-        end
+      def perform_immediate_termination
+        exit!
       end
 
-      def all_threads_terminated?
+      def all_processes_terminated?
         threads.values.none?(&:alive?)
       end
   end

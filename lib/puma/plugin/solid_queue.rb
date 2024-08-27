@@ -40,7 +40,7 @@ Puma::Plugin.create do
     end
 
     def start_async(launcher)
-      launcher.events.on_booted { @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, sidecar: true) }
+      launcher.events.on_booted { @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, standalone: false) }
       launcher.events.on_stopped { solid_queue_supervisor.stop }
       launcher.events.on_restart { solid_queue_supervisor.stop; solid_queue_supervisor.start }
     end
