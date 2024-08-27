@@ -63,6 +63,10 @@ module SolidQueue
         raise NotImplementedError
       end
 
+      def instrument_termination(type, &block)
+        SolidQueue.instrument("#{type}_termination".to_sym, process_id: process_id, supervisor_pid: ::Process.pid, &block)
+      end
+
       def shutdown
         SolidQueue.instrument(:shutdown_process, process: self) do
           run_callbacks(:shutdown) do

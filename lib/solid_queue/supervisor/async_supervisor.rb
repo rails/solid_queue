@@ -62,7 +62,9 @@ module SolidQueue
       end
 
       def terminate_gracefully
-        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: threads.keys) do |payload|
+        instrument_termination(:graceful) do |payload|
+          payload[:supervised_processes] = threads.keys
+
           unless all_threads_terminated?
             payload[:shutdown_timeout_exceeded] = true
             terminate_immediately
@@ -71,7 +73,9 @@ module SolidQueue
       end
 
       def terminate_immediately
-        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: threads.keys) do
+        instrument_termination(:immediate) do |payload|
+          payload[:supervised_processes] = threads.keys
+
           exit!
         end
       end

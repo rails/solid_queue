@@ -47,7 +47,9 @@ module SolidQueue
       end
 
       def terminate_gracefully
-        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: forks.keys) do |payload|
+        instrument_termination(:graceful) do |payload|
+          payload[:supervised_processes] = forks.keys
+
           term_forks
 
           Timer.wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
@@ -62,7 +64,9 @@ module SolidQueue
       end
 
       def terminate_immediately
-        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: forks.keys) do
+        instrument_termination(:immediate) do |payload|
+          payload[:supervised_processes] = forks.keys
+
           quit_forks
         end
       end
