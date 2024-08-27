@@ -35,7 +35,7 @@ module SolidQueue
 
       def fail_orphaned_executions
         wrap_in_app_executor do
-          SolidQueue::ClaimedExecution.orphaned.fail_all_with(ProcessMissingError.new)
+          ClaimedExecution.orphaned.fail_all_with(ProcessMissingError.new)
         end
       end
   end

@@ -10,7 +10,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     @pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
 
     wait_for_registered_processes(3, timeout: 3.second)
-    assert_registered_workers_for(:background, :default)
+    assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
   end
 
   teardown do
@@ -49,7 +49,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :finished)
 
     # Termination is almost clean, but the supervisor remains
-    assert_registered_supervisor
+    assert_registered_supervisor_with(@pid)
     assert_no_registered_workers
     assert_no_claimed_jobs
   end
@@ -217,7 +217,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
     # And there's a new worker that has been registered for that queue:
     wait_for_registered_processes(3, timeout: 3.second)
-    assert_registered_workers_for(:background, :default)
+    assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
 
     # And they can process jobs just fine
     enqueue_store_result_job("no_pause")
@@ -272,17 +272,19 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
       assert_not process_exists?(@pid)
     end
 
-    def assert_registered_workers_for(*queues)
+    def assert_registered_workers_for(*queues, supervisor_pid: nil)
       workers = find_processes_registered_as("Worker")
       registered_queues = workers.map { |process| process.metadata["queues"] }.compact
       assert_equal queues.map(&:to_s).sort, registered_queues.sort
-      assert_equal [ @pid ], workers.map { |process| process.supervisor.pid }.uniq
+      if supervisor_pid
+        assert_equal [ supervisor_pid ], workers.map { |process| process.supervisor.pid }.uniq
+      end
     end
 
-    def assert_registered_supervisor
+    def assert_registered_supervisor_with(pid)
       processes = find_processes_registered_as("Supervisor(fork)")
       assert_equal 1, processes.count
-      assert_equal @pid, processes.first.pid
+      assert_equal pid, processes.first.pid
     end
 
     def assert_no_registered_workers
