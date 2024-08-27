@@ -29,8 +29,9 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def release_all
       SolidQueue.instrument(:release_many_claimed) do |payload|
         includes(:job).tap do |executions|
-          payload[:size] = executions.size
           executions.each(&:release)
+
+          payload[:size] = executions.size
         end
       end
     end
@@ -38,11 +39,11 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def fail_all_with(error)
       SolidQueue.instrument(:fail_many_claimed) do |payload|
         includes(:job).tap do |executions|
-          payload[:size] = executions.size
+          executions.each { |execution| execution.failed_with(error) }
+
           payload[:process_ids] = executions.map(&:process_id).uniq
           payload[:job_ids] = executions.map(&:job_id).uniq
-
-          executions.each { |execution| execution.failed_with(error) }
+          payload[:size] = executions.size
         end
       end
     end

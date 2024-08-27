@@ -34,6 +34,28 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
     assert jobs.all?(&:failed?)
   end
 
+  test "prune processes including their supervisor with expired heartbeats and fail claimed executions" do
+    supervisor = SolidQueue::Process.register(kind: "Supervisor(fork)", pid: 42, name: "supervisor-42")
+    process = SolidQueue::Process.register(kind: "Worker", pid: 43, name: "worker-43", supervisor_id: supervisor.id)
+    3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
+    jobs = SolidQueue::Job.last(3)
+
+    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+
+    travel_to 10.minutes.from_now
+
+    assert_difference -> { SolidQueue::Process.count }, -2 do
+      assert_difference -> { SolidQueue::FailedExecution.count }, 3 do
+        assert_difference -> { SolidQueue::ClaimedExecution.count }, -3 do
+          SolidQueue::Process.prune
+        end
+      end
+    end
+
+    jobs.each(&:reload)
+    assert jobs.all?(&:failed?)
+  end
+
   test "hostname's with special characters are properly loaded" do
     worker = SolidQueue::Worker.new(queues: "*", threads: 3, polling_interval: 0.2)
     hostname = "Basecamp’s-Computer"
