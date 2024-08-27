@@ -2,8 +2,12 @@
 
 module SolidQueue
   class Supervisor::AsyncSupervisor < Supervisor
-    def initialize(*)
+    skip_callback :boot, :before, :register_signal_handlers, if: :sidecar?
+
+    def initialize(*, sidecar: false)
       super
+
+      @sidecar = sidecar
       @threads = Concurrent::Map.new
     end
 
@@ -22,6 +26,10 @@ module SolidQueue
     private
       attr_reader :threads
 
+      def sidecar?
+        @sidecar
+      end
+
       def start_process(configured_process)
         process_instance = configured_process.instantiate.tap do |instance|
           instance.supervised_by process
@@ -32,12 +40,40 @@ module SolidQueue
         threads[process_instance.name] = process_instance
       end
 
+      def supervise
+        unless sidecar?
+          loop do
+            break if stopped?
+
+            procline "supervising #{threads.keys.join(", ")}"
+            process_signal_queue
+
+            interruptible_sleep(10.second) unless stopped?
+          end
+        end
+      end
+
       def stop_threads
         stop_threads = threads.values.map do |thr|
           Thread.new { thr.stop }
         end
 
         stop_threads.each { |thr| thr.join(SolidQueue.shutdown_timeout) }
+      end
+
+      def terminate_gracefully
+        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: threads.keys) do |payload|
+          unless all_threads_terminated?
+            payload[:shutdown_timeout_exceeded] = true
+            terminate_immediately
+          end
+        end
+      end
+
+      def terminate_immediately
+        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: threads.keys) do
+          exit!
+        end
       end
 
       def all_threads_terminated?

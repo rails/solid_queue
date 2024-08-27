@@ -1,8 +1,10 @@
 require "test_helper"
 
 class AsyncSupervisorTest < ActiveSupport::TestCase
-  test "start" do
-    supervisor = run_supervisor_async
+  self.use_transactional_tests = false
+
+  test "start as sidecar" do
+    supervisor = run_supervisor_as_sidecar
     wait_for_registered_processes(4)
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -14,9 +16,21 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
-  test "start with provided configuration" do
+  test "start as separate process" do
+    pid = run_supervisor_as_fork(mode: :async)
+    wait_for_registered_processes(4)
+
+    assert_registered_processes(kind: "Supervisor(async)")
+    assert_registered_processes(kind: "Worker", supervisor_pid: pid, count: 2)
+    assert_registered_processes(kind: "Dispatcher", supervisor_pid: pid)
+
+    terminate_process(pid)
+    assert_no_registered_processes
+  end
+
+  test "start as sidecar with provided configuration" do
     config_as_hash = { workers: [], dispatchers: [ { batch_size: 100 } ] }
-    supervisor = run_supervisor_async(load_configuration_from: config_as_hash)
+    supervisor = run_supervisor_as_sidecar(load_configuration_from: config_as_hash)
     wait_for_registered_processes(2) # supervisor + dispatcher
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -47,7 +61,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
       dispatchers: []
     }
 
-    supervisor = run_supervisor_async(load_configuration_from: config_as_hash)
+    supervisor = run_supervisor_as_sidecar(load_configuration_from: config_as_hash)
     wait_for_registered_processes(3)
     assert_registered_processes(kind: "Supervisor(async)")
 
@@ -58,7 +72,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def run_supervisor_async(**kwargs)
-      SolidQueue::Supervisor.start(mode: :async, **kwargs)
+    def run_supervisor_as_sidecar(**kwargs)
+      SolidQueue::Supervisor.start(mode: :async, sidecar: true, **kwargs)
     end
 end

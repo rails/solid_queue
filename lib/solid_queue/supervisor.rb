@@ -2,23 +2,23 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Maintenance
+    include Maintenance, Signals, Pidfiled
 
     class << self
-      def start(mode: :fork, load_configuration_from: nil)
+      def start(mode: "fork", load_configuration_from: nil, **options)
         SolidQueue.supervisor = true
         configuration = Configuration.new(mode: mode, load_from: load_configuration_from)
 
         if configuration.configured_processes.any?
-          klass = mode == :fork ? ForkSupervisor : AsyncSupervisor
-          klass.new(configuration).tap(&:start)
+          klass = mode.to_s.inquiry.fork? ? ForkSupervisor : AsyncSupervisor
+          klass.new(configuration, **options).tap(&:start)
         else
           abort "No workers or processed configured. Exiting..."
         end
       end
     end
 
-    def initialize(configuration)
+    def initialize(configuration, **options)
       @configuration = configuration
       super
     end
