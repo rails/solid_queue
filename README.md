@@ -2,7 +2,7 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`). _Improvements to logging and instrumentation, a better CLI tool, a way to run within an existing process in "async" mode, and some way of specifying unique jobs are coming very soon._
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
 
@@ -59,14 +59,14 @@ Finally, you need to run the migrations:
 $ bin/rails db:migrate
 ```
 
-After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
+After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them. You can use the provided binstub:`
 ```bash
-$ bundle exec rake solid_queue:start
+$ bin/jobs
 ```
 
 This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
 
-For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bundle exec rake solid_queue:start` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
+For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
 ## Requirements
 Besides Rails 7.1, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
@@ -157,6 +157,16 @@ The supervisor is in charge of managing these processes, and it responds to the 
 When receiving a `QUIT` signal, if workers still have jobs in-flight, these will be returned to the queue when the processes are deregistered.
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats, which will release any claimed jobs back to their queues. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
+
+
+### Fork vs. async mode
+
+By default, the supervisor will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage. Alternatively, you can run all workers and dispatchers in the same process as the supervisor by passing `--mode async` when starting it:
+```
+bin/jobs --mode async
+```
+
+If you use the `async` mode, the `processes` option in the configuration will be ignored.
 
 
 ### Dedicated database configuration

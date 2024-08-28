@@ -19,6 +19,14 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
   end
 
+  test "default configuration when config given is empty" do
+    configuration = SolidQueue::Configuration.new(load_from: {})
+
+    assert_equal 2, configuration.configured_processes.count
+    assert_processes configuration, :worker, 1, queues: [ "*" ]
+    assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
+  end
+
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
     assert 3, configuration.configured_processes.count

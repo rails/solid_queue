@@ -14,8 +14,16 @@ class SolidQueue::InstallGenerator < Rails::Generators::Base
       end
     end
 
-    say "Copying sample configuration"
-    copy_file "config.yml", "config/solid_queue.yml"
+    if File.exist?("config/solid_queue.yml")
+      say "Skipping sample configuration as config/solid_queue.yml exists"
+    else
+      say "Copying sample configuration"
+      copy_file "config.yml", "config/solid_queue.yml"
+    end
+
+    say "Copying binstub"
+    copy_file "jobs", "bin/jobs"
+    chmod "bin/jobs", 0755 & ~File.umask, verbose: false
   end
 
   def create_migrations
