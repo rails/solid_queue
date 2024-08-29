@@ -64,15 +64,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 3, queues: [ "background" ], polling_interval: 10
   end
 
-  test "ignore processes option on async mode" do
-    background_worker = { queues: "background", polling_interval: 10, processes: 3 }
-    config_as_hash = { workers: [ background_worker ] }
-    configuration = SolidQueue::Configuration.new(mode: :async, load_from: config_as_hash)
-
-    assert_equal 1, configuration.configured_processes.count
-    assert_processes configuration, :worker, 1, queues: [ "background" ], polling_interval: 10
-  end
-
   private
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }.map(&:instantiate)

@@ -3,7 +3,7 @@ module ProcessesTestHelper
 
   def run_supervisor_as_fork(**options)
     fork do
-      SolidQueue::Supervisor.start(**options.with_defaults(mode: :fork))
+      SolidQueue::Supervisor.start(**options)
     end
   end
 

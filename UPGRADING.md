@@ -1,3 +1,10 @@
+# Upgrading to version 0.7.x
+
+This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor. To install it, you can just run
+```
+bin/rails generate solid_queue:install
+```
+
 # Upgrading to version 0.6.x
 
 ## New migration in 3 steps
@@ -44,7 +51,7 @@ And then run the migrations.
 
 
 # Upgrading to version 0.4.x
-This version introduced an _async_ mode to run the supervisor and have all workers and dispatchers run as part of the same process as the supervisor, instead of separate, forked, processes. Together with this, we introduced some changes in how the supervisor is started. Prior this change, you could choose whether you wanted to run workers, dispatchers or both, by starting Solid Queue as `solid_queue:work` or `solid_queue:dispatch`. From version 0.4.0, the only option available is:
+This version introduced an _async_ mode (this mode has been removed in version 0.7.0) to run the supervisor and have all workers and dispatchers run as part of the same process as the supervisor, instead of separate, forked, processes. Together with this, we introduced some changes in how the supervisor is started. Prior this change, you could choose whether you wanted to run workers, dispatchers or both, by starting Solid Queue as `solid_queue:work` or `solid_queue:dispatch`. From version 0.4.0, the only option available is:
 
 ```
 $ bundle exec rake solid_queue:start

@@ -80,7 +80,7 @@ We have three types of actors in Solid Queue:
 - _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. They're also in charge of managing [recurring tasks](#recurring-tasks), dispatching jobs to process them according to their schedule. On top of that, they do some maintenance work related to [concurrency controls](#concurrency-controls).
 - The _supervisor_ runs workers and dispatchers according to the configuration, controls their heartbeats, and stops and starts them when needed.
 
-By default, Solid Queue runs in `fork` mode. This means the supervisor will fork a separate process for each supervised worker/dispatcher. There's also an `async` mode where each worker and dispatcher will be run as a thread of the supervisor process. This can be used with [the provided Puma plugin](#puma-plugin)
+Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher.
 
 By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG`. This is what this configuration looks like:
 
@@ -131,7 +131,7 @@ Here's an overview of the different options:
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
-- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#running-as-a-fork-or-asynchronously).
+- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 - `recurring_tasks`: a list of recurring tasks the dispatcher will manage. Read more details about this one in the [Recurring tasks](#recurring-tasks) section.
 
@@ -157,16 +157,6 @@ The supervisor is in charge of managing these processes, and it responds to the 
 When receiving a `QUIT` signal, if workers still have jobs in-flight, these will be returned to the queue when the processes are deregistered.
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats, which will release any claimed jobs back to their queues. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
-
-
-### Fork vs. async mode
-
-By default, the supervisor will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage. Alternatively, you can run all workers and dispatchers in the same process as the supervisor by passing `--mode async` when starting it:
-```
-bin/jobs --mode async
-```
-
-If you use the `async` mode, the `processes` option in the configuration will be ignored.
 
 
 ### Dedicated database configuration
@@ -315,18 +305,6 @@ plugin :solid_queue
 ```
 to your `puma.rb` configuration.
 
-### Running as a fork or asynchronously
-
-By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage.
-
-Alternatively, workers and dispatchers can be run within the same Puma process(s). To do so just configure the plugin as:
-
-```ruby
-plugin :solid_queue
-solid_queue_mode :async
-```
-
-Note that in this case, the `processes` configuration option will be ignored.
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.

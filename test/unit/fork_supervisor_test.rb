@@ -1,6 +1,6 @@
 require "test_helper"
 
-class ForkSupervisorTest < ActiveSupport::TestCase
+class SupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
@@ -139,7 +139,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
 
     def assert_registered_supervisor(pid)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Supervisor(fork)")
+        processes = find_processes_registered_as("Supervisor")
         assert_equal 1, processes.count
         assert_nil processes.first.supervisor
         assert_equal pid, processes.first.pid
