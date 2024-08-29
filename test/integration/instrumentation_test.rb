@@ -37,6 +37,21 @@ class InstrumentationTest < ActiveSupport::TestCase
     assert_event events.first, "claim", process_id: process.id, job_ids: jobs.map(&:id), claimed_job_ids: jobs.map(&:id), size: 3
   end
 
+  test "polling emits events" do
+    3.times { StoreResultJob.perform_later(42) }
+
+    events = subscribed("polling.solid_queue") do
+      worker = SolidQueue::Worker.new.tap(&:start)
+
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ReadyExecution.any? }
+
+      worker.stop
+    end
+
+    assert_equal 5, events.size
+    events.each { |e| assert_event e, "polling" }
+  end
+
   test "stopping a worker with claimed executions emits release_claimed events" do
     StoreResultJob.perform_later(42, pause: SolidQueue.shutdown_timeout + 100.second)
     process = nil
