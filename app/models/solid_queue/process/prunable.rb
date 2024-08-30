@@ -1,12 +1,6 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class ProcessPrunedError < RuntimeError
-    def initialize(last_heartbeat_at)
-      super("Process was found dead and pruned (last heartbeat at: #{last_heartbeat_at}")
-    end
-  end
-
   class Process
     module Prunable
       extend ActiveSupport::Concern
@@ -28,7 +22,7 @@ module SolidQueue
       end
 
       def prune
-        error = ProcessPrunedError.new(last_heartbeat_at)
+        error = Processes::ProcessPrunedError.new(last_heartbeat_at)
         fail_all_claimed_executions_with(error)
 
         deregister(pruned: true)

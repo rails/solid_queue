@@ -1,18 +1,6 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class ProcessExitError < RuntimeError
-    def initialize(status)
-      message = case
-      when status.exitstatus.present? then "Process pid=#{status.pid} exited with status #{status.exitstatus}"
-      when status.signaled? then "Process pid=#{status.pid} received unhandled signal #{status.termsig}"
-      else "Process pid=#{status.pid} exited unexpectedly"
-      end
-
-      super(message)
-    end
-  end
-
   class Supervisor::ForkSupervisor < Supervisor
     include Signals, Pidfiled
 
@@ -126,7 +114,7 @@ module SolidQueue
 
       def handle_claimed_jobs_by(terminated_fork, status)
         if registered_process = process.supervisees.find_by(name: terminated_fork.name)
-          error = ProcessExitError.new(status)
+          error = Processes::ProcessExitError.new(status)
           registered_process.fail_all_claimed_executions_with(error)
         end
       end
