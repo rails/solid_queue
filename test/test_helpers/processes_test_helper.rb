@@ -7,8 +7,15 @@ module ProcessesTestHelper
     end
   end
 
+  def wait_for_full_process_shutdown
+    wait_for_registered_processes(0, timeout: SolidQueue.shutdown_timeout + 0.2.seconds)
+    assert_no_registered_processes
+  end
+
   def wait_for_registered_processes(count, timeout: 1.second)
-    wait_while_with_timeout(timeout) { SolidQueue::Process.count != count }
+    wait_while_with_timeout(timeout) do
+      SolidQueue::Process.count != count
+    end
   end
 
   def assert_no_registered_processes

@@ -266,8 +266,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   private
     def assert_clean_termination
-      wait_for_registered_processes 0, timeout: 0.2.second
-      assert_no_registered_processes
+      wait_for_full_process_shutdown
       assert_no_claimed_jobs
       assert_not process_exists?(@pid)
     end

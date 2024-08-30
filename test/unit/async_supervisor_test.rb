@@ -10,8 +10,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
 
     supervisor.stop
-
-    assert_no_registered_processes
+    wait_for_full_process_shutdown
   end
 
   test "start with provided configuration" do
@@ -24,8 +23,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
 
     supervisor.stop
-
-    assert_no_registered_processes
+    wait_for_full_process_shutdown
   end
 
   test "failed orphaned executions" do
@@ -52,6 +50,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_registered_processes(kind: "Supervisor(async)")
 
     supervisor.stop
+    wait_for_full_process_shutdown
 
     assert_equal 0, SolidQueue::ClaimedExecution.count
     assert_equal 3, SolidQueue::FailedExecution.count
