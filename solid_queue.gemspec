@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.license     = "MIT"
 
   spec.post_install_message = <<~MESSAGE
-    Upgrading to Solid Queue 0.4.x? There are some breaking changes about how Solid Queue is started,
+    Upgrading to Solid Queue 0.4.x, 0.5.x, 0.6.x or 0.7.x? There are some breaking changes about how Solid Queue is started,
     configuration and new migrations. Check https://github.com/rails/solid_queue/blob/main/UPGRADING.md
     for upgrade instructions.
   MESSAGE

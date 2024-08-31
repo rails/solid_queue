@@ -1,9 +1,18 @@
 # Upgrading to version 0.7.x
 
-This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor. To install it, you can just run
+This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor. It includes also a minor migration.
+
+To install both the binstub `bin/jobs` and the migration, you can just run
 ```
 bin/rails generate solid_queue:install
 ```
+
+Or, if you're using a different database for Solid Queue:
+
+```bash
+$ bin/rails generate solid_queue:install --database <the_name_of_your_solid_queue_db>
+```
+
 
 # Upgrading to version 0.6.x
 
