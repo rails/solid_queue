@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Ruby and install gems
         uses: ruby/setup-ruby@v1
         with:
@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: [3.2.2]
+        ruby-version: [3.3.4]
         database: [mysql, postgres, sqlite]
     services:
       mysql:
@@ -42,7 +42,7 @@ jobs:
       TARGET_DB: ${{ matrix.database }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Setup Ruby and install gems
         uses: ruby/setup-ruby@v1
         with:
