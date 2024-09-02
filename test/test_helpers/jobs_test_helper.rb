@@ -28,4 +28,10 @@ module JobsTestHelper
       assert SolidQueue::ClaimedExecution.none?
     end
   end
+
+  def assert_claimed_jobs(count = 1)
+    skip_active_record_query_cache do
+      assert_equal count, SolidQueue::ClaimedExecution.count
+    end
+  end
 end

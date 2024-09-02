@@ -2,7 +2,7 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`). _Improvements to logging and instrumentation, a better CLI tool, a way to run within an existing process in "async" mode, and some way of specifying unique jobs are coming very soon._
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
 
@@ -31,9 +31,9 @@ $ bin/rails generate solid_queue:install
 
 This will set `solid_queue` as the Active Job's adapter in production, and will copy the required migration over to your app.
 
-Alternatively, you can add only the migration to your app:
+Alternatively, you can skip setting the Active Job's adapter with:
 ```bash
-$ bin/rails solid_queue:install:migrations
+$ bin/rails generate solid_queue:install --skip_adapter
 ```
 
 And set Solid Queue as your Active Job's queue backend manually, in your environment config:
@@ -42,7 +42,7 @@ And set Solid Queue as your Active Job's queue backend manually, in your environ
 config.active_job.queue_adapter = :solid_queue
 ```
 
-Alternatively, you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
+Or you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
 
 ```ruby
 # app/jobs/my_job.rb
@@ -59,14 +59,14 @@ Finally, you need to run the migrations:
 $ bin/rails db:migrate
 ```
 
-After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them.
+After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them. You can use the provided binstub:`
 ```bash
-$ bundle exec rake solid_queue:start
+$ bin/jobs
 ```
 
 This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
 
-For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bundle exec rake solid_queue:start` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
+For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
 ## Requirements
 Besides Rails 7.1, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
@@ -80,7 +80,7 @@ We have three types of actors in Solid Queue:
 - _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. They're also in charge of managing [recurring tasks](#recurring-tasks), dispatching jobs to process them according to their schedule. On top of that, they do some maintenance work related to [concurrency controls](#concurrency-controls).
 - The _supervisor_ runs workers and dispatchers according to the configuration, controls their heartbeats, and stops and starts them when needed.
 
-By default, Solid Queue runs in `fork` mode. This means the supervisor will fork a separate process for each supervised worker/dispatcher. There's also an `async` mode where each worker and dispatcher will be run as a thread of the supervisor process. This can be used with [the provided Puma plugin](#puma-plugin)
+Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher.
 
 By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG`. This is what this configuration looks like:
 
@@ -131,7 +131,7 @@ Here's an overview of the different options:
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
-- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#running-as-a-fork-or-asynchronously).
+- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 - `recurring_tasks`: a list of recurring tasks the dispatcher will manage. Read more details about this one in the [Recurring tasks](#recurring-tasks) section.
 
@@ -194,13 +194,13 @@ development:
     # ...
 ```
 
-Install migrations and specify the dedicated database name with the `DATABASE` option. This will create the Solid Queue migration files in a separate directory, matching the value provided in `migrations_paths` in `config/database.yml`.
+Install migrations and specify the dedicated database name with the `--database` option. This will create the Solid Queue migration files in a separate directory, matching the value provided in `migrations_paths` in `config/database.yml`.
 
 ```bash
-$ bin/rails solid_queue:install:migrations DATABASE=solid_queue
+$ bin/rails g solid_queue:install --database solid_queue
 ```
 
-Note: If you've already run the solid queue install command (`bin/rails generate solid_queue:install`), the migration files will have already been generated under the primary database's `db/migrate/` directory. You can remove these files and keep the ones generated by the database-specific migration installation above.
+Note: If you've already run the solid queue install command (`bin/rails generate solid_queue:install`) without a `--database` option, the migration files will have already been generated under the primary database's `db/migrate/` directory. You can remove these files and keep the ones generated by the database-specific migration installation above.
 
 Finally, run the migrations:
 
@@ -305,18 +305,6 @@ plugin :solid_queue
 ```
 to your `puma.rb` configuration.
 
-### Running as a fork or asynchronously
-
-By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage.
-
-Alternatively, workers and dispatchers can be run within the same Puma process(s). To do so just configure the plugin as:
-
-```ruby
-plugin :solid_queue
-solid_queue_mode :async
-```
-
-Note that in this case, the `processes` configuration option will be ignored.
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.

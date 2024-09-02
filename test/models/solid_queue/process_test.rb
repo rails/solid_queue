@@ -35,7 +35,7 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
   end
 
   test "prune processes including their supervisor with expired heartbeats and fail claimed executions" do
-    supervisor = SolidQueue::Process.register(kind: "Supervisor(fork)", pid: 42, name: "supervisor-42")
+    supervisor = SolidQueue::Process.register(kind: "Supervisor", pid: 42, name: "supervisor-42")
     process = SolidQueue::Process.register(kind: "Worker", pid: 43, name: "worker-43", supervisor_id: supervisor.id)
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     jobs = SolidQueue::Job.last(3)

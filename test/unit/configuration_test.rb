@@ -19,6 +19,14 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
   end
 
+  test "default configuration when config given is empty" do
+    configuration = SolidQueue::Configuration.new(load_from: {})
+
+    assert_equal 2, configuration.configured_processes.count
+    assert_processes configuration, :worker, 1, queues: [ "*" ]
+    assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
+  end
+
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
     assert 3, configuration.configured_processes.count
@@ -54,15 +62,6 @@ class ConfigurationTest < ActiveSupport::TestCase
 
     assert_equal 3, configuration.configured_processes.count
     assert_processes configuration, :worker, 3, queues: [ "background" ], polling_interval: 10
-  end
-
-  test "ignore processes option on async mode" do
-    background_worker = { queues: "background", polling_interval: 10, processes: 3 }
-    config_as_hash = { workers: [ background_worker ] }
-    configuration = SolidQueue::Configuration.new(mode: :async, load_from: config_as_hash)
-
-    assert_equal 1, configuration.configured_processes.count
-    assert_processes configuration, :worker, 1, queues: [ "background" ], polling_interval: 10
   end
 
   private

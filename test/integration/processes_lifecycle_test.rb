@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
+class ProcessesLifecycleTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
@@ -33,9 +33,9 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "kill supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 1.second)
 
-    signal_process(@pid, :KILL, wait: 0.15.seconds)
+    signal_process(@pid, :KILL, wait: 0.2.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
     wait_for_registered_processes(1, timeout: 3.second)
 
@@ -170,7 +170,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
       enqueue_store_result_job("no exit", :default)
     end
     enqueue_store_result_job("paused no exit", :default, pause: 0.5)
-    exit_job = enqueue_store_result_job("exit", :background, exit: true, pause: 0.2)
+    exit_job = enqueue_store_result_job("exit", :background, exit_value: 1, pause: 0.2)
     pause_job = enqueue_store_result_job("exit", :background, pause: 0.3)
 
     2.times { enqueue_store_result_job("no exit", :background) }
@@ -282,7 +282,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_registered_supervisor_with(pid)
-      processes = find_processes_registered_as("Supervisor(fork)")
+      processes = find_processes_registered_as("Supervisor")
       assert_equal 1, processes.count
       assert_equal pid, processes.first.pid
     end

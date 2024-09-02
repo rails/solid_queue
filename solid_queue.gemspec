@@ -11,15 +11,16 @@ Gem::Specification.new do |spec|
   spec.license     = "MIT"
 
   spec.post_install_message = <<~MESSAGE
-    Upgrading to Solid Queue 0.4.x? There are some breaking changes about how Solid Queue is started. Check
-    https://github.com/rails/solid_queue/blob/main/UPGRADING.md for upgrade instructions.
+    Upgrading to Solid Queue 0.4.x, 0.5.x, 0.6.x or 0.7.x? There are some breaking changes about how Solid Queue is started,
+    configuration and new migrations. Check https://github.com/rails/solid_queue/blob/main/UPGRADING.md
+    for upgrade instructions.
   MESSAGE
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/rails/solid_queue"
 
   spec.files = Dir.chdir(File.expand_path(__dir__)) do
-    Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
+    Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "UPGRADING.md"]
   end
 
   rails_version = ">= 7.1"
@@ -28,6 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "railties", rails_version
   spec.add_dependency "concurrent-ruby", ">= 1.3.1"
   spec.add_dependency "fugit", "~> 1.11.0"
+  spec.add_dependency "thor", "~> 1.3.1"
 
   spec.add_development_dependency "debug"
   spec.add_development_dependency "mocha"
