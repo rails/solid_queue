@@ -208,6 +208,18 @@ Finally, run the migrations:
 $ bin/rails db:migrate
 ```
 
+## Supervisor's lifecycle hooks
+You can hook into two different points in the supervisor's life in Solid Queue:
+- `start`: after the supervisor has finished booting and right before it forks workers and dispatchers.
+- `stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown.
+
+To do that, you just need to call `SolidQueue.on_start` and `SolidQueue.on_stop` with a block, like this:
+```ruby
+SolidQueue.on_start { start_metrics_server }
+SolidQueue.on_stop { stop_metrics_server }
+```
+
+
 ### Other configuration settings
 _Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
 

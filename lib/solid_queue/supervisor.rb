@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Maintenance, Signals, Pidfiled
+    include Maintenance, LifecycleHooks, Signals, Pidfiled
 
     class << self
       def start(load_configuration_from: nil)
@@ -27,6 +27,7 @@ module SolidQueue
 
     def start
       boot
+      run_start_hooks
 
       start_processes
       launch_maintenance_task
@@ -36,6 +37,7 @@ module SolidQueue
 
     def stop
       @stopped = true
+      run_stop_hooks
     end
 
     private
