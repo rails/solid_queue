@@ -25,10 +25,6 @@ module SolidQueue::Processes
       @thread&.join
     end
 
-    def alive?
-      !running_async? || @thread.alive?
-    end
-
     private
       DEFAULT_MODE = :async
 
