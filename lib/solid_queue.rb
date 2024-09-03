@@ -45,6 +45,14 @@ module SolidQueue
 
   delegate :on_start, :on_stop, to: Supervisor
 
+  def on_worker_start(...)
+    Worker.on_start(...)
+  end
+
+  def on_worker_stop(...)
+    Worker.on_stop(...)
+  end
+
   def supervisor?
     supervisor
   end

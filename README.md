@@ -208,16 +208,32 @@ Finally, run the migrations:
 $ bin/rails db:migrate
 ```
 
-## Supervisor's lifecycle hooks
-You can hook into two different points in the supervisor's life in Solid Queue:
+## Lifecycle hooks
+
+In Solid queue, you can hook into two different points in the supervisor's life:
 - `start`: after the supervisor has finished booting and right before it forks workers and dispatchers.
 - `stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown.
 
-To do that, you just need to call `SolidQueue.on_start` and `SolidQueue.on_stop` with a block, like this:
+And into two different points in a worker's life:
+- `worker_start`: after the worker has finished booting and right before it starts the polling loop.
+- `worker_stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown (which is just `exit!`).
+
+You can use the following methods with a block to do this:
+```ruby
+SolidQueue.on_start
+SolidQueue.on_stop
+
+SolidQueue.on_worker_start
+SolidQueue.on_worker_stop
+```
+
+For example:
 ```ruby
 SolidQueue.on_start { start_metrics_server }
 SolidQueue.on_stop { stop_metrics_server }
 ```
+
+These can be called several times to add multiple hooks, but it needs to happen before Solid Queue is started. An initializer would be a good place to do this.
 
 
 ### Other configuration settings

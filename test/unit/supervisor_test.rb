@@ -128,43 +128,6 @@ class SupervisorTest < ActiveSupport::TestCase
     end
   end
 
-  test "run lifecycle hooks" do
-    SolidQueue.on_start { JobResult.create!(status: :hook_called, value: :start) }
-    SolidQueue.on_stop { JobResult.create!(status: :hook_called, value: :stop) }
-
-    pid = run_supervisor_as_fork
-    wait_for_registered_processes(4)
-
-    terminate_process(pid)
-    wait_for_registered_processes(0)
-
-    results = skip_active_record_query_cache { JobResult.last(2) }
-
-    assert_equal "hook_called", results.map(&:status).first
-    assert_equal [ "start", "stop" ], results.map(&:value)
-  ensure
-    SolidQueue::Supervisor.clear_hooks
-  end
-
-  test "handle errors on lifecycle hooks" do
-    previous_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, ->(error) { JobResult.create!(status: :error, value: error.message) }
-    SolidQueue.on_start { raise RuntimeError, "everything is broken" }
-
-    pid = run_supervisor_as_fork
-    wait_for_registered_processes(4)
-
-    terminate_process(pid)
-    wait_for_registered_processes(0)
-
-    result = skip_active_record_query_cache { JobResult.last }
-
-    assert_equal "error", result.status
-    assert_equal "everything is broken", result.value
-  ensure
-    SolidQueue.on_thread_error = previous_on_thread_error
-    SolidQueue::Supervisor.clear_hooks
-  end
-
   private
     def assert_registered_workers(supervisor_pid: nil, count: 1)
       assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)

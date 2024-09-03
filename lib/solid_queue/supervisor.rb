@@ -2,7 +2,8 @@
 
 module SolidQueue
   class Supervisor < Processes::Base
-    include Maintenance, LifecycleHooks, Signals, Pidfiled
+    include LifecycleHooks
+    include Maintenance, Signals, Pidfiled
 
     class << self
       def start(load_configuration_from: nil)

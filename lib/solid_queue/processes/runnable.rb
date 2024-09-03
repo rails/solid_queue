@@ -7,11 +7,7 @@ module SolidQueue::Processes
     attr_writer :mode
 
     def start
-      @stopped = false
-
-      SolidQueue.instrument(:start_process, process: self) do
-        run_callbacks(:boot) { boot }
-      end
+      boot
 
       if running_async?
         @thread = create_thread { run }
@@ -33,9 +29,15 @@ module SolidQueue::Processes
       end
 
       def boot
-        if running_as_fork?
-          register_signal_handlers
-          set_procline
+        SolidQueue.instrument(:start_process, process: self) do
+          run_callbacks(:boot) do
+            @stopped = false
+
+            if running_as_fork?
+              register_signal_handlers
+              set_procline
+            end
+          end
         end
       end
 
