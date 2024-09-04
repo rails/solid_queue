@@ -20,7 +20,7 @@ module SolidQueue
 
       options[:connects_to] = config.solid_queue.connects_to if config.solid_queue.connects_to
 
-      SolidQueue.configuration = SolidQueue::Configuration.new(**options)
+      SolidQueue.configuration = SolidQueue::Configuration.new(options)
 
       config.solid_queue.each do |name, value|
         SolidQueue.public_send("#{name}=", value)
