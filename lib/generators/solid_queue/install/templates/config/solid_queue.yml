@@ -1,4 +1,4 @@
-production:
+default: &default
   dispatchers:
     - polling_interval: 1
       batch_size: 500
@@ -7,3 +7,12 @@ production:
       threads: 3
       processes: 1
       polling_interval: 0.1
+
+development:
+  <<: *default
+
+test:
+  <<: *default
+
+production:
+  <<: *default
