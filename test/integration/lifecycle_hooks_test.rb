@@ -12,7 +12,7 @@ class LifecycleHooksTest < ActiveSupport::TestCase
     SolidQueue.on_worker_start { JobResult.create!(status: :hook_called, value: :worker_start) }
     SolidQueue.on_worker_stop { JobResult.create!(status: :hook_called, value: :worker_stop) }
 
-    pid = run_supervisor_as_fork(load_configuration_from: { workers: [ { queues: "*" } ] })
+    pid = run_supervisor_as_fork(workers: [ { queues: "*" } ])
     wait_for_registered_processes(4)
 
     terminate_process(pid)

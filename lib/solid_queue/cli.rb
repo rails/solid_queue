@@ -14,7 +14,7 @@ module SolidQueue
     default_command :start
 
     def start
-      SolidQueue::Supervisor.start(load_configuration_from: options["config_file"])
+      SolidQueue::Supervisor.start(config_file: options["config_file"])
     end
   end
 end

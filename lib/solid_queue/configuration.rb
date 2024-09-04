@@ -28,8 +28,8 @@ module SolidQueue
       dispatchers: [ DISPATCHER_DEFAULTS ]
     }
 
-    def initialize(load_from: nil)
-      @raw_config = config_from(load_from)
+    def initialize(config_file: nil, **options)
+      @raw_config = config_from(config_file || options.presence)
     end
 
     def configured_processes

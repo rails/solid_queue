@@ -29,7 +29,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
   test "start with provided configuration" do
     config_as_hash = { workers: [], dispatchers: [ { batch_size: 100 } ] }
-    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    pid = run_supervisor_as_fork(config_as_hash)
     wait_for_registered_processes(2, timeout: 2) # supervisor + dispatcher
 
     assert_registered_supervisor(pid)
@@ -44,7 +44,7 @@ class SupervisorTest < ActiveSupport::TestCase
   test "start with empty configuration" do
     config_as_hash = { workers: [], dispatchers: [] }
 
-    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    pid = run_supervisor_as_fork(config_as_hash)
     sleep(0.5)
     assert_no_registered_processes
 
@@ -116,7 +116,7 @@ class SupervisorTest < ActiveSupport::TestCase
       workers: [ { queues: "background", polling_interval: 10, processes: 2 } ],
       dispatchers: []
     }
-    pid = run_supervisor_as_fork(load_configuration_from: config_as_hash)
+    pid = run_supervisor_as_fork(config_as_hash)
     wait_for_registered_processes(3)
     assert_registered_supervisor(pid)
 

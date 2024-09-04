@@ -6,9 +6,9 @@ module SolidQueue
     include Maintenance, Signals, Pidfiled
 
     class << self
-      def start(load_configuration_from: nil)
+      def start(**options)
         SolidQueue.supervisor = true
-        configuration = Configuration.new(load_from: load_configuration_from)
+        configuration = Configuration.new(**options)
 
         if configuration.configured_processes.any?
           new(configuration).tap(&:start)
