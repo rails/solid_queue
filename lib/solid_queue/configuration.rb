@@ -42,7 +42,22 @@ module SolidQueue
     end
 
     def connects_to
-      SolidQueue.connects_to || connects_to_from_config
+      database, databases, connects_to = raw_config[:database], raw_config[:databases], raw_config[:connects_to]
+
+      if [ database, databases, connects_to ].compact.size > 1
+        raise ArgumentError, "You can only specify one of :database, :databases, or :connects_to"
+      end
+
+      case
+      when database
+        { database: { writing: database.to_sym } }
+      when databases
+        { shards: databases.map(&:to_sym).index_with { |database| { writing: database } } }
+      when connects_to
+        connects_to
+      else
+        nil
+      end
     end
 
     private
@@ -61,25 +76,6 @@ module SolidQueue
         dispatchers_options.map do |dispatcher_options|
           recurring_tasks = parse_recurring_tasks dispatcher_options[:recurring_tasks]
           Process.new :dispatcher, dispatcher_options.merge(recurring_tasks: recurring_tasks).with_defaults(DISPATCHER_DEFAULTS)
-        end
-      end
-
-      def connects_to_from_config
-        database, databases, connects_to = raw_config[:database], raw_config[:databases], raw_config[:connects_to]
-
-        if [ database, databases, connects_to ].compact.size > 1
-          raise ArgumentError, "You can only specify one of :database, :databases, or :connects_to"
-        end
-
-        case
-        when database
-          { database: { writing: database.to_sym } }
-        when databases
-          { shards: databases.map(&:to_sym).index_with { |database| { writing: database } } }
-        when connects_to
-          connects_to
-        else
-          nil
         end
       end
 

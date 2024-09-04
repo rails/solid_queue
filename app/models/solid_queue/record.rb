@@ -4,6 +4,8 @@ module SolidQueue
   class Record < ActiveRecord::Base
     self.abstract_class = true
 
+    connects_to(**SolidQueue.configuration.connects_to) if SolidQueue.configuration.connects_to
+
     def self.non_blocking_lock
       if SolidQueue.use_skip_locked
         lock(Arel.sql("FOR UPDATE SKIP LOCKED"))

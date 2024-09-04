@@ -22,6 +22,8 @@ module SolidQueue
 
   DEFAULT_LOGGER = ActiveSupport::Logger.new($stdout)
 
+  mattr_accessor :configuration
+
   mattr_accessor :logger, default: DEFAULT_LOGGER
   mattr_accessor :app_executor, :on_thread_error, :connects_to
 
