@@ -42,8 +42,7 @@ module SolidQueue
     end
 
     def connects_to
-      SolidQueue.connects_to || connects_to_from_config ||
-        raise(ArgumentError, "You must specify the database in SolidQueue.connects_to or #{DEFAULT_CONFIG_FILE_PATH}")
+      SolidQueue.connects_to || connects_to_from_config
     end
 
     private
