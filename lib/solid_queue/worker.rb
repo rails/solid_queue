@@ -2,6 +2,11 @@
 
 module SolidQueue
   class Worker < Processes::Poller
+    include LifecycleHooks
+
+    after_boot :run_start_hooks
+    before_shutdown :run_stop_hooks
+
     attr_accessor :queues, :pool
 
     def initialize(**options)

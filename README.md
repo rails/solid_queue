@@ -208,17 +208,47 @@ Finally, run the migrations:
 $ bin/rails db:migrate
 ```
 
+## Lifecycle hooks
+
+In Solid queue, you can hook into two different points in the supervisor's life:
+- `start`: after the supervisor has finished booting and right before it forks workers and dispatchers.
+- `stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown.
+
+And into two different points in a worker's life:
+- `worker_start`: after the worker has finished booting and right before it starts the polling loop.
+- `worker_stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown (which is just `exit!`).
+
+You can use the following methods with a block to do this:
+```ruby
+SolidQueue.on_start
+SolidQueue.on_stop
+
+SolidQueue.on_worker_start
+SolidQueue.on_worker_stop
+```
+
+For example:
+```ruby
+SolidQueue.on_start { start_metrics_server }
+SolidQueue.on_stop { stop_metrics_server }
+```
+
+These can be called several times to add multiple hooks, but it needs to happen before Solid Queue is started. An initializer would be a good place to do this.
+
+
 ### Other configuration settings
 _Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
 
 There are several settings that control how Solid Queue works that you can set as well:
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
 - `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
-- `on_thread_error`: custom lambda/Proc to call when there's an error within a thread that takes the exception raised as argument. Defaults to
+- `on_thread_error`: custom lambda/Proc to call when there's an error within a Solid Queue thread that takes the exception raised as argument. Defaults to
 
   ```ruby
   -> (exception) { Rails.error.report(exception, handled: false) }
   ```
+  **This is not used for errors raised within a job execution**. Errors happening in jobs are handled by Active Job's `retry_on` or `discard_on`, and ultimately will result in [failed jobs](#failed-jobs-and-retries). This is for errors happening within Solid Queue itself.
+
 - `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
 - `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.

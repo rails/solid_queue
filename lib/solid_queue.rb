@@ -43,6 +43,16 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  delegate :on_start, :on_stop, to: Supervisor
+
+  def on_worker_start(...)
+    Worker.on_start(...)
+  end
+
+  def on_worker_stop(...)
+    Worker.on_stop(...)
+  end
+
   def supervisor?
     supervisor
   end
