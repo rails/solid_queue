@@ -68,7 +68,7 @@ module SolidQueue
       def connects_to_from_config
         database, databases, connects_to = raw_config[:database], raw_config[:databases], raw_config[:connects_to]
 
-        if [database, databases, connects_to].compact.size > 1
+        if [ database, databases, connects_to ].compact.size > 1
           raise ArgumentError, "You can only specify one of :database, :databases, or :connects_to"
         end
 
