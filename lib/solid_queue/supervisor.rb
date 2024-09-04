@@ -9,6 +9,7 @@ module SolidQueue
       def start(load_configuration_from: nil)
         SolidQueue.supervisor = true
         configuration = Configuration.new(load_from: load_configuration_from)
+        SolidQueue::Record.connects_to(**configuration.connects_to)
 
         if configuration.configured_processes.any?
           new(configuration).tap(&:start)
