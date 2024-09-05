@@ -80,7 +80,6 @@ By default, Solid Queue will try to find your configuration under `config/solid_
 
 ```yml
 production:
-  database: queue
   dispatchers:
     - polling_interval: 1
       batch_size: 500
@@ -156,14 +155,7 @@ If processes have no chance of cleaning up before exiting (e.g. if someone pulls
 
 ### Database configuration
 
-You can configure the database used by Solid Queue via the database/databases/connects_to options in `config/solid_queue.yml` (or alternatively via `SolidQueue.connects_to`). By default, a single database is used for both writing and reading when specifying `database: NAME` in the config file. But you can split the writer and reader like this:
-
-```yml
-production:
-  connects_to:
-    writing: :queue_primary
-    reading: :queue_replica
-```
+You can configure the database used by Solid Queue via the `config.solid_queue.connects_to` option in the `config/application.rb` or `config/environments/production.rb` config files. By default, a single database is used for both writing and reading called `queue` to match the database configuration you set up during the install.
 
 All the options available to Active Record for multiple databases can be used here.
 
