@@ -6,8 +6,7 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    config_as_hash = { workers: [ { queues: :background }, { queues: :default, threads: 5 } ], dispatchers: [] }
-    @pid = run_supervisor_as_fork(config_as_hash)
+    @pid = run_supervisor_as_fork(workers: [ { queues: :background }, { queues: :default, threads: 5 } ])
 
     wait_for_registered_processes(3, timeout: 3.second)
     assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
