@@ -25,17 +25,20 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class JobWithPriority < ApplicationJob
+    queue_with_priority 10
+
+    def perform
+      JobBuffer.add "job_with_priority"
+    end
+  end
+
   class JobUsingAsyncAdapter < ApplicationJob
     self.queue_adapter = :async
 
     def perform
       JobBuffer.add "job_using_async_adapter"
     end
-  end
-
-  setup do
-    @worker = SolidQueue::Worker.new(queues: "*")
-    @worker.mode = :inline
   end
 
   test "job without arguments" do
@@ -126,6 +129,31 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_not SolidQueue::RecurringTask.new(key: "task-id", schedule: "every minute").valid?
   end
 
+  test "task with custom queue and priority" do
+    task = recurring_task_with(class_name: "JobWithoutArguments", queue_name: "my_new_queue", priority: 4)
+    enqueue_and_assert_performed_with_result task, "job_without_arguments"
+
+    job = SolidQueue::Job.last
+    assert_equal "my_new_queue", job.queue_name
+    assert_equal 4, job.priority
+  end
+
+  test "overriding existing priority" do
+    task = recurring_task_with(class_name: "JobWithPriority", priority: nil).tap(&:save!)
+    enqueue_and_assert_performed_with_result task.reload, "job_with_priority"
+
+    job = SolidQueue::Job.last
+    assert_equal 10, job.priority
+
+    task.destroy
+
+    task = recurring_task_with(class_name: "JobWithPriority", priority: 4).tap(&:save!)
+    enqueue_and_assert_performed_with_result task.reload, "job_with_priority"
+
+    job = SolidQueue::Job.last
+    assert_equal 4, job.priority
+  end
+
   private
     def enqueue_and_assert_performed_with_result(task, result)
       assert_difference [ -> { SolidQueue::Job.count }, -> { SolidQueue::ReadyExecution.count } ], +1 do
@@ -133,13 +161,16 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       end
 
       assert_difference -> { JobBuffer.size }, +1 do
-        @worker.start
+        SolidQueue::Worker.new(queues: "*").tap do |worker|
+          worker.mode = :inline
+          worker.start
+        end
       end
 
       assert_equal result, JobBuffer.last_value
     end
 
-    def recurring_task_with(class_name:, schedule: "every hour", args: nil)
-      SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, arguments: args)
+    def recurring_task_with(class_name:, schedule: "every hour", args: nil, **options)
+      SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, arguments: args, **options)
     end
 end

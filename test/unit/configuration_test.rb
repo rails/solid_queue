@@ -111,11 +111,7 @@ class ConfigurationTest < ActiveSupport::TestCase
           value = value.first
         end
 
-        if expected_value.nil?
-          assert_nil value
-        else
-          assert_equal expected_value, value
-        end
+        assert_equal_value expected_value, value
       end
     end
 
@@ -124,7 +120,15 @@ class ConfigurationTest < ActiveSupport::TestCase
       task = dispatcher.recurring_schedule.configured_tasks.detect { |t| t.key == key }
 
       attributes.each do |attr, value|
-        assert_equal value, task.public_send(attr)
+        assert_equal_value value, task.public_send(attr)
+      end
+    end
+
+    def assert_equal_value(expected_value, value)
+      if expected_value.nil?
+        assert_nil value
+      else
+        assert_equal expected_value, value
       end
     end
 

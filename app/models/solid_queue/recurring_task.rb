@@ -17,7 +17,15 @@ module SolidQueue
       end
 
       def from_configuration(key, **options)
-        new(key: key, class_name: options[:class], schedule: options[:schedule], arguments: options[:args])
+        new \
+          key: key,
+          class_name: options[:class],
+          arguments: options[:args],
+          schedule: options[:schedule],
+          queue_name: options[:queue_name].presence,
+          priority: options[:priority].presence,
+          description: options[:description],
+          static: true
       end
 
       def create_or_update_all(tasks)
@@ -89,7 +97,7 @@ module SolidQueue
 
       def enqueue_and_record(run_at:)
         RecurringExecution.record(key, run_at) do
-          job_class.new(*arguments_with_kwargs).tap do |active_job|
+          job_class.new(*arguments_with_kwargs).set(enqueue_options).tap do |active_job|
             active_job.run_callbacks(:enqueue) do
               Job.enqueue(active_job)
             end
@@ -99,7 +107,7 @@ module SolidQueue
       end
 
       def perform_later(&block)
-        job_class.perform_later(*arguments_with_kwargs, &block)
+        job_class.set(enqueue_options).perform_later(*arguments_with_kwargs, &block)
       end
 
       def arguments_with_kwargs
@@ -117,6 +125,10 @@ module SolidQueue
 
       def job_class
         @job_class ||= class_name&.safe_constantize
+      end
+
+      def enqueue_options
+        { queue: queue_name, priority: priority }.compact
       end
   end
 end
