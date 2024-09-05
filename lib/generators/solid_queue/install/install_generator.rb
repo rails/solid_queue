@@ -12,6 +12,7 @@ class SolidQueue::InstallGenerator < Rails::Generators::Base
   def configure_active_job_adapter
     gsub_file Pathname(destination_root).join("config/environments/production.rb"),
       /(# )?config\.active_job\.queue_adapter\s+=.*/,
-      "config.active_job.queue_adapter = :solid_queue"
+      "config.active_job.queue_adapter = :solid_queue\n" +
+      "  config.solid_queue.connects_to = { database: { writing: :queue } }\n"
   end
 end

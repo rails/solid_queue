@@ -41,25 +41,6 @@ module SolidQueue
       workers_options.map { |options| options[:threads] }.max + 2
     end
 
-    def connects_to
-      database, databases, connects_to = raw_config[:database], raw_config[:databases], raw_config[:connects_to]
-
-      if [ database, databases, connects_to ].compact.size > 1
-        raise ArgumentError, "You can only specify one of :database, :databases, or :connects_to"
-      end
-
-      case
-      when database
-        { database: { writing: database.to_sym } }
-      when databases
-        { shards: databases.map(&:to_sym).index_with { |database| { writing: database } } }
-      when connects_to
-        connects_to
-      else
-        nil
-      end
-    end
-
     private
       attr_reader :raw_config
 
