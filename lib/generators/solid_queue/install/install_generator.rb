@@ -7,6 +7,7 @@ class SolidQueue::InstallGenerator < Rails::Generators::Base
     template "config/solid_queue.yml"
     template "db/queue_schema.rb"
     template "bin/jobs"
+    chmod "bin/jobs", 0755 & ~File.umask, verbose: false
   end
 
   def configure_active_job_adapter
