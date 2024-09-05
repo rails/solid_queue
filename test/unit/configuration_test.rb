@@ -20,7 +20,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "default configuration when config given is empty" do
-    configuration = SolidQueue::Configuration.new
+    configuration = SolidQueue::Configuration.new(load_from: {})
 
     assert_equal 2, configuration.configured_processes.count
     assert_processes configuration, :worker, 1, queues: [ "*" ]
