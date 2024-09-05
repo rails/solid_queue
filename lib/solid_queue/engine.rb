@@ -10,7 +10,7 @@ module SolidQueue
 
     config.solid_queue = ActiveSupport::OrderedOptions.new
 
-    initializer "solid_queue.config" do |app|
+    initializer "solid_queue.config" do
       config.solid_queue.each do |name, value|
         SolidQueue.public_send("#{name}=", value)
       end
