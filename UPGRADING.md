@@ -1,3 +1,6 @@
+# Upgrading to version 0.8.x
+*IMPORTANT*: This version collapsed all migrations into a single `db/queue_schema.rb`, that will use a separate `queue` database. If you're upgrading from a version < 0.6.0, you need to upgrade to 0.6.0 first, ensure all migrations are up-to-date, and then upgrade further.
+
 # Upgrading to version 0.7.x
 
 This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor.
