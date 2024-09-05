@@ -1,6 +1,6 @@
 # Upgrading to version 0.7.x
 
-This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor. It includes also a minor migration.
+This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor.
 
 To install both the binstub `bin/jobs` and the migration, you can just run
 ```
