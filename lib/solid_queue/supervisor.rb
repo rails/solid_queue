@@ -8,9 +8,7 @@ module SolidQueue
     class << self
       def start(load_configuration_from: nil)
         SolidQueue.supervisor = true
-
-        configuration = load_configuration_from ?
-          Configuration.new(load_configuration_from) : SolidQueue.configuration
+        configuration = Configuration.new(load_configuration_from)
 
         if configuration.configured_processes.any?
           new(configuration).tap(&:start)
