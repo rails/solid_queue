@@ -5,6 +5,6 @@ Example:
     bin/rails generate solid_queue:install
 
     This will perform the following:
-        Installs solid_queue migrations
+        Adds solid_queue db schema
         Replaces Active Job's adapter in environment configuration
         Installs bin/jobs binstub to start the supervisor

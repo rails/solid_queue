@@ -6,43 +6,52 @@ Besides regular job enqueuing and processing, Solid Queue supports delayed jobs,
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
 
-## Installation and usage
-Add this line to your application's Gemfile:
+## Installation
 
-```ruby
-gem "solid_queue"
+Solid Queue is configured by default in new Rails 8 applications. But if you're running an earlier version, you can add it manually following these steps:
+
+1. `bundle add solid_queue`
+2. `bin/rails solid_queue:install`
+
+This will configure Solid Queue as the production Active Job backend, create `config/solid_queue.yml`, and create the `db/queue_schema.rb`.
+
+You will then have to add the configuration for the queue database in `config/database.yml`. If you're using sqlite, it'll look like this:
+
+```yaml
+production:
+  primary:
+    <<: *default
+    database: storage/production.sqlite3
+  queue:
+    <<: *default
+    database: storage/production_queue.sqlite3
+    migrations_paths: db/queue_migrate
 ```
 
-And then execute:
-```bash
-$ bundle
+...or if you're using MySQL/PostgreSQL/Trilogy:
+
+```yaml
+production:
+  primary: &primary_production
+    <<: *default
+    database: app_production
+    username: app
+    password: <%= ENV["APP_DATABASE_PASSWORD"] %>
+  queue:
+    <<: *primary_production
+    database: app_production_queue
+    migrations_paths: db/queue_migrate
 ```
 
-Or install it yourself as:
-```bash
-$ gem install solid_queue
-```
+Then run `db:prepare` in production to ensure the database is created and the schema is loaded.
 
-Now, you need to install the necessary migrations and configure the Active Job's adapter. You can do both at once using the provided generator:
+Now you're ready to start processing jobs by running `bin/jobs` on the server that's doing the work. This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
 
-```bash
-$ bin/rails generate solid_queue:install
-```
+For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
-This will set `solid_queue` as the Active Job's adapter in production, and will copy the required migration over to your app.
+## Incremental adoption
 
-Alternatively, you can skip setting the Active Job's adapter with:
-```bash
-$ bin/rails generate solid_queue:install --skip_adapter
-```
-
-And set Solid Queue as your Active Job's queue backend manually, in your environment config:
-```ruby
-# config/environments/production.rb
-config.active_job.queue_adapter = :solid_queue
-```
-
-Or you can set only specific jobs to use Solid Queue as their backend if you're migrating from another adapter and want to move jobs progressively:
+If you're planning to adopt Solid Queue incrementally by switching one job at the time, you can do so by leaving the `config.active_job.queue_adapter` set to your old backend, and then set the `queue_adapter` directly in the jobs you're moving:
 
 ```ruby
 # app/jobs/my_job.rb
@@ -52,24 +61,9 @@ class MyJob < ApplicationJob
   # ...
 end
 ```
+## High performance requirements
 
-Finally, you need to run the migrations:
-
-```bash
-$ bin/rails db:migrate
-```
-
-After this, you'll be ready to enqueue jobs using Solid Queue, but you need to start Solid Queue's supervisor to run them. You can use the provided binstub:`
-```bash
-$ bin/jobs
-```
-
-This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
-
-For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
-
-## Requirements
-Besides Rails 7.1, Solid Queue works best with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue.
+Solid Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue. You can also use it with SQLite on smaller applications.
 
 ## Configuration
 
@@ -135,8 +129,8 @@ Here's an overview of the different options:
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 - `recurring_tasks`: a list of recurring tasks the dispatcher will manage. Read more details about this one in the [Recurring tasks](#recurring-tasks) section.
 
-
 ### Queue order and priorities
+
 As mentioned above, if you specify a list of queues for a worker, these will be polled in the order given, such as for the list `real_time,background`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`.
 
 Active Job also supports positive integer priorities when enqueuing jobs. In Solid Queue, the smaller the value, the higher the priority. The default is `0`.
@@ -159,54 +153,11 @@ When receiving a `QUIT` signal, if workers still have jobs in-flight, these will
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats, which will release any claimed jobs back to their queues. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
 
 
-### Dedicated database configuration
+### Database configuration
 
-Solid Queue can be configured to run on a different database than the main application.
+You can configure the database used by Solid Queue via the `config.solid_queue.connects_to` option in the `config/application.rb` or `config/environments/production.rb` config files. By default, a single database is used for both writing and reading called `queue` to match the database configuration you set up during the install.
 
-Configure the `connects_to` option in `config/application.rb` or your environment config, with the custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model.
-
-```ruby
-  # Use a separate DB for Solid Queue
-  config.solid_queue.connects_to = { database: { writing: :solid_queue_primary, reading: :solid_queue_replica } }
-  ```
-
-Add the dedicated database configuration to `config/database.yml`, differentiating between the main app's database and the dedicated `solid_queue` database. Make sure to include the `migrations_paths` for the solid queue database. This is where migration files for Solid Queue tables will reside.
-
-```yml
-default: &default
-  adapter: sqlite3
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  timeout: 5000
-
-solid_queue: &solid_queue
-  <<: *default
-  migrations_paths: db/solid_queue_migrate
-
-development:
-  primary:
-    <<: *default
-    # ...
-  solid_queue_primary:
-    <<: *solid_queue
-    # ...
-  solid_queue_replica:
-    <<: *solid_queue
-    # ...
-```
-
-Install migrations and specify the dedicated database name with the `--database` option. This will create the Solid Queue migration files in a separate directory, matching the value provided in `migrations_paths` in `config/database.yml`.
-
-```bash
-$ bin/rails g solid_queue:install --database solid_queue
-```
-
-Note: If you've already run the solid queue install command (`bin/rails generate solid_queue:install`) without a `--database` option, the migration files will have already been generated under the primary database's `db/migrate/` directory. You can remove these files and keep the ones generated by the database-specific migration installation above.
-
-Finally, run the migrations:
-
-```bash
-$ bin/rails db:migrate
-```
+All the options available to Active Record for multiple databases can be used here.
 
 ## Lifecycle hooks
 
@@ -235,8 +186,8 @@ SolidQueue.on_stop { stop_metrics_server }
 
 These can be called several times to add multiple hooks, but it needs to happen before Solid Queue is started. An initializer would be a good place to do this.
 
-
 ### Other configuration settings
+
 _Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
 
 There are several settings that control how Solid Queue works that you can set as well:
@@ -261,11 +212,13 @@ There are several settings that control how Solid Queue works that you can set a
 - `enqueue_after_transaction_commit`: whether the job queuing is deferred to after the current Active Record transaction is committed. The default is `false`. [Read more](https://github.com/rails/rails/pull/51426).
 
 ## Errors when enqueuing
+
 Solid Queue will raise a `SolidQueue::Job::EnqueueError` for any Active Record errors that happen when enqueuing a job. The reason for not raising `ActiveJob::EnqueueError` is that this one gets handled by Active Job, causing `perform_later` to return `false` and set `job.enqueue_error`, yielding the job to a block that you need to pass to `perform_later`. This works very well for your own jobs, but makes failure very hard to handle for jobs enqueued by Rails or other gems, such as `Turbo::Streams::BroadcastJob` or `ActiveStorage::AnalyzeJob`, because you don't control the call to `perform_later` in that cases.
 
 In the case of recurring tasks, if such error is raised when enqueuing the job corresponding to the task, it'll be handled and logged but it won't bubble up.
 
 ## Concurrency controls
+
 Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs are never discarded or lost, only blocked.
 
 ```ruby
@@ -331,35 +284,15 @@ failed_execution.discard # This will delete the job from the system
 However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
 ## Puma plugin
+
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
 ```ruby
 plugin :solid_queue
 ```
 to your `puma.rb` configuration.
 
-
-## Jobs and transactional integrity
-:warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
-
-By default, Solid Queue runs in the same DB as your app, and job enqueuing is _not_ deferred until any ongoing transaction is committed, which means that by default, you'll be taking advantage of this transactional integrity.
-
-If you prefer not to rely on this, or avoid relying on it unintentionally, you should make sure that:
-- You set [`config.active_job.enqueue_after_transaction_commit`](https://edgeguides.rubyonrails.org/configuring.html#config-active-job-enqueue-after-transaction-commit) to `always`, if you're using Rails 7.2+.
-- Or, your jobs relying on specific records are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
-- Or, you configure a different database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
-
-  ```ruby
-  class ApplicationRecord < ActiveRecord::Base
-    self.abstract_class = true
-
-    connects_to database: { writing: :primary, reading: :replica }
-  ```
-
-  ```ruby
-  config.solid_queue.connects_to = { database: { writing: :primary, reading: :replica } }
-  ```
-
 ## Recurring tasks
+
 Solid Queue supports defining recurring tasks that run at specific times in the future, on a regular basis like cron jobs. These are managed by dispatcher processes and as such, they can be defined in the dispatcher's configuration like this:
 ```yml
   dispatchers:
