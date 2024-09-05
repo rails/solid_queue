@@ -11,17 +11,6 @@ module SolidQueue
     config.solid_queue = ActiveSupport::OrderedOptions.new
 
     initializer "solid_queue.config" do |app|
-      app.paths.add "config/solid_queue", with: ENV["SOLID_QUEUE_CONFIG"] || "config/queue.yml" || "config/solid_queue.yml"
-
-      options = {}
-      if (config_path = Pathname.new(app.config.paths["config/solid_queue"].first)).exist?
-        options = app.config_for(config_path).to_h.deep_symbolize_keys
-      end
-
-      options[:connects_to] = config.solid_queue.connects_to if config.solid_queue.connects_to
-
-      SolidQueue.configuration = SolidQueue::Configuration.new(options)
-
       config.solid_queue.each do |name, value|
         SolidQueue.public_send("#{name}=", value)
       end
