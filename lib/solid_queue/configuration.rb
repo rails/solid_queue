@@ -30,11 +30,9 @@ module SolidQueue
     end
 
     def configured_processes
-      case
-      when only_work?     then workers
-      when only_dispatch? then dispatchers
+      if only_work? then workers
       else
-        dispatchers + workers
+        dispatchers + workers + schedulers
       end
     end
 
@@ -81,6 +79,14 @@ module SolidQueue
         end
       end
 
+      def schedulers
+        if !skip_recurring_tasks? && recurring_tasks.any?
+          [ Process.new(:scheduler, recurring_tasks: recurring_tasks) ]
+        else
+          []
+        end
+      end
+
       def workers_options
         @workers_options ||= processes_config.fetch(:workers, [])
           .map { |options| options.dup.symbolize_keys }
@@ -89,22 +95,6 @@ module SolidQueue
       def dispatchers_options
         @dispatchers_options ||= processes_config.fetch(:dispatchers, [])
           .map { |options| options.dup.symbolize_keys }
-          .then { |options| with_recurring_tasks(options) }
-      end
-
-      def with_recurring_tasks(options)
-        if !skip_recurring_tasks? && recurring_tasks.any?
-          options.sort_by! { |attrs| attrs[:polling_interval] }
-
-          if least_busy_dispatcher = options.pop
-            least_busy_dispatcher[:recurring_tasks] = recurring_tasks
-            options.push(least_busy_dispatcher)
-          else
-            [ DISPATCHER_DEFAULTS.merge(recurring_tasks: recurring_tasks) ]
-          end
-        else
-          options
-        end
       end
 
       def recurring_tasks
@@ -128,7 +118,7 @@ module SolidQueue
       def config_from(file_or_hash, keys: [], fallback: {}, env: Rails.env)
         load_config_from(file_or_hash).then do |config|
           config = config[env.to_sym] ? config[env.to_sym] : config
-          config = config.slice(*keys) if keys.any?
+          config = config.slice(*keys) if keys.any? && config.present?
 
           if config.empty? then fallback
           else

@@ -14,7 +14,6 @@ module SolidQueue
       desc: "Path to recurring schedule definition",
       banner: "SOLID_QUEUE_RECURRING_SCHEDULE"
 
-    class_option :dispatch_only, type: :boolean, default: false
     class_option :work_only, type: :boolean, default: false
     class_option :skip_recurring, type: :boolean, default: false
 

@@ -4,13 +4,14 @@ class ConfigurationTest < ActiveSupport::TestCase
   test "default configuration to process all queues and dispatch" do
     configuration = SolidQueue::Configuration.new(config_file: nil)
 
-    assert_equal 2, configuration.configured_processes.count
+    assert_equal 3, configuration.configured_processes.count
     assert_processes configuration, :worker, 1, queues: "*"
     assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
+    assert_processes configuration, :scheduler, 1
   end
 
   test "default configuration when config given doesn't include any configuration" do
-    configuration = SolidQueue::Configuration.new(config_file: config_file_path(:invalid_configuration))
+    configuration = SolidQueue::Configuration.new(config_file: config_file_path(:invalid_configuration), skip_recurring: true)
 
     assert_equal 2, configuration.configured_processes.count
     assert_processes configuration, :worker, 1, queues: "*"
@@ -18,7 +19,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "default configuration when config given is empty" do
-    configuration = SolidQueue::Configuration.new(config_file: config_file_path(:empty_configuration))
+    configuration = SolidQueue::Configuration.new(config_file: config_file_path(:empty_configuration), recurring_schedule_file: config_file_path(:empty_configuration))
 
     assert_equal 2, configuration.configured_processes.count
     assert_processes configuration, :worker, 1, queues: "*"
@@ -69,30 +70,19 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ])
 
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1
+    assert_processes configuration, :scheduler, 1
 
-    dispatcher = configuration.configured_processes.first.instantiate
-    assert_has_recurring_task dispatcher, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
+    scheduler = configuration.configured_processes.second.instantiate
+    assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
   end
 
-  test "recurring tasks configuration with no dispatchers uses a default dispatcher" do
+  test "recurring tasks configuration adds a scheduler" do
     configuration = SolidQueue::Configuration.new(dispatchers: [])
 
-    assert_processes configuration, :dispatcher, 1, polling_interval: 1
+    assert_processes configuration, :scheduler, 1
 
-    dispatcher = configuration.configured_processes.first.instantiate
-    assert_has_recurring_task dispatcher, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
-  end
-
-  test "recurring tasks configuration with multiple dispatchers uses the least busy one" do
-    configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 }, { polling_interval: 0.4 }, { polling_interval: 0.2 } ])
-
-    assert_processes configuration, :dispatcher, 3, polling_interval: [ 0.1, 0.2, 0.4 ] # sorted by polling interval
-
-    dispatcher = configuration.configured_processes.last.instantiate
-    assert_has_recurring_task dispatcher, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
-
-    dispatchers_without_recurring_tasks = configuration.configured_processes.first(2)
-    assert_nil dispatchers_without_recurring_tasks.map { |d| d.attributes[:recurring_tasks] }.uniq.first
+    scheduler = configuration.configured_processes.first.instantiate
+    assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
   end
 
   test "no recurring tasks configuration when explicitly excluded" do
@@ -115,9 +105,9 @@ class ConfigurationTest < ActiveSupport::TestCase
       end
     end
 
-    def assert_has_recurring_task(dispatcher, key:, **attributes)
-      assert_equal 1, dispatcher.recurring_schedule.configured_tasks.count
-      task = dispatcher.recurring_schedule.configured_tasks.detect { |t| t.key == key }
+    def assert_has_recurring_task(scheduler, key:, **attributes)
+      assert_equal 1, scheduler.recurring_schedule.configured_tasks.count
+      task = scheduler.recurring_schedule.configured_tasks.detect { |t| t.key == key }
 
       attributes.each do |attr, value|
         assert_equal_value value, task.public_send(attr)

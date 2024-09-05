@@ -94,7 +94,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     if error = event.payload[:error]
       warn formatted_event(event, action: "Error registering #{process_kind}", **attributes.merge(error: formatted_error(error)))
     else
-      info formatted_event(event, action: "Register #{process_kind}", **attributes)
+      debug formatted_event(event, action: "Register #{process_kind}", **attributes)
     end
   end
 
@@ -114,7 +114,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     if error = event.payload[:error]
       warn formatted_event(event, action: "Error deregistering #{process.kind}", **attributes.merge(error: formatted_error(error)))
     else
-      info formatted_event(event, action: "Deregister #{process.kind}", **attributes)
+      debug formatted_event(event, action: "Deregister #{process.kind}", **attributes)
     end
   end
 

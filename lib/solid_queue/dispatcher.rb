@@ -2,10 +2,10 @@
 
 module SolidQueue
   class Dispatcher < Processes::Poller
-    attr_accessor :batch_size, :concurrency_maintenance, :recurring_schedule
+    attr_accessor :batch_size, :concurrency_maintenance
 
-    after_boot :start_concurrency_maintenance, :schedule_recurring_tasks
-    before_shutdown :stop_concurrency_maintenance, :unschedule_recurring_tasks
+    after_boot :start_concurrency_maintenance
+    before_shutdown :stop_concurrency_maintenance
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)
@@ -13,13 +13,12 @@ module SolidQueue
       @batch_size = options[:batch_size]
 
       @concurrency_maintenance = ConcurrencyMaintenance.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_maintenance]
-      @recurring_schedule = RecurringSchedule.new(options[:recurring_tasks])
 
       super(**options)
     end
 
     def metadata
-      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval, recurring_schedule: recurring_schedule.task_keys.presence)
+      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval)
     end
 
     private

@@ -18,6 +18,8 @@ module SolidQueue::Processes
 
     def stop
       @stopped = true
+      wake_up if running_async?
+
       @thread&.join
     end
 
@@ -59,6 +61,9 @@ module SolidQueue::Processes
 
       def all_work_completed?
         false
+      end
+
+      def shutdown
       end
 
       def set_procline

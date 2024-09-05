@@ -41,9 +41,6 @@ module SolidQueue::Processes
         raise NotImplementedError
       end
 
-      def shutdown
-      end
-
       def with_polling_volume
         SolidQueue.instrument(:polling) do
           if SolidQueue.silence_polling? && ActiveRecord::Base.logger

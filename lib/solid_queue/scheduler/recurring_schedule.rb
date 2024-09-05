@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Dispatcher::RecurringSchedule
+  class Scheduler::RecurringSchedule
     include AppExecutor
 
     attr_reader :configured_tasks, :scheduled_tasks

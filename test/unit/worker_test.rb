@@ -147,10 +147,4 @@ class WorkerTest < ActiveSupport::TestCase
     ensure
       ActiveRecord::Base.logger = old_logger
     end
-
-    def assert_metadata(process, metadata)
-      metadata.each do |attr, value|
-        assert_equal value, process.metadata[attr.to_s]
-      end
-    end
 end
