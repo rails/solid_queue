@@ -28,7 +28,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "read configuration from default file" do
-    configuration = SolidQueue::Configuration.new(load_from: {})
+    configuration = SolidQueue::Configuration.new
     assert 3, configuration.configured_processes.count
     assert_processes configuration, :worker, 2
     assert_processes configuration, :dispatcher, 1
