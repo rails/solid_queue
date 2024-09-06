@@ -1,6 +1,6 @@
 ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   create_table "solid_queue_blocked_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.string "concurrency_key", null: false
@@ -12,7 +12,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   end
 
   create_table "solid_queue_claimed_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.bigint "process_id"
     t.datetime "created_at", null: false
     t.index [ "job_id" ], name: "index_solid_queue_claimed_executions_on_job_id", unique: true
@@ -20,7 +20,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   end
 
   create_table "solid_queue_failed_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.text "error"
     t.datetime "created_at", null: false
     t.index [ "job_id" ], name: "index_solid_queue_failed_executions_on_job_id", unique: true
@@ -65,7 +65,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   end
 
   create_table "solid_queue_ready_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.datetime "created_at", null: false
@@ -75,7 +75,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   end
 
   create_table "solid_queue_recurring_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.string "task_key", null: false
     t.datetime "run_at", null: false
     t.datetime "created_at", null: false
@@ -100,7 +100,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_09_04_193154) do
   end
 
   create_table "solid_queue_scheduled_executions", force: :cascade do |t|
-    t.integer "job_id", null: false
+    t.bigint "job_id", null: false
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.datetime "scheduled_at", null: false
