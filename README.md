@@ -51,6 +51,16 @@ Now you're ready to start processing jobs by running `bin/jobs` on the server th
 
 For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
+### Single database configuration
+
+It's also possibile to use one single database for both production data:
+
+1. Shovel `db/queue_schema.rb` into a normal migration and delete `db/queue_schema.rb`
+2. Remove `config.solid_queue.connects_to` from `production.rb`
+3. Migrate your database. You are ready to run `bin/jobs`
+
+You won't have multiple databases, so `database.yml` doesn't need to have primary and queue database.
+
 ## Incremental adoption
 
 If you're planning to adopt Solid Queue incrementally by switching one job at the time, you can do so by leaving the `config.active_job.queue_adapter` set to your old backend, and then set the `queue_adapter` directly in the jobs you're moving:
