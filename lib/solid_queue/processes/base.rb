@@ -10,6 +10,7 @@ module SolidQueue
 
       def initialize(*)
         @name = generate_name
+        @stopped = false
       end
 
       def kind
@@ -28,9 +29,17 @@ module SolidQueue
         {}
       end
 
+      def stop
+        @stopped = true
+      end
+
       private
         def generate_name
           [ kind.downcase, SecureRandom.hex(10) ].join("-")
+        end
+
+        def stopped?
+          @stopped
         end
     end
   end

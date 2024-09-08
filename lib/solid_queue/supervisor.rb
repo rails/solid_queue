@@ -31,13 +31,15 @@ module SolidQueue
       run_start_hooks
 
       start_processes
+
+      launch_heartbeat
       launch_maintenance_task
 
       supervise
     end
 
     def stop
-      @stopped = true
+      super
       run_stop_hooks
     end
 
@@ -47,7 +49,6 @@ module SolidQueue
       def boot
         SolidQueue.instrument(:start_process, process: self) do
           run_callbacks(:boot) do
-            @stopped = false
             sync_std_streams
           end
         end
@@ -85,10 +86,6 @@ module SolidQueue
 
         configured_processes[pid] = configured_process
         forks[pid] = process_instance
-      end
-
-      def stopped?
-        @stopped
       end
 
       def set_procline
