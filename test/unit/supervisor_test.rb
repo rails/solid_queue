@@ -121,6 +121,28 @@ class SupervisorTest < ActiveSupport::TestCase
     end
   end
 
+  test "prune processes with expired heartbeats" do
+    pruned = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-42")
+
+    # Simulate expired heartbeats
+    SolidQueue::Process.update_all(last_heartbeat_at: 10.minutes.ago)
+
+    not_pruned = SolidQueue::Process.register(kind: "Worker", pid: 44, name: "worker-44")
+
+    assert_equal 2, SolidQueue::Process.count
+
+    pid = run_supervisor_as_fork(load_configuration_from: { workers: [ { queues: :background } ] })
+    wait_for_registered_processes(4)
+
+    terminate_process(pid)
+
+    skip_active_record_query_cache do
+      assert_equal 1, SolidQueue::Process.count
+      assert_nil SolidQueue::Process.find_by(id: pruned.id)
+      assert SolidQueue::Process.find_by(id: not_pruned.id).present?
+    end
+  end
+
   private
     def assert_registered_workers(supervisor_pid: nil, count: 1)
       assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)
