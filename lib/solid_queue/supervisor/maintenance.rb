@@ -24,7 +24,7 @@ module SolidQueue
       end
 
       def prune_dead_processes
-        wrap_in_app_executor { SolidQueue::Process.prune }
+        wrap_in_app_executor { SolidQueue::Process.prune(excluding: process) }
       end
 
       def fail_orphaned_executions
