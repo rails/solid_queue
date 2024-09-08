@@ -17,9 +17,9 @@ module SolidQueue::Processes
     end
 
     def stop
-      @stopped = true
-      wake_up
+      super
 
+      wake_up
       @thread&.join
     end
 
@@ -33,8 +33,6 @@ module SolidQueue::Processes
       def boot
         SolidQueue.instrument(:start_process, process: self) do
           run_callbacks(:boot) do
-            @stopped = false
-
             if running_as_fork?
               register_signal_handlers
               set_procline
@@ -49,10 +47,6 @@ module SolidQueue::Processes
 
       def run
         raise NotImplementedError
-      end
-
-      def stopped?
-        @stopped
       end
 
       def finished?
