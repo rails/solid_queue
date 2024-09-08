@@ -29,11 +29,11 @@ module SolidQueue::Processes
       end
 
       def deregister
-        process.deregister if registered?
+        process&.deregister
       end
 
       def registered?
-        process&.persisted?
+        process.present?
       end
 
       def launch_heartbeat
@@ -53,7 +53,10 @@ module SolidQueue::Processes
       end
 
       def heartbeat
-        process.heartbeat
+        process.reload.heartbeat
+      rescue ActiveRecord::RecordNotFound
+        self.process = nil
+        wake_up
       end
   end
 end

@@ -133,6 +133,27 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
   end
 
+  test "terminate on heartbeat when unregistered" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 1.second
+
+    @worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_not @worker.pool.shutdown?
+
+    process = SolidQueue::Process.first
+    assert_equal "Worker", process.kind
+
+    process.deregister
+
+    # And now just wait until the worker tries to heartbeat and realises
+    # it needs to stop
+    wait_while_with_timeout(2) { !@worker.pool.shutdown? }
+    assert @worker.pool.shutdown?
+  ensure
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+  end
+
   private
     def with_polling(silence:)
       old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
