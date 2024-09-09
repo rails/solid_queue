@@ -19,7 +19,7 @@ class PluginTest < ActiveSupport::TestCase
         exec(*cmd)
       end
     end
-    wait_for_registered_processes(4, timeout: 3.second)
+    wait_for_registered_processes 5, timeout: 3.second
   end
 
   teardown do
@@ -38,7 +38,7 @@ class PluginTest < ActiveSupport::TestCase
     signal_process(@pid, :SIGUSR2)
     # Ensure the restart finishes before we try to continue with the test
     wait_for_registered_processes(0, timeout: 3.second)
-    wait_for_registered_processes(4, timeout: 3.second)
+    wait_for_registered_processes(5, timeout: 3.second)
 
     StoreResultJob.perform_later(:puma_plugin)
     wait_for_jobs_to_finish_for(2.seconds)

@@ -29,7 +29,6 @@ module SolidQueue::Processes
         %w[ INT TERM ].each do |signal|
           trap(signal) do
             stop
-            interrupt
           end
         end
 

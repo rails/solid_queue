@@ -20,7 +20,7 @@ module SolidQueue
     end
 
     private
-      SLEEP_INTERVAL = 300 # Right now it doesn't matter, can be set to 1 in the future for dynamic tasks
+      SLEEP_INTERVAL = 60 # Right now it doesn't matter, can be set to 1 in the future for dynamic tasks
 
       def run
         loop do

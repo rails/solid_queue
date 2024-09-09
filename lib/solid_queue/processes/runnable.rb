@@ -18,7 +18,7 @@ module SolidQueue::Processes
 
     def stop
       @stopped = true
-      wake_up if running_async?
+      wake_up
 
       @thread&.join
     end
