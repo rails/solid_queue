@@ -36,7 +36,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "schedule several conflicting jobs over the same record sequentially" do
-    UpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
+    UpdateResultJob.set(wait: 0.23.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
 
     ("A".."F").each_with_index do |name, i|
       SequentialUpdateResultJob.set(wait: (0.2 + i * 0.01).seconds).perform_later(@result, name: name, pause: 0.3.seconds)
