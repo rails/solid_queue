@@ -55,7 +55,7 @@ module SolidQueue
         else
           payload[:other_adapter] = true
 
-          perform_later do |job|
+          perform_later.tap do |job|
             unless job.successfully_enqueued?
               payload[:enqueue_error] = job.enqueue_error&.message
             end
@@ -106,8 +106,10 @@ module SolidQueue
         end
       end
 
-      def perform_later(&block)
-        job_class.set(enqueue_options).perform_later(*arguments_with_kwargs, &block)
+      def perform_later
+        job_class.new(*arguments_with_kwargs).tap do |active_job|
+          active_job.enqueue(enqueue_options)
+        end
       end
 
       def arguments_with_kwargs
