@@ -22,7 +22,7 @@ module SolidQueue
           class_name: options[:class],
           arguments: options[:args],
           schedule: options[:schedule],
-          queue_name: options[:queue_name].presence,
+          queue_name: options[:queue].presence,
           priority: options[:priority].presence,
           description: options[:description],
           static: true

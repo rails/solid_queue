@@ -130,7 +130,7 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
   end
 
   test "task with custom queue and priority" do
-    task = recurring_task_with(class_name: "JobWithoutArguments", queue_name: "my_new_queue", priority: 4)
+    task = recurring_task_with(class_name: "JobWithoutArguments", queue: "my_new_queue", priority: 4)
     enqueue_and_assert_performed_with_result task, "job_without_arguments"
 
     job = SolidQueue::Job.last
@@ -170,7 +170,7 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       assert_equal result, JobBuffer.last_value
     end
 
-    def recurring_task_with(class_name:, schedule: "every hour", args: nil, **options)
-      SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, arguments: args, **options)
+    def recurring_task_with(class_name:, **options)
+      SolidQueue::RecurringTask.from_configuration("task-id", class: "SolidQueue::RecurringTaskTest::#{class_name}", **options.with_defaults(schedule: "every hour"))
     end
 end
