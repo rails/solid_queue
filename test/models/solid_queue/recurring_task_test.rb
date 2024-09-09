@@ -122,11 +122,17 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_not SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::JobWithoutArguments").valid?
   end
 
-  test "undefined job class" do
+  test "valid and invalid job class and command" do
+    # Command
+    assert recurring_task_with(command: "puts '¡hola!'").valid?
+    # Class
+    assert recurring_task_with(class_name: "JobWithPriority").valid?
+
+    # Invalid class name
     assert_not recurring_task_with(class_name: "UnknownJob").valid?
 
-    # Empty class name
-    assert_not SolidQueue::RecurringTask.new(key: "task-id", schedule: "every minute").valid?
+    # Empty class name and command
+    assert_not recurring_task_with(key: "task-id", schedule: "every minute").valid?
   end
 
   test "task with custom queue and priority" do
@@ -154,6 +160,13 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_equal 4, job.priority
   end
 
+  test "task configured with a command" do
+    task = recurring_task_with(command: "JobBuffer.add('from_a_command')")
+    enqueue_and_assert_performed_with_result(task, "from_a_command")
+
+    assert_equal "SolidQueue::RecurringJob", SolidQueue::Job.last.class_name
+  end
+
   private
     def enqueue_and_assert_performed_with_result(task, result)
       assert_difference [ -> { SolidQueue::Job.count }, -> { SolidQueue::ReadyExecution.count } ], +1 do
@@ -170,7 +183,13 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       assert_equal result, JobBuffer.last_value
     end
 
-    def recurring_task_with(class_name:, **options)
-      SolidQueue::RecurringTask.from_configuration("task-id", class: "SolidQueue::RecurringTaskTest::#{class_name}", **options.with_defaults(schedule: "every hour"))
+    def recurring_task_with(class_name: nil, **options)
+      options = options.dup.with_defaults(schedule: "every hour")
+
+      if class_name.present?
+        options[:class] = "SolidQueue::RecurringTaskTest::#{class_name}"
+      end
+
+      SolidQueue::RecurringTask.from_configuration("task-id", **options)
     end
 end

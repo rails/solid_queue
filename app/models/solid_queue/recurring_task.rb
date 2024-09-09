@@ -7,9 +7,13 @@ module SolidQueue
     serialize :arguments, coder: Arguments, default: []
 
     validate :supported_schedule
+    validate :ensure_command_or_class_present
     validate :existing_job_class
 
     scope :static, -> { where(static: true) }
+
+    mattr_accessor :default_job_class
+    self.default_job_class = RecurringJob
 
     class << self
       def wrap(args)
@@ -20,6 +24,7 @@ module SolidQueue
         new \
           key: key,
           class_name: options[:class],
+          command: options[:command],
           arguments: options[:args],
           schedule: options[:schedule],
           queue_name: options[:queue].presence,
@@ -85,8 +90,14 @@ module SolidQueue
         end
       end
 
+      def ensure_command_or_class_present
+        unless command.present? || class_name.present?
+          errors.add :base, :command_and_class_blank, message: "either command or class_name must be present"
+        end
+      end
+
       def existing_job_class
-        unless job_class.present?
+        if class_name.present? && job_class.nil?
           errors.add :class_name, :undefined, message: "doesn't correspond to an existing class"
         end
       end
@@ -113,7 +124,9 @@ module SolidQueue
       end
 
       def arguments_with_kwargs
-        if arguments.last.is_a?(Hash)
+        if class_name.nil?
+          command
+        elsif arguments.last.is_a?(Hash)
           arguments[0...-1] + [ Hash.ruby2_keywords_hash(arguments.last) ]
         else
           arguments
@@ -126,7 +139,7 @@ module SolidQueue
       end
 
       def job_class
-        @job_class ||= class_name&.safe_constantize
+        @job_class ||= class_name.present? ? class_name.safe_constantize : self.class.default_job_class
       end
 
       def enqueue_options

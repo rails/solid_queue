@@ -17,7 +17,7 @@ class SchedulerTest < ActiveSupport::TestCase
     scheduler.stop
   end
 
-  test "run more than one instance of the dispatcher with recurring tasks" do
+  test "run more than one instance of the scheduler with recurring tasks" do
     recurring_tasks = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
     schedulers = 2.times.collect do
       SolidQueue::Scheduler.new(recurring_tasks: recurring_tasks)
