@@ -2,9 +2,9 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, recurring jobs, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
 
-Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails multi-threading.
+Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails's multi-threading.
 
 ## Installation
 
@@ -13,9 +13,9 @@ Solid Queue is configured by default in new Rails 8 applications. But if you're 
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
-This will configure Solid Queue as the production Active Job backend, create `config/solid_queue.yml`, and create the `db/queue_schema.rb`.
+This will configure Solid Queue as the production Active Job backend, create the configuration files `config/solid_queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
-You will then have to add the configuration for the queue database in `config/database.yml`. If you're using sqlite, it'll look like this:
+Once you've done that, you will then have to add the configuration for the queue database in `config/database.yml`. If you're using sqlite, it'll look like this:
 
 ```yaml
 production:
@@ -55,7 +55,7 @@ For small projects, you can run Solid Queue on the same machine as your webserve
 
 It's also possibile to use one single database for both production data:
 
-1. Shovel `db/queue_schema.rb` into a normal migration and delete `db/queue_schema.rb`
+1. Copy the contents of `db/queue_schema.rb` into a normal migration and delete `db/queue_schema.rb`
 2. Remove `config.solid_queue.connects_to` from `production.rb`
 3. Migrate your database. You are ready to run `bin/jobs`
 
@@ -73,22 +73,31 @@ class MyJob < ApplicationJob
   # ...
 end
 ```
+
 ## High performance requirements
 
 Solid Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue. You can also use it with SQLite on smaller applications.
 
 ## Configuration
 
-### Workers and dispatchers
+### Workers, dispatchers and scheduler
 
-We have three types of actors in Solid Queue:
+We have several types of actors in Solid Queue:
 - _Workers_ are in charge of picking jobs ready to run from queues and processing them. They work off the `solid_queue_ready_executions` table.
-- _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. They're also in charge of managing [recurring tasks](#recurring-tasks), dispatching jobs to process them according to their schedule. On top of that, they do some maintenance work related to [concurrency controls](#concurrency-controls).
+- _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. On top of that, they do some maintenance work related to [concurrency controls](#concurrency-controls).
+- The _scheduler_ manages [recurring tasks](#recurring-tasks), enqueuing jobs for them when they're due.
 - The _supervisor_ runs workers and dispatchers according to the configuration, controls their heartbeats, and stops and starts them when needed.
 
-Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher.
+Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher/scheduler.
 
-By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG`. This is what this configuration looks like:
+By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG` or by using the `-c/--config_file` option with `bin/jobs`, like this:
+
+```
+bin/jobs -c config/calendar.yml
+```
+
+
+This is what this configuration looks like:
 
 ```yml
 production:
@@ -117,6 +126,7 @@ production:
 ```
 the supervisor will run 1 dispatcher and no workers.
 
+
 Here's an overview of the different options:
 
 - `polling_interval`: the time interval in seconds that workers and dispatchers will wait before checking for more jobs. This time defaults to `1` second for dispatchers and `0.1` seconds for workers.
@@ -139,7 +149,7 @@ Here's an overview of the different options:
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
-- `recurring_tasks`: a list of recurring tasks the dispatcher will manage. Read more details about this one in the [Recurring tasks](#recurring-tasks) section.
+
 
 ### Queue order and priorities
 
@@ -305,27 +315,42 @@ to your `puma.rb` configuration.
 
 ## Recurring tasks
 
-Solid Queue supports defining recurring tasks that run at specific times in the future, on a regular basis like cron jobs. These are managed by dispatcher processes and as such, they can be defined in the dispatcher's configuration like this:
-```yml
-  dispatchers:
-    - polling_interval: 1
-      batch_size: 500
-      recurring_tasks:
-        my_periodic_job:
-          class: MyJob
-          args: [ 42, { status: "custom_status" } ]
-          schedule: every second
+Solid Queue supports defining recurring tasks that run at specific times in the future, on a regular basis like cron jobs. These are managed by the scheduler process and are defined in their own configuration file. By default, the file is located in `config/recurring.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_RECURRING_SCHEDULE` or by using the `--recurring_schedule_file` option with `bin/jobs`, like this:
+
 ```
-`recurring_tasks` is a hash/dictionary, and the key will be the task key internally. Each task needs to have a class, which will be the job class to enqueue, and a schedule. The schedule is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). You can also provide arguments to be passed to the job, as a single argument, a hash, or an array of arguments that can also include kwargs as the last element in the array.
+bin/jobs --recurring_schedule_file=config/schedule.yml
+```
+
+The configuration itself looks like this:
+
+```yml
+a_periodic_job:
+  class: MyJob
+  args: [ 42, { status: "custom_status" } ]
+  schedule: every second
+a_cleanup_task:
+  command: "DeletedStuff.clear_all"
+  schedule: every day at 9am
+```
+
+Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
+
+Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). You can optionally supply the following for each task:
+- `args`: the arguments to be passed to the job, as a single argument, a hash, or an array of arguments that can also include kwargs as the last element in the array.
 
 The job in the example configuration above will be enqueued every second as:
 ```ruby
 MyJob.perform_later(42, status: "custom_status")
 ```
 
-Tasks are enqueued at their corresponding times by the dispatcher that owns them, and each task schedules the next one. This is pretty much [inspired by what GoodJob does](https://github.com/bensheldon/good_job/blob/994ecff5323bf0337e10464841128fda100750e6/lib/good_job/cron_manager.rb).
+- `queue`: a different queue to be used when enqueuing the job. If none, the queue set up for the job class.
 
-It's possible to run multiple dispatchers with the same `recurring_tasks` configuration. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
+- `priority`: a numeric priority value to be used when enqueuing the job.
+
+
+Tasks are enqueued at their corresponding times by the scheduler, and each task schedules the next one. This is pretty much [inspired by what GoodJob does](https://github.com/bensheldon/good_job/blob/994ecff5323bf0337e10464841128fda100750e6/lib/good_job/cron_manager.rb).
+
+It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
 
 Finally, it's possible to configure jobs that aren't handled by Solid Queue. That is, you can have a job like this in your app:
 ```ruby
@@ -340,13 +365,12 @@ end
 
 You can still configure this in Solid Queue:
 ```yml
-  dispatchers:
-    - recurring_tasks:
-        my_periodic_resque_job:
-          class: MyResqueJob
-          args: 22
-          schedule: "*/5 * * * *"
+my_periodic_resque_job:
+  class: MyResqueJob
+  args: 22
+  schedule: "*/5 * * * *"
 ```
+
 and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
 
 ## Inspiration
