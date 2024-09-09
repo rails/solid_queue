@@ -52,5 +52,12 @@ class PluginTest < ActiveSupport::TestCase
     wait_for_process_termination_with_timeout(@pid)
 
     assert_not process_exists?(@pid)
+
+    # Make sure all supervised processes are also terminated
+    SolidQueue::Process.all.each do |process|
+      signal_process(process.pid, :KILL) if process_exists?(process.pid)
+    end
+
+    wait_for_registered_processes 0, timeout: 3.second
   end
 end
