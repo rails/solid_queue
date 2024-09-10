@@ -13,7 +13,7 @@ Solid Queue is configured by default in new Rails 8 applications. But if you're 
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
-This will configure Solid Queue as the production Active Job backend, create the configuration files `config/solid_queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
+This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
 Once you've done that, you will then have to add the configuration for the queue database in `config/database.yml`. If you're using sqlite, it'll look like this:
 
@@ -90,7 +90,7 @@ We have several types of actors in Solid Queue:
 
 Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher/scheduler.
 
-By default, Solid Queue will try to find your configuration under `config/solid_queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG` or by using the `-c/--config_file` option with `bin/jobs`, like this:
+By default, Solid Queue will try to find your configuration under `config/queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG` or by using the `-c/--config_file` option with `bin/jobs`, like this:
 
 ```
 bin/jobs -c config/calendar.yml

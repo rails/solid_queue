@@ -6,5 +6,6 @@ Example:
 
     This will perform the following:
         Adds solid_queue db schema
+        Adds default configurations
         Replaces Active Job's adapter in environment configuration
         Installs bin/jobs binstub to start the supervisor

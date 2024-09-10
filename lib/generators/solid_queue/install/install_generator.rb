@@ -4,7 +4,7 @@ class SolidQueue::InstallGenerator < Rails::Generators::Base
   source_root File.expand_path("templates", __dir__)
 
   def copy_files
-    template "config/solid_queue.yml"
+    template "config/queue.yml"
     template "db/queue_schema.rb"
     template "bin/jobs"
     chmod "bin/jobs", 0755 & ~File.umask, verbose: false
