@@ -22,7 +22,7 @@ module SolidQueue
       concurrency_maintenance_interval: 600
     }
 
-    DEFAULT_CONFIG_FILE_PATH = "config/solid_queue.yml"
+    DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
 
     def initialize(**options)
