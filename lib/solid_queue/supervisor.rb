@@ -31,8 +31,6 @@ module SolidQueue
       run_start_hooks
 
       start_processes
-
-      launch_heartbeat
       launch_maintenance_task
 
       supervise
