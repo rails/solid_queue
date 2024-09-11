@@ -1,3 +1,8 @@
+# Upgrading to version 0.9.x
+This version changes how recurring tasks are configured. Before, they would be defined as part of the _dispatcher_ configuration. Now they've been upgraded to their own configuration file, and a dedicated process (the _scheduler_) to manage them. Check the _Recurring tasks_ section in the `README` to learn how to configure them in detail.
+
+In short, they live now in `config/recurring.yml` (by default) and follow the same format as before when they lived under `dispatchers > recurring_tasks`.
+
 # Upgrading to version 0.8.x
 *IMPORTANT*: This version collapsed all migrations into a single `db/queue_schema.rb`, that will use a separate `queue` database. If you're upgrading from a version < 0.6.0, you need to upgrade to 0.6.0 first, ensure all migrations are up-to-date, and then upgrade further.
 

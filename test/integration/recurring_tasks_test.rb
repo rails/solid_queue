@@ -6,9 +6,9 @@ class RecurringTasksTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @pid = run_supervisor_as_fork
-    # 1 supervisor + 2 workers + 1 dispatcher
-    wait_for_registered_processes(4, timeout: 3.second)
+    @pid = run_supervisor_as_fork(skip_recurring: false)
+    # 1 supervisor + 2 workers + 1 dispatcher + 1 scheduler
+    wait_for_registered_processes(5, timeout: 3.second)
   end
 
   teardown do
@@ -52,8 +52,8 @@ class RecurringTasksTest < ActiveSupport::TestCase
     task = SolidQueue::RecurringTask.find_by(key: "periodic_store_result")
     task.update!(class_name: "StoreResultJob", schedule: "every minute", arguments: [ 42 ])
 
-    @pid = run_supervisor_as_fork
-    wait_for_registered_processes(4, timeout: 3.second)
+    @pid = run_supervisor_as_fork(skip_recurring: false)
+    wait_for_registered_processes(5, timeout: 3.second)
 
     # Wait for concurrency schedule loading after process registration
     sleep(0.5)
@@ -61,20 +61,20 @@ class RecurringTasksTest < ActiveSupport::TestCase
     assert_recurring_tasks configured_task
 
     another_task = { example_task: { class: "AddToBufferJob", schedule: "every hour", args: [ 42 ] } }
-    dispatcher1 = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: another_task).tap(&:start)
-    wait_for_registered_processes(5, timeout: 1.second)
+    scheduler1 = SolidQueue::Scheduler.new(recurring_tasks: another_task).tap(&:start)
+    wait_for_registered_processes(6, timeout: 1.second)
 
     assert_recurring_tasks configured_task.merge(another_task)
 
     updated_task = { example_task: { class: "AddToBufferJob", schedule: "every minute" } }
-    dispatcher2 = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: updated_task).tap(&:start)
-    wait_for_registered_processes(6, timeout: 1.second)
+    scheduler2 = SolidQueue::Scheduler.new(recurring_tasks: updated_task).tap(&:start)
+    wait_for_registered_processes(7, timeout: 1.second)
 
     assert_recurring_tasks configured_task.merge(updated_task)
 
     terminate_process(@pid)
-    dispatcher1.stop
-    dispatcher2.stop
+    scheduler1.stop
+    scheduler2.stop
   end
 
   private

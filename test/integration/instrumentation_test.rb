@@ -305,12 +305,12 @@ class InstrumentationTest < ActiveSupport::TestCase
 
   test "enqueuing recurring task emits enqueue_recurring_task event" do
     recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
-    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_task)
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
-      dispatcher.start
+      scheduler.start
       sleep 1.01
-      dispatcher.stop
+      scheduler.stop
     end
 
     assert events.size >= 1
@@ -323,12 +323,12 @@ class InstrumentationTest < ActiveSupport::TestCase
 
   test "skipping a recurring task is reflected in the enqueue_recurring_task event" do
     recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
-    dispatchers = 2.times.collect { SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task) }
+    schedulers = 2.times.collect { SolidQueue::Scheduler.new(recurring_tasks: recurring_task) }
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
-      dispatchers.each(&:start)
+      schedulers.each(&:start)
       sleep 1.01
-      dispatchers.each(&:stop)
+      schedulers.each(&:stop)
     end
 
     assert events.size >= 2
@@ -349,12 +349,12 @@ class InstrumentationTest < ActiveSupport::TestCase
     recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
     SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
 
-    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_task)
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
-      dispatcher.start
+      scheduler.start
       sleep(1.01)
-      dispatcher.stop
+      scheduler.stop
     end
 
     assert events.size >= 1
@@ -368,14 +368,15 @@ class InstrumentationTest < ActiveSupport::TestCase
   test "an error enqueuing a recurring task with another adapter is reflected in the enqueue_recurring_task event" do
     AddToBufferJob.queue_adapter = :async
     ActiveJob::QueueAdapters::AsyncAdapter.any_instance.stubs(:enqueue).raises(ActiveJob::EnqueueError.new("All is broken"))
+
     recurring_task = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
 
-    dispatcher = SolidQueue::Dispatcher.new(concurrency_maintenance: false, recurring_tasks: recurring_task)
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_task)
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
-      dispatcher.start
+      scheduler.start
       sleep(1.01)
-      dispatcher.stop
+      scheduler.stop
     end
 
     assert events.size >= 1

@@ -3,7 +3,7 @@ module ProcessesTestHelper
 
   def run_supervisor_as_fork(**options)
     fork do
-      SolidQueue::Supervisor.start(**options)
+      SolidQueue::Supervisor.start(**options.with_defaults(skip_recurring: true))
     end
   end
 
@@ -35,6 +35,12 @@ module ProcessesTestHelper
           assert_nil process.public_send(attr)
         end
       end
+    end
+  end
+
+  def assert_metadata(process, metadata)
+    metadata.each do |attr, value|
+      assert_equal value, process.metadata[attr.to_s]
     end
   end
 

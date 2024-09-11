@@ -25,17 +25,20 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class JobWithPriority < ApplicationJob
+    queue_with_priority 10
+
+    def perform
+      JobBuffer.add "job_with_priority"
+    end
+  end
+
   class JobUsingAsyncAdapter < ApplicationJob
     self.queue_adapter = :async
 
     def perform
       JobBuffer.add "job_using_async_adapter"
     end
-  end
-
-  setup do
-    @worker = SolidQueue::Worker.new(queues: "*")
-    @worker.mode = :inline
   end
 
   test "job without arguments" do
@@ -119,11 +122,49 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_not SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::JobWithoutArguments").valid?
   end
 
-  test "undefined job class" do
+  test "valid and invalid job class and command" do
+    # Command
+    assert recurring_task_with(command: "puts '¡hola!'").valid?
+    # Class
+    assert recurring_task_with(class_name: "JobWithPriority").valid?
+
+    # Invalid class name
     assert_not recurring_task_with(class_name: "UnknownJob").valid?
 
-    # Empty class name
-    assert_not SolidQueue::RecurringTask.new(key: "task-id", schedule: "every minute").valid?
+    # Empty class name and command
+    assert_not recurring_task_with(key: "task-id", schedule: "every minute").valid?
+  end
+
+  test "task with custom queue and priority" do
+    task = recurring_task_with(class_name: "JobWithoutArguments", queue: "my_new_queue", priority: 4)
+    enqueue_and_assert_performed_with_result task, "job_without_arguments"
+
+    job = SolidQueue::Job.last
+    assert_equal "my_new_queue", job.queue_name
+    assert_equal 4, job.priority
+  end
+
+  test "overriding existing priority" do
+    task = recurring_task_with(class_name: "JobWithPriority", priority: nil).tap(&:save!)
+    enqueue_and_assert_performed_with_result task.reload, "job_with_priority"
+
+    job = SolidQueue::Job.last
+    assert_equal 10, job.priority
+
+    task.destroy
+
+    task = recurring_task_with(class_name: "JobWithPriority", priority: 4).tap(&:save!)
+    enqueue_and_assert_performed_with_result task.reload, "job_with_priority"
+
+    job = SolidQueue::Job.last
+    assert_equal 4, job.priority
+  end
+
+  test "task configured with a command" do
+    task = recurring_task_with(command: "JobBuffer.add('from_a_command')")
+    enqueue_and_assert_performed_with_result(task, "from_a_command")
+
+    assert_equal "SolidQueue::RecurringJob", SolidQueue::Job.last.class_name
   end
 
   private
@@ -133,13 +174,22 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       end
 
       assert_difference -> { JobBuffer.size }, +1 do
-        @worker.start
+        SolidQueue::Worker.new(queues: "*").tap do |worker|
+          worker.mode = :inline
+          worker.start
+        end
       end
 
       assert_equal result, JobBuffer.last_value
     end
 
-    def recurring_task_with(class_name:, schedule: "every hour", args: nil)
-      SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::#{class_name}", schedule: schedule, arguments: args)
+    def recurring_task_with(class_name: nil, **options)
+      options = options.dup.with_defaults(schedule: "every hour")
+
+      if class_name.present?
+        options[:class] = "SolidQueue::RecurringTaskTest::#{class_name}"
+      end
+
+      SolidQueue::RecurringTask.from_configuration("task-id", **options)
     end
 end
