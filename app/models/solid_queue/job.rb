@@ -66,3 +66,5 @@ module SolidQueue
     end
   end
 end
+
+ActiveSupport.run_load_hooks :solid_queue_job, SolidQueue::Job
