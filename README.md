@@ -51,6 +51,9 @@ Now you're ready to start processing jobs by running `bin/jobs` on the server th
 
 For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
+**Note**: future changes to the schema will come in the form of regular migrations.
+
+
 ### Single database configuration
 
 It's also possibile to use one single database for both production data:
