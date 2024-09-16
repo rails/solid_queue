@@ -3,11 +3,6 @@ require "test_helper"
 class SolidQueue::JobTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
-  teardown do
-    SolidQueue::Job.destroy_all
-    JobResult.delete_all
-  end
-
   class NonOverlappingJob < ApplicationJob
     limits_concurrency key: ->(job_result, **) { job_result }
 
@@ -238,6 +233,19 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     assert_job_counts(blocked: -2) do
       SolidQueue::BlockedExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+  end
+
+  test "raise EnqueueError when there's an ActiveRecordError" do
+    SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
+
+    active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
+    assert_raises SolidQueue::Job::EnqueueError do
+      SolidQueue::Job.enqueue(active_job)
+    end
+
+    assert_raises SolidQueue::Job::EnqueueError do
+      AddToBufferJob.perform_later(1)
     end
   end
 

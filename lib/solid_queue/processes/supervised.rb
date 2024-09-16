@@ -9,24 +9,26 @@ module SolidQueue::Processes
     end
 
     def supervised_by(process)
-      self.mode = :supervised
       @supervisor = process
     end
 
     private
+      def set_procline
+        procline "waiting"
+      end
+
       def supervisor_went_away?
-        supervised? && supervisor&.pid != ::Process.ppid
+        supervised? && supervisor.pid != ::Process.ppid
       end
 
       def supervised?
-        mode.supervised?
+        supervisor.present?
       end
 
       def register_signal_handlers
         %w[ INT TERM ].each do |signal|
           trap(signal) do
             stop
-            interrupt
           end
         end
 

@@ -3,24 +3,43 @@
 module SolidQueue
   module Processes
     class Base
-      include ActiveSupport::Callbacks
-      define_callbacks :boot, :shutdown
-
+      include Callbacks # Defines callbacks needed by other concerns
       include AppExecutor, Registrable, Interruptible, Procline
 
+      attr_reader :name
+
+      def initialize(*)
+        @name = generate_name
+        @stopped = false
+      end
+
+      def kind
+        self.class.name.demodulize
+      end
+
+      def hostname
+        @hostname ||= Socket.gethostname.force_encoding(Encoding::UTF_8)
+      end
+
+      def pid
+        @pid ||= ::Process.pid
+      end
+
+      def metadata
+        {}
+      end
+
+      def stop
+        @stopped = true
+      end
+
       private
-        def observe_initial_delay
-          interruptible_sleep(initial_jitter)
+        def generate_name
+          [ kind.downcase, SecureRandom.hex(10) ].join("-")
         end
 
-        def boot
-        end
-
-        def shutdown
-        end
-
-        def initial_jitter
-          0
+        def stopped?
+          @stopped
         end
     end
   end

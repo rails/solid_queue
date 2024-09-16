@@ -16,6 +16,8 @@ Rails.application.configure do
   # system, or in some way before deploying your code.
   config.eager_load = ENV["CI"].present?
 
+  config.autoload_paths += %w[ test/test_helpers ]
+
   # Configure public file server for tests with Cache-Control for performance.
   config.public_file_server.enabled = true
   config.public_file_server.headers = {
@@ -49,7 +51,7 @@ Rails.application.configure do
   # config.action_view.annotate_rendered_view_with_filenames = true
 
   logger = ActiveSupport::Logger.new(STDOUT)
-  config.solid_queue.on_thread_error = ->(exception) { logger.error("#{exception.class.name}: #{exception.message}\n#{exception.backtrace.join("\n")}") }
+  config.solid_queue.on_thread_error = ->(exception) { logger.error("#{exception.class.name}: #{exception.message}\n#{(exception.backtrace || caller)&.join("\n")}") }
   config.solid_queue.logger = ActiveSupport::Logger.new(nil)
 
   config.solid_queue.shutdown_timeout = 2.seconds

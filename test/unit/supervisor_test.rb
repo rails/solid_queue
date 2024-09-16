@@ -12,27 +12,14 @@ class SupervisorTest < ActiveSupport::TestCase
   teardown do
     SolidQueue.supervisor_pidfile = @previous_pidfile
     File.delete(@pidfile) if File.exist?(@pidfile)
-
-    SolidQueue::Process.destroy_all
   end
 
-  test "start in work mode (default)" do
+  test "start" do
     pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert_registered_supervisor(pid)
-    assert_registered_workers(2, supervisor_pid: pid)
-
-    terminate_process(pid)
-
-    assert_no_registered_processes
-  end
-
-  test "start in dispatch mode" do
-    pid = run_supervisor_as_fork(mode: :dispatch)
-    wait_for_registered_processes(4)
-
-    assert_registered_supervisor(pid)
+    assert_registered_workers(count: 2, supervisor_pid: pid)
     assert_registered_dispatcher(supervisor_pid: pid)
 
     terminate_process(pid)
@@ -40,10 +27,31 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
+  test "start with provided configuration" do
+    pid = run_supervisor_as_fork(dispatchers: [ { batch_size: 100 } ])
+    wait_for_registered_processes(2, timeout: 2) # supervisor + dispatcher
+
+    assert_registered_supervisor(pid)
+    assert_registered_workers(count: 0)
+    assert_registered_dispatcher(supervisor_pid: pid)
+
+    terminate_process(pid)
+
+    assert_no_registered_processes
+  end
+
+  test "start with empty configuration" do
+    pid = run_supervisor_as_fork(workers: [], dispatchers: [])
+    sleep(0.5)
+    assert_no_registered_processes
+
+    assert_not process_exists?(pid)
+  end
+
   test "create and delete pidfile" do
     assert_not File.exist?(@pidfile)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -58,7 +66,7 @@ class SupervisorTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(File.dirname(@pidfile))
     File.write(@pidfile, ::Process.pid.to_s)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -67,8 +75,8 @@ class SupervisorTest < ActiveSupport::TestCase
     wait_for_process_termination_with_timeout(pid, exitstatus: 1)
   end
 
-  test "deletes previous pidfile if the owner is dead" do
-    pid = run_supervisor_as_fork(mode: :all)
+  test "delete previous pidfile if the owner is dead" do
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     terminate_process(pid, signal: :KILL)
@@ -78,7 +86,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
     wait_for_registered_processes(0)
 
-    pid = run_supervisor_as_fork(mode: :all)
+    pid = run_supervisor_as_fork
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
@@ -87,26 +95,61 @@ class SupervisorTest < ActiveSupport::TestCase
     terminate_process(pid)
   end
 
-  private
-    def assert_registered_workers(count, supervisor_pid:, **metadata)
-      skip_active_record_query_cache do
-        workers = find_processes_registered_as("Worker")
-        assert_equal count, workers.count
+  test "fail orphaned executions" do
+    3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
 
-        workers.each do |process|
-          assert_equal supervisor_pid, process.supervisor.pid
-          assert metadata < process.metadata.symbolize_keys
-        end
-      end
+    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+
+    assert_equal 3, SolidQueue::ClaimedExecution.count
+    assert_equal 0, SolidQueue::ReadyExecution.count
+
+    assert_equal [ process.id ], SolidQueue::ClaimedExecution.last(3).pluck(:process_id).uniq
+
+    # Simnulate orphaned executions by just wiping the claiming process
+    process.delete
+
+    pid = run_supervisor_as_fork(workers: [ { queues: "background", polling_interval: 10, processes: 2 } ])
+    wait_for_registered_processes(3)
+    assert_registered_supervisor(pid)
+
+    terminate_process(pid)
+
+    skip_active_record_query_cache do
+      assert_equal 0, SolidQueue::ClaimedExecution.count
+      assert_equal 3, SolidQueue::FailedExecution.count
+    end
+  end
+
+  test "prune processes with expired heartbeats" do
+    pruned = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-42")
+
+    # Simulate expired heartbeats
+    SolidQueue::Process.update_all(last_heartbeat_at: 10.minutes.ago)
+
+    not_pruned = SolidQueue::Process.register(kind: "Worker", pid: 44, name: "worker-44")
+
+    assert_equal 2, SolidQueue::Process.count
+
+    pid = run_supervisor_as_fork(load_configuration_from: { workers: [ { queues: :background } ] })
+    wait_for_registered_processes(4)
+
+    terminate_process(pid)
+
+    skip_active_record_query_cache do
+      assert_equal 1, SolidQueue::Process.count
+      assert_nil SolidQueue::Process.find_by(id: pruned.id)
+      assert SolidQueue::Process.find_by(id: not_pruned.id).present?
+    end
+  end
+
+  private
+    def assert_registered_workers(supervisor_pid: nil, count: 1)
+      assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)
     end
 
-    def assert_registered_dispatcher(supervisor_pid:, **metadata)
-      skip_active_record_query_cache do
-        processes = find_processes_registered_as("Dispatcher")
-        assert_equal 1, processes.count
-        assert_equal supervisor_pid, processes.first.supervisor.pid
-        assert metadata < processes.first.metadata.symbolize_keys
-      end
+    def assert_registered_dispatcher(supervisor_pid: nil)
+      assert_registered_processes(kind: "Dispatcher", count: 1, supervisor_pid: supervisor_pid)
     end
 
     def assert_registered_supervisor(pid)

@@ -58,4 +58,7 @@ Rails.application.configure do
   # config.action_cable.disable_request_forgery_protection = true
 
   config.solid_queue.logger = ActiveSupport::Logger.new(nil)
+
+  logger = ActiveSupport::Logger.new(STDOUT)
+  config.solid_queue.on_thread_error = ->(exception) { logger.error("#{exception.class.name}: #{exception.message}\n#{(exception.backtrace || caller)&.join("\n")}") }
 end

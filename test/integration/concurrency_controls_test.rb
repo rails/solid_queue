@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 
 class ConcurrencyControlsTest < ActiveSupport::TestCase
@@ -10,17 +11,13 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     default_worker = { queues: "default", polling_interval: 0.1, processes: 3, threads: 2 }
     dispatcher = { polling_interval: 0.1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
-    @pid = run_supervisor_as_fork(mode: :all, load_configuration_from: { workers: [ default_worker ], dispatchers: [ dispatcher ] })
+    @pid = run_supervisor_as_fork(workers: [ default_worker ], dispatchers: [ dispatcher ])
 
     wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + dispatcher + supervisor
   end
 
   teardown do
     terminate_process(@pid) if process_exists?(@pid)
-
-    SolidQueue::Job.destroy_all
-    SolidQueue::Process.destroy_all
-    SolidQueue::Semaphore.delete_all
   end
 
   test "run several conflicting jobs over the same record sequentially" do
@@ -32,14 +29,14 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
   end
 
   test "schedule several conflicting jobs over the same record sequentially" do
-    UpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
+    UpdateResultJob.set(wait: 0.23.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
 
     ("A".."F").each_with_index do |name, i|
       SequentialUpdateResultJob.set(wait: (0.2 + i * 0.01).seconds).perform_later(@result, name: name, pause: 0.3.seconds)
@@ -50,7 +47,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     end
 
     wait_for_jobs_to_finish_for(5.seconds)
-    assert_no_pending_jobs
+    assert_no_unfinished_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
   end
@@ -77,8 +74,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       end
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # C would have started in the beginning, seeing the status empty, and would finish after
     # all other jobs, so it'll do the last update with only itself
@@ -95,7 +92,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       SequentialUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
     assert_equal 3, SolidQueue::FailedExecution.count
 
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
@@ -105,8 +102,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
 
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -127,8 +124,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert SolidQueue::Semaphore.signal(job)
 
     # And wait for the dispatcher to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
@@ -138,8 +135,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   test "rely on dispatcher to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
     job = SequentialUpdateResultJob.perform_later(@result, name: "A")
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     wait_while_with_timeout(1.second) { SolidQueue::Semaphore.where(value: 0).any? }
     # Lock the semaphore so we can enqueue jobs and leave them blocked
@@ -159,8 +156,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
 
     # And wait for dispatcher to release the jobs
-    wait_for_jobs_to_finish_for(3.seconds)
-    assert_no_pending_jobs
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
 
     # We can't ensure the order between B and C, because it depends on which worker wins when
     # unblocking, as one will try to unblock B and another C
@@ -168,7 +165,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "don't block claimed executions that get released" do
-    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 3.seconds)
+    SequentialUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
 
     sleep(0.2)
@@ -176,15 +173,29 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
     # This won't leave time to the job to finish
     signal_process(@pid, :TERM, wait: 0.1.second)
-    sleep(SolidQueue.shutdown_timeout + 0.2.seconds)
+    sleep(SolidQueue.shutdown_timeout + 0.6.seconds)
 
     assert_not job.reload.finished?
     assert job.reload.ready?
   end
 
+  test "verify transactions remain valid after Job creation conflicts via limits_concurrency" do
+    ActiveRecord::Base.transaction do
+      SequentialUpdateResultJob.perform_later(@result, name: "A", pause: 0.2.seconds)
+      SequentialUpdateResultJob.perform_later(@result, name: "B")
+
+      begin
+        assert_equal 2, SolidQueue::Job.count
+        assert true, "Transaction state valid"
+      rescue ActiveRecord::StatementInvalid
+        assert false, "Transaction state unexpectedly invalid"
+      end
+    end
+  end
+
   private
     def assert_stored_sequence(result, *sequences)
-      expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}"}.join }
+      expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }
       skip_active_record_query_cache do
         assert_includes expected, result.reload.status
       end

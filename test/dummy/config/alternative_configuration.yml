@@ -1,0 +1,12 @@
+default: &default
+  workers:
+    <% 3.times do |i| %>
+    - queues: queue_<%= i + 1 %>
+      threads: <%= i + 1 %>
+    <% end %>
+
+development:
+  <<: *default
+
+test:
+  <<: *default

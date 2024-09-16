@@ -1,0 +1,9 @@
+# Want to disable a check for a specific case? To disable checks inline:
+# http://docs.rubocop.org/en/latest/configuration/#disabling-cops-within-source-code
+
+inherit_gem: { rubocop-rails-omakase: rubocop.yml }
+
+AllCops:
+  TargetRubyVersion: 3.0
+  Exclude:
+    - "test/dummy/db/schema.rb"

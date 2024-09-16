@@ -9,9 +9,8 @@ module SolidQueue
         def dispatch_jobs(job_ids)
           jobs = Job.where(id: job_ids)
 
-          Job.dispatch_all(jobs).map(&:id).tap do |dispatched_job_ids|
-            where(job_id: dispatched_job_ids).delete_all
-            SolidQueue.logger.info("[SolidQueue] Dispatched #{dispatched_job_ids.size} jobs")
+          Job.dispatch_all(jobs).map(&:id).then do |dispatched_job_ids|
+            where(id: where(job_id: dispatched_job_ids).pluck(:id)).delete_all
           end
         end
       end

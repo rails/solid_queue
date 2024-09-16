@@ -10,7 +10,7 @@ module SolidQueue::Processes
       SELF_PIPE_BLOCK_SIZE = 11
 
       def interrupt
-        self_pipe[:writer].write_nonblock( "." )
+        self_pipe[:writer].write_nonblock(".")
       rescue Errno::EAGAIN, Errno::EINTR
         # Ignore writes that would block and retry
         # if another signal arrived while writing

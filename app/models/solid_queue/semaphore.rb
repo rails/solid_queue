@@ -17,6 +17,17 @@ module SolidQueue
       def signal_all(jobs)
         Proxy.signal_all(jobs)
       end
+
+      # Requires a unique index on key
+      def create_unique_by(attributes)
+        if connection.supports_insert_conflict_target?
+          insert({ **attributes }, unique_by: :key).any?
+        else
+          create!(**attributes)
+        end
+      rescue ActiveRecord::RecordNotUnique
+        false
+      end
     end
 
     class Proxy
@@ -26,7 +37,6 @@ module SolidQueue
 
       def initialize(job)
         @job = job
-        @retries = 0
       end
 
       def wait
@@ -42,40 +52,26 @@ module SolidQueue
       end
 
       private
-        attr_accessor :job, :retries
+        attr_accessor :job
 
         def attempt_creation
-          Semaphore.create!(key: key, value: limit - 1, expires_at: expires_at)
-          true
-        rescue ActiveRecord::RecordNotUnique
-          attempt_decrement
+          if Semaphore.create_unique_by(key: key, value: limit - 1, expires_at: expires_at)
+            true
+          else
+            check_limit_or_decrement
+          end
+        end
+
+        def check_limit_or_decrement
+          limit == 1 ? false : attempt_decrement
         end
 
         def attempt_decrement
           Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
-        rescue ActiveRecord::Deadlocked
-          if retriable? then attempt_retry
-          else
-            raise
-          end
         end
 
         def attempt_increment
           Semaphore.where(key: key, value: ...limit).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
-        end
-
-        def attempt_retry
-          self.retries += 1
-
-          if semaphore = Semaphore.find_by(key: key)
-            semaphore.value > 0 && attempt_decrement
-          end
-        end
-
-        MAX_RETRIES = 1
-
-        def retriable?
-          retries < MAX_RETRIES
         end
 
         def key
@@ -87,7 +83,7 @@ module SolidQueue
         end
 
         def limit
-          job.concurrency_limit
+          job.concurrency_limit || 1
         end
     end
   end

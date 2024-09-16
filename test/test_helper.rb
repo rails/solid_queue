@@ -2,7 +2,7 @@
 ENV["RAILS_ENV"] = "test"
 
 require_relative "../test/dummy/config/environment"
-ActiveRecord::Migrator.migrations_paths = [File.expand_path("../test/dummy/db/migrate", __dir__)]
+ActiveRecord::Migrator.migrations_paths = [ File.expand_path("../test/dummy/db/migrate", __dir__) ]
 require "rails/test_help"
 require "debug"
 require "mocha/minitest"
@@ -26,65 +26,31 @@ end
 Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
 
 class ActiveSupport::TestCase
+  include ProcessesTestHelper, JobsTestHelper
+
   teardown do
     JobBuffer.clear
 
     if SolidQueue.supervisor_pidfile && File.exist?(SolidQueue.supervisor_pidfile)
       File.delete(SolidQueue.supervisor_pidfile)
     end
+
+    unless self.class.use_transactional_tests
+      SolidQueue::Job.destroy_all
+      SolidQueue::Process.destroy_all
+      SolidQueue::Semaphore.delete_all
+      SolidQueue::RecurringTask.delete_all
+      JobResult.delete_all
+    end
   end
 
   private
-    def wait_for_jobs_to_finish_for(timeout = 1.second)
-      wait_while_with_timeout(timeout) { SolidQueue::Job.where(finished_at: nil).any? }
-    end
-
-    def assert_no_pending_jobs
-      skip_active_record_query_cache do
-        assert SolidQueue::Job.where(finished_at: nil).none?
-      end
-    end
-
-    def run_supervisor_as_fork(**options)
-      fork do
-        SolidQueue::Supervisor.start(**options)
-      end
-    end
-
-    def wait_for_registered_processes(count, timeout: 1.second)
-      wait_while_with_timeout(timeout) { SolidQueue::Process.count != count }
-    end
-
-    def assert_no_registered_processes
-      skip_active_record_query_cache do
-        assert SolidQueue::Process.none?
-      end
-    end
-
-    def find_processes_registered_as(kind)
-      skip_active_record_query_cache do
-        SolidQueue::Process.where(kind: kind)
-      end
-    end
-
-    def terminate_process(pid, timeout: 10, signal: :TERM)
-      signal_process(pid, signal)
-      wait_for_process_termination_with_timeout(pid, timeout: timeout)
-    end
-
-    def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0)
-      Timeout.timeout(timeout) do
-        if process_exists?(pid)
-          Process.waitpid(pid)
-          assert exitstatus, $?.exitstatus
-        end
-      end
-    rescue Timeout::Error
-      signal_process(pid, :KILL)
-      raise
-    end
-
     def wait_while_with_timeout(timeout, &block)
+      wait_while_with_timeout!(timeout, &block)
+    rescue Timeout::Error
+    end
+
+    def wait_while_with_timeout!(timeout, &block)
       Timeout.timeout(timeout) do
         skip_active_record_query_cache do
           while block.call
@@ -92,27 +58,6 @@ class ActiveSupport::TestCase
           end
         end
       end
-    rescue Timeout::Error
-    end
-
-    def signal_process(pid, signal, wait: nil)
-      Thread.new do
-        sleep(wait) if wait
-        Process.kill(signal, pid)
-      end
-    end
-
-    def process_exists?(pid)
-      reap_processes
-      Process.getpgid(pid)
-      true
-    rescue Errno::ESRCH
-      false
-    end
-
-    def reap_processes
-      Process.waitpid(-1, Process::WNOHANG)
-    rescue Errno::ECHILD
     end
 
     # Allow skipping AR query cache, necessary when running test code in multiple

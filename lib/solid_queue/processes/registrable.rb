@@ -5,40 +5,46 @@ module SolidQueue::Processes
     extend ActiveSupport::Concern
 
     included do
-      set_callback :boot, :after, :register
-      set_callback :boot, :after, :launch_heartbeat
+      after_boot :register, :launch_heartbeat
 
-      set_callback :shutdown, :before, :stop_heartbeat
-      set_callback :shutdown, :after, :deregister
+      before_shutdown :stop_heartbeat
+      after_shutdown :deregister
     end
 
-    def inspect
-      "#{kind}(pid=#{process_pid}, hostname=#{hostname}, metadata=#{metadata})"
+    def process_id
+      process&.id
     end
-    alias to_s inspect
 
     private
       attr_accessor :process
 
       def register
         @process = SolidQueue::Process.register \
-          kind: self.class.name.demodulize,
-          pid: process_pid,
+          kind: kind,
+          name: name,
+          pid: pid,
           hostname: hostname,
           supervisor: try(:supervisor),
-          metadata: metadata
+          metadata: metadata.compact
       end
 
       def deregister
-        process.deregister if registered?
+        process&.deregister
       end
 
       def registered?
-        process&.persisted?
+        process.present?
       end
 
       def launch_heartbeat
-        @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) { heartbeat }
+        @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
+          wrap_in_app_executor { heartbeat }
+        end
+
+        @heartbeat_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
+        end
+
         @heartbeat_task.execute
       end
 
@@ -48,22 +54,9 @@ module SolidQueue::Processes
 
       def heartbeat
         process.heartbeat
-      end
-
-      def kind
-        self.class.name.demodulize
-      end
-
-      def hostname
-        @hostname ||= Socket.gethostname
-      end
-
-      def process_pid
-        @pid ||= ::Process.pid
-      end
-
-      def metadata
-        {}
+      rescue ActiveRecord::RecordNotFound
+        self.process = nil
+        wake_up
       end
   end
 end

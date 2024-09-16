@@ -1,24 +1,54 @@
 # frozen_string_literal: true
 
 module SolidQueue::Processes
-  module Poller
-    extend ActiveSupport::Concern
+  class Poller < Base
+    include Runnable
 
-    included do
-      attr_accessor :polling_interval
+    attr_accessor :polling_interval
+
+    def initialize(polling_interval:, **options)
+      @polling_interval = polling_interval
+
+      super(**options)
+    end
+
+    def metadata
+      super.merge(polling_interval: polling_interval)
     end
 
     private
-      def with_polling_volume
-        if SolidQueue.silence_polling?
-          ActiveRecord::Base.logger.silence { yield }
-        else
-          yield
+      def run
+        start_loop
+      end
+
+      def start_loop
+        loop do
+          break if shutting_down?
+
+          wrap_in_app_executor do
+            unless poll > 0
+              interruptible_sleep(polling_interval)
+            end
+          end
+        end
+      ensure
+        SolidQueue.instrument(:shutdown_process, process: self) do
+          run_callbacks(:shutdown) { shutdown }
         end
       end
 
-      def metadata
-        super.merge(polling_interval: polling_interval)
+      def poll
+        raise NotImplementedError
+      end
+
+      def with_polling_volume
+        SolidQueue.instrument(:polling) do
+          if SolidQueue.silence_polling? && ActiveRecord::Base.logger
+            ActiveRecord::Base.logger.silence { yield }
+          else
+            yield
+          end
+        end
       end
   end
 end
