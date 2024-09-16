@@ -53,7 +53,7 @@ module SolidQueue::Processes
       end
 
       def heartbeat
-        process.with_lock { process.heartbeat }
+        process.heartbeat
       rescue ActiveRecord::RecordNotFound
         self.process = nil
         wake_up

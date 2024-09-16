@@ -69,4 +69,16 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
       worker.stop
     end
   end
+
+  test "clear unregistered changes before locking for heartbeat" do
+    process = SolidQueue::Process.register(kind: "Supervisor", pid: 43, name: "supervisor-43")
+
+    # Pretend a heartbeat failed to persist
+    failed_heartbeat_at = 10.minutes.ago
+    process.last_heartbeat_at = failed_heartbeat_at
+
+    assert_changes -> { process.last_heartbeat_at } do
+      process.heartbeat
+    end
+  end
 end
