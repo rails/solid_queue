@@ -5,13 +5,11 @@ require "thor"
 module SolidQueue
   class Cli < Thor
     class_option :config_file, type: :string, aliases: "-c",
-      default: Configuration::DEFAULT_CONFIG_FILE_PATH,
-      desc: "Path to config file",
+      desc: "Path to config file (default: #{Configuration::DEFAULT_CONFIG_FILE_PATH}).",
       banner: "SOLID_QUEUE_CONFIG"
 
     class_option :recurring_schedule_file, type: :string,
-      default: Configuration::DEFAULT_RECURRING_SCHEDULE_FILE_PATH,
-      desc: "Path to recurring schedule definition",
+      desc: "Path to recurring schedule definition (default: #{Configuration::DEFAULT_RECURRING_SCHEDULE_FILE_PATH}).",
       banner: "SOLID_QUEUE_RECURRING_SCHEDULE"
 
     class_option :skip_recurring, type: :boolean, default: false,
