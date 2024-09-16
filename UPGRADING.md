@@ -4,21 +4,15 @@ This version has two breaking changes regarding configuration:
 - Recurring tasks are now defined in `config/recurring.yml` (by default). Before, they would be defined as part of the _dispatcher_ configuration. Now they've been upgraded to their own configuration file, and a dedicated process (the _scheduler_) to manage them. Check the _Recurring tasks_ section in the `README` to learn how to configure them in detail. They still follow the same format as before when they lived under `dispatchers > recurring_tasks`.
 
 # Upgrading to version 0.8.x
-*IMPORTANT*: This version collapsed all migrations into a single `db/queue_schema.rb`, that will use a separate `queue` database. If you're upgrading from a version < 0.6.0, you need to upgrade to 0.6.0 first, ensure all migrations are up-to-date, and then upgrade further.
+*IMPORTANT*: This version collapsed all migrations into a single `db/queue_schema.rb`, that will use a separate `queue` database on install. If you're upgrading from a version < 0.6.0, you need to upgrade to 0.6.0 first, ensure all migrations are up-to-date, and then upgrade further. You don't have to switch to a separate `queue` database or use the new `db/queue_schema.rb` file, these are for people starting on a version >= 0.8.x. You can continue using your existing database (be it separate or the same as your app) as long as you run all migrations defined up to version 0.6.0.
 
 # Upgrading to version 0.7.x
 
 This version removed the new async mode introduced in version 0.4.0 and introduced a new binstub that can be used to start Solid Queue's supervisor.
 
-To install both the binstub `bin/jobs` and the migration, you can just run
+To install the binstub `bin/jobs`, you can just run:
 ```
 bin/rails generate solid_queue:install
-```
-
-Or, if you're using a different database for Solid Queue:
-
-```bash
-$ bin/rails generate solid_queue:install --database <the_name_of_your_solid_queue_db>
 ```
 
 
