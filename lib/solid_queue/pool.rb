@@ -15,15 +15,23 @@ module SolidQueue
       @mutex = Mutex.new
     end
 
-    def post(execution)
+    def post(execution, worker)
       available_threads.decrement
 
-      future = Concurrent::Future.new(args: [ execution ], executor: executor) do |thread_execution|
+      future = Concurrent::Future.new(args: [ execution, worker ], executor: executor) do |thread_execution, worker_execution|
         wrap_in_app_executor do
           thread_execution.perform
         ensure
-          available_threads.increment
-          mutex.synchronize { on_idle.try(:call) if idle? }
+          wrap_in_app_executor do
+            execution.job.unblock_next_blocked_job
+          end
+
+          if worker_execution.oom?
+            worker_execution.recycle(execution)
+          else
+            available_threads.increment
+            mutex.synchronize { on_idle.try(:call) if idle? }
+          end
         end
       end
 

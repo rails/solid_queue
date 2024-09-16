@@ -53,7 +53,6 @@ For small projects, you can run Solid Queue on the same machine as your webserve
 
 **Note**: future changes to the schema will come in the form of regular migrations.
 
-
 ### Single database configuration
 
 Running Solid Queue in a separate database is recommended, but it's also possible to use one single database for both the app and the queue. Just follow these steps:
@@ -98,7 +97,6 @@ By default, Solid Queue will try to find your configuration under `config/queue.
 ```
 bin/jobs -c config/calendar.yml
 ```
-
 
 This is what this configuration looks like:
 
@@ -236,6 +234,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+- `calc_memory_usage`: a proc returns the memory consumption of the process(es) that you want to measure. It yields the Worker process PID and runs in the context of the Worker that is configured with `recycle_on_oom`. [Read more](#memory-consumption).
 
 ## Errors when enqueuing
 
@@ -428,7 +427,112 @@ my_periodic_resque_job:
   schedule: "*/5 * * * *"
 ```
 
-and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
+and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any
+`solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once
+each time.
+
+## Recycle On OOM
+
+This feature recycles / restarts a worker whenever it exceeds the specified memory threshold. This is particularly
+useful for jobs with high memory consumption or when deploying in a memory-constrained environment.
+
+If the result of the `calc_memory_usage` Proc is greater than the `recycle_on_oom` value configured on a specific
+worker, that worker will restart. It's important that the units returned by the `calc_memory_usage` Proc match the units
+of the `recycle_on_oom` value.
+For instance, if the `calc_memory_usage` Proc returns a value MB (i.e., 300 Vs. 300_000_000), the `recycle_on_oom` value
+should also be specified in MB.
+
+Using the `get_process_memory` gem, and configuring it return an integer value in MB, you can configure SolidQueue as
+follows:
+
+```ruby 
+# application.rb, production.rb, or 
+# initializer/solid_queue.rb file
+Rails.application.config.solid_queue.calc_memory_usage = ->(pid) { GetProcessMem.new(pid).mb.round(0) }
+```
+
+Here is an example of configuring a worker to recycle when memory usage exceeds 200MB:
+
+```yml
+worker:
+  queues: "*"
+  threads: 3
+  polling_interval: 2
+  recycle_on_oom: 200
+```
+
+You can also use the `calc_memory_usage` Proc to compute the memory usage across multiple processes:
+
+```ruby
+SolidQueue.configure do |config|
+  config.calc_memory_usage = ->(_) do
+    SolidQueue::Process.pluck(:pid).sum do |pid|
+      GetProcessMem.new(pid).mb.round(0)
+    rescue StandardError
+      0 # just in case the process for the pid is no longer running
+    end
+  end
+end
+```
+
+Then, set the worker to recycle based on the aggregate maximum memory usage of all processes:
+
+```yml
+worker:
+  queues: "*"
+  threads: 3
+  polling_interval: 2
+  recycle_on_oom: 512
+```
+
+Be cautious when using this feature, as it can lead to restarting the worker after each job if not properly configured.
+It is advisable to be especially careful using threads with workers configured with `recycle_on_oom`.
+For example, two queues — `slow_low_memory` and `fast_high_memory` — could easily result in the slow_low_memory jobs
+never completing due to the fast_high_memory jobs triggering the Worker tp recycle without allowing the slow_low_memory
+jobs enough time to run to completion.
+
+### A Brief Digression
+This is a good time to mention if you choose to use `recycle_on_oom` with threads, then your jobs *really, really should* 
+be **idempotent** -- a very fancy way of saying that a job could easily be started and stopped multiple times 
+(see previous paragraph) so it critical than the job be designed in a way to allow for multiple runs before it completes 
+without doing anything *"unseemly"* (such as email a customer with the same message with each restart).
+
+### Finishing recycle_on_oom
+Anytime a Worker is recycled due to memory consumption, it will emit a standard SolidQueue log message labeled: "Worker
+OOM". It will report the memory usage that triggered the restart and the vital statistics of the Worker process.
+SolidQueue will also output it's standard messaging about the Worker starting and registering.
+
+Other ideas that might help with memory constrained environments include:
+
+```ruby
+SolidQueue.on_start do
+  # If supported by your environment
+  # This setting will be inherited by all processes started by this Supervisor, including recycled Workers 
+  GC.auto_compact = true
+
+  Process.warmup
+end 
+```
+
+and
+
+```ruby
+SolidQueue.on_worker_start { Process.warmup }
+```
+
+```yml
+worker:
+  queues: "*"
+  threads: 3
+  polling_interval: 2
+  recycle_on_oom: 0
+```
+
+will effectively restart at the end of every job.
+
+Finally, triggering a full GC via either after_perform, around_perform, or the end of your Job can't hurt, as it will
+run prior to the memory
+check by the Worker.
 
 ## Inspiration
 

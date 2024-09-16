@@ -61,6 +61,20 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     end
   end
 
+  def recycle_worker(event)
+    process = event.payload[:process]
+
+    attributes = {
+      memory_used: event.payload[:memory_used],
+      pid: process.pid,
+      hostname: process.hostname,
+      process_id: process.process_id,
+      name: process.name
+    }
+
+    warn formatted_event(event, action: "#{process.kind} OOM", **attributes)
+  end
+
   def start_process(event)
     process = event.payload[:process]
 
