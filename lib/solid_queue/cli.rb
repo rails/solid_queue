@@ -14,7 +14,8 @@ module SolidQueue
       desc: "Path to recurring schedule definition",
       banner: "SOLID_QUEUE_RECURRING_SCHEDULE"
 
-    class_option :skip_recurring, type: :boolean, default: false
+    class_option :skip_recurring, type: :boolean, default: false,
+      desc: "Whether to skip recurring tasks scheduling"
 
     def self.exit_on_failure?
       true
