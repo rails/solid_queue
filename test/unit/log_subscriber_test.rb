@@ -72,6 +72,6 @@ class LogSubscriberTest < ActiveSupport::TestCase
 
     def assert_match_logged(level, action, attributes)
       assert_equal 1, @logger.logged(level).size
-      assert_match /SolidQueue-[\d.]+ #{action} \(\d+\.\d+ms\)  #{Regexp.escape(attributes)}/, @logger.logged(level).last
+      assert_match /SolidQueue-[\d.]+(\.beta)? #{action} \(\d+\.\d+ms\)  #{Regexp.escape(attributes)}/, @logger.logged(level).last
     end
 end
