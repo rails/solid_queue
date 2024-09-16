@@ -223,7 +223,14 @@ There are several settings that control how Solid Queue works that you can set a
   ```ruby
   -> (exception) { Rails.error.report(exception, handled: false) }
   ```
+<<<<<<< add-documentation-for-handling-exceptions
+
+  Note: `on_thread_error` is intended for errors in the thread that is executing the job and not for errors encountered in the job. For errors in the job itself, [refer here](#exceptions)
+
+- `connects_to`: a custom database configuration that will be used in the abstract `SolidQueue::Record` Active Record model. This is required to use a different database than the main app. For example:
+=======
   **This is not used for errors raised within a job execution**. Errors happening in jobs are handled by Active Job's `retry_on` or `discard_on`, and ultimately will result in [failed jobs](#failed-jobs-and-retries). This is for errors happening within Solid Queue itself.
+>>>>>>> main
 
 - `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
@@ -308,7 +315,40 @@ failed_execution.retry # This will re-enqueue the job as if it was enqueued for 
 failed_execution.discard # This will delete the job from the system
 ```
 
+<<<<<<< add-documentation-for-handling-exceptions
+We're planning to release a dashboard called _Mission Control_, where, among other things, you'll be able to examine and retry/discard failed jobs, one by one, or in bulk.
+
+### Exceptions
+
+For errors encountered in the job, you could try to hook into [Active Job](https://guides.rubyonrails.org/active_job_basics.html#exceptions) and report the errors to your exception monitoring service.
+
+Let's see an example implementation to handle exceptions.
+
+```ruby
+# application_job.rb
+class ApplicationJob < ActiveJob::Base
+  rescue_from(Exception) do |exception|
+    Rails.error.report(exception)
+    raise exception
+  end
+end
+```
+
+Note that, you will have to duplicate the above logic on `ActionMailer::MailDeliveryJob` too. That is because `ActionMailer` doesn't inherit from `ApplicationJob` but instead uses `ActionMailer::MailDeliveryJob` which inherits from `ActiveJob::Base`.
+
+```ruby
+# application_mailer.rb
+
+class ApplicationMailer < ActionMailer::Base
+  ActionMailer::MailDeliveryJob.rescue_from(Exception) do |exception|
+    Rails.error.report(exception)
+    raise exception
+  end
+end
+```
+=======
 However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
+>>>>>>> main
 
 ## Puma plugin
 
