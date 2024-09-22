@@ -1,5 +1,5 @@
 ActiveRecord::Schema[7.1].define(version: 1) do
-  create_table "solid_queue_blocked_executions", force: :cascade do |t|
+  create_table SolidQueue::BlockedExecution.table_name, force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
