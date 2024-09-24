@@ -47,6 +47,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_19_165045) do
   end
 
   create_table "solid_queue_job_batches", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "parent_job_batch_id"
     t.text "on_finish_active_job"
     t.text "on_success_active_job"
     t.text "on_failure_active_job"
@@ -58,6 +59,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_19_165045) do
     t.index ["changed_at"], name: "index_solid_queue_job_batches_on_changed_at"
     t.index ["finished_at"], name: "index_solid_queue_job_batches_on_finished_at"
     t.index ["last_changed_at"], name: "index_solid_queue_job_batches_on_last_changed_at"
+    t.index ["parent_job_batch_id"], name: "index_solid_queue_job_batches_on_parent_job_batch_id"
   end
 
   create_table "solid_queue_jobs", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
