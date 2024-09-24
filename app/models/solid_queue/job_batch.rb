@@ -71,6 +71,8 @@ module SolidQueue
 
     # Instance-level enqueue
     def enqueue(attributes = {})
+      raise "You cannot enqueue a batch that is already finished" if finished?
+
       previous_batch_id = self.class.current_batch_id.presence || nil
 
       transaction do
