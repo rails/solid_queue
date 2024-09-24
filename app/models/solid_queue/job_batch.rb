@@ -3,6 +3,7 @@
 module SolidQueue
   class JobBatch < Record
     belongs_to :job, foreign_key: :job_id, optional: true
+    belongs_to :parent_job_batch, foreign_key: :parent_job_batch_id, class_name: "SolidQueue::JobBatch", optional: true
     has_many :jobs, foreign_key: :batch_id
 
     serialize :on_finish_active_job, coder: JSON
