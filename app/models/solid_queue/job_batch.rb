@@ -7,10 +7,12 @@ module SolidQueue
 
     serialize :on_finish_active_job, coder: JSON
     serialize :on_success_active_job, coder: JSON
+    serialize :on_failure_active_job, coder: JSON
 
     scope :incomplete, -> {
       where(finished_at: nil).where("changed_at IS NOT NULL OR last_changed_at < ?", 1.hour.ago)
     }
+    scope :finished, -> { where.not(finished_at: nil) }
 
     class << self
       def current_batch_id
@@ -45,6 +47,7 @@ module SolidQueue
         def batch_attributes(attributes)
           on_finish_klass = attributes.delete(:on_finish)
           on_success_klass = attributes.delete(:on_success)
+          on_failure_klass = attributes.delete(:on_failure)
 
           if on_finish_klass.present?
             attributes[:on_finish_active_job] = as_active_job(on_finish_klass).serialize
@@ -52,6 +55,10 @@ module SolidQueue
 
           if on_success_klass.present?
             attributes[:on_success_active_job] = as_active_job(on_success_klass).serialize
+          end
+
+          if on_failure_klass.present?
+            attributes[:on_failure_active_job] = as_active_job(on_failure_klass).serialize
           end
 
           attributes
@@ -69,28 +76,50 @@ module SolidQueue
     def finish
       return if finished?
       reset_changed_at
+
+      all_jobs_succeeded = true
+      attrs = {}
       jobs.find_each do |next_job|
-        # FIXME: If it's failed but is going to retry, how do we know?
-        #   Because we need to know if we will determine what the failed execution means
-        # FIXME: use "success" vs "finish" vs "discard" `completion_type` to determine
-        #   how to analyze each job
-        return unless next_job.finished?
+        # SolidQueue does treats `discard_on` differently than failures. The job will report as being :finished,
+        #   and there is no record of the failure.
+        # GoodJob would report a discard as an error. It's possible we should do that in the future?
+        if fire_failure_job?(next_job)
+          perform_completion_job(:on_failure_active_job, attrs)
+          update!(attrs)
+        end
+
+        status = next_job.status
+        all_jobs_succeeded = all_jobs_succeeded && status != :failed
+        return unless status.in?([ :finished, :failed ])
       end
 
-      attrs = {}
-
       if on_finish_active_job.present?
-        active_job = ActiveJob::Base.deserialize(on_finish_active_job)
-        active_job.send(:deserialize_arguments_if_needed)
-        active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
-        ActiveJob.perform_all_later([ active_job ])
-        attrs[:job] = Job.find_by(active_job_id: active_job.job_id)
+        perform_completion_job(:on_finish_active_job, attrs)
+      end
+
+      if on_success_active_job.present? && all_jobs_succeeded
+        perform_completion_job(:on_success_active_job, attrs)
       end
 
       update!({ finished_at: Time.zone.now }.merge(attrs))
     end
 
     private
+
+      def fire_failure_job?(job)
+        return false if on_failure_active_job.blank? || job.failed_execution.blank?
+        job = ActiveJob::Base.deserialize(on_failure_active_job)
+        job.provider_job_id.blank?
+      end
+
+      def perform_completion_job(job_field, attrs)
+        active_job = ActiveJob::Base.deserialize(send(job_field))
+        active_job.send(:deserialize_arguments_if_needed)
+        active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
+        ActiveJob.perform_all_later([ active_job ])
+        active_job.provider_job_id = Job.find_by(active_job_id: active_job.job_id).id
+        attrs[job_field] = active_job.serialize
+      end
 
       def reset_changed_at
         if changed_at.blank? && last_changed_at.present?
