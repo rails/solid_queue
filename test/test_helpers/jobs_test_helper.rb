@@ -17,6 +17,14 @@ module JobsTestHelper
     end
   end
 
+  def wait_for_job_batches_to_finish_for(timeout = 1.second)
+    wait_while_with_timeout(timeout) do
+      skip_active_record_query_cache do
+        SolidQueue::JobBatch.where(finished_at: nil).any?
+      end
+    end
+  end
+
   def assert_unfinished_jobs(*jobs)
     skip_active_record_query_cache do
       assert_equal jobs.map(&:job_id).sort, SolidQueue::Job.where(finished_at: nil).map(&:active_job_id).sort
