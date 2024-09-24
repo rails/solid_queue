@@ -69,6 +69,20 @@ module SolidQueue
         end
     end
 
+    # Instance-level enqueue
+    def enqueue(attributes = {})
+      previous_batch_id = self.class.current_batch_id.presence || nil
+
+      transaction do
+        ActiveSupport::IsolatedExecutionState[:current_batch_id] = id
+        yield self
+      end
+
+      self
+    ensure
+      ActiveSupport::IsolatedExecutionState[:current_batch_id] = previous_batch_id
+    end
+
     def finished?
       finished_at.present?
     end
