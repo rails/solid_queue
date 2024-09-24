@@ -1,6 +1,7 @@
 class CreateSolidQueueBatchTable < ActiveRecord::Migration[7.1]
   def change
     create_table :solid_queue_job_batches do |t|
+      t.references :parent_job_batch, index: true # FIXME: foreign key
       t.text :on_finish_active_job
       t.text :on_success_active_job
       t.text :on_failure_active_job
