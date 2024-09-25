@@ -380,13 +380,14 @@ bin/jobs --recurring_schedule_file=config/schedule.yml
 The configuration itself looks like this:
 
 ```yml
-a_periodic_job:
-  class: MyJob
-  args: [ 42, { status: "custom_status" } ]
-  schedule: every second
-a_cleanup_task:
-  command: "DeletedStuff.clear_all"
-  schedule: every day at 9am
+production:
+  a_periodic_job:
+    class: MyJob
+    args: [ 42, { status: "custom_status" } ]
+    schedule: every second
+  a_cleanup_task:
+    command: "DeletedStuff.clear_all"
+    schedule: every day at 9am
 ```
 
 Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
