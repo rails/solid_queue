@@ -111,7 +111,7 @@ module SolidQueue
       end
 
       def recurring_tasks_config
-        @recurring_tasks ||= config_from options[:recurring_schedule_file]
+        @recurring_tasks_config ||= config_from options[:recurring_schedule_file]
       end
 
 
