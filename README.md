@@ -588,12 +588,62 @@ class ApplicationMailer < ActionMailer::Base
 
 ## Batch jobs
 
+SolidQueue offers support for batching jobs. This allows you to track progress of a set of jobs,
+and optionally trigger callbacks based on their status. It supports the following:
+
+- Relating jobs to a batch, to track their status
+- Three available callbacks to fire:
+  - `on_finish`: Fired when all jobs have finished, including retries. Fires even when some jobs have failed.
+  - `on_success`: Fired when all jobs have succeeded, including retries. Will not fire if any jobs have failed, but will fire if jobs have been discarded using `discard_on`
+  - `on_failure`: Fired the _first_ time a job fails, after all retries are exhausted.
+- If a job is part of a batch, it can enqueue more jobs for that batch using `batch#enqueue`
+- Batches can be nested within other batches, creating a hierarchy. Outer batches will not finish until all nested batches have finished.
+
 ```rb
-SolidQueue::JobBatch.enqueue(on_finish: BatchCompletionJob) do
-  5.times.map { |i| SleepyJob.perform_later(i) }
+class SleepyJob < ApplicationJob
+  def perform(seconds_to_sleep)
+    Rails.logger.info "Feeling #{seconds_to_sleep} seconds sleepy..."
+    sleep seconds_to_sleep
+  end
 end
 
-SolidQueue::JobBatch.enqueue(on_success: BatchCompletionJob) do
+class MultiStepJob < ApplicationJob
+  def perform
+    batch.enqueue do
+      SleepyJob.perform_later(5)
+      # Because of this nested batch, the top-level batch won't finish until the inner,
+      # 10 second job finishes
+      # Both jobs will still run simultaneously
+      SolidQueue::JobBatch.enqueue do
+        SleepyJob.perform_later(10)
+      end
+    end
+  end
+end
+
+class BatchFinishJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "Good job finishing all jobs"
+  end
+end
+
+class BatchSuccessJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "Good job finishing all jobs, and all of them worked!"
+  end
+end
+
+class BatchFailureJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "At least one job failed, sorry!"
+  end
+end
+
+SolidQueue::JobBatch.enqueue(
+  on_finish: BatchFinishJob,
+  on_success: BatchSuccessJob,
+  on_failure: BatchFailureJob
+) do
   5.times.map { |i| SleepyJob.perform_later(i) }
 end
 ```
