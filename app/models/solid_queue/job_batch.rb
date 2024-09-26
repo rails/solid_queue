@@ -69,6 +69,9 @@ module SolidQueue
           end
 
           attributes[:parent_job_batch_id] = current_batch_id if current_batch_id.present?
+          # Set it initially, so we check the batch even if there are no jobs
+          attributes[:changed_at] = Time.zone.now
+          attributes[:last_changed_at] = Time.zone.now
 
           attributes
         end
