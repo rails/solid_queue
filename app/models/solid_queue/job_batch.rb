@@ -148,7 +148,7 @@ module SolidQueue
         active_job = ActiveJob::Base.deserialize(send(job_field))
         active_job.send(:deserialize_arguments_if_needed)
         active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
-        self.class.wrap_in_batch_context(id) do
+        self.class.wrap_in_batch_context(parent_job_batch_id || self.class.current_batch_id) do
           ActiveJob.perform_all_later([ active_job ])
         end
         active_job.provider_job_id = Job.find_by(active_job_id: active_job.job_id).id
