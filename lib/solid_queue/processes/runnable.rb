@@ -41,10 +41,6 @@ module SolidQueue::Processes
         end
       end
 
-      def run
-        raise NotImplementedError
-      end
-
       def shutting_down?
         stopped? || (running_as_fork? && supervisor_went_away?) || finished? || !registered?
       end
