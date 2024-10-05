@@ -29,7 +29,7 @@ module SolidQueue
         else
           FileUtils.mkdir_p File.dirname(path)
         end
-      rescue Errno::ESRCH => e
+      rescue Errno::ESRCH
         # Process is dead, ignore, just delete the file
         delete
       rescue Errno::EPERM
