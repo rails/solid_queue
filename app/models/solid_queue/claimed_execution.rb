@@ -36,10 +36,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       end
     end
 
-    def fail_all_with(error)
+    def fail_all_with(error, reraise:)
       SolidQueue.instrument(:fail_many_claimed) do |payload|
         includes(:job).tap do |executions|
-          executions.each { |execution| execution.failed_with(error) }
+          executions.each { |execution| execution.failed_with(error, reraise: reraise) }
 
           payload[:process_ids] = executions.map(&:process_id).uniq
           payload[:job_ids] = executions.map(&:job_id).uniq
@@ -63,7 +63,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     if result.success?
       finished
     else
-      failed_with(result.error)
+      failed_with(result.error, reraise: true)
     end
   ensure
     job.unblock_next_blocked_job
@@ -82,11 +82,12 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     raise UndiscardableError, "Can't discard a job in progress"
   end
 
-  def failed_with(error)
+  def failed_with(error, reraise:)
     transaction do
       job.failed_with(error)
       destroy!
     end
+    raise error if reraise
   end
 
   private

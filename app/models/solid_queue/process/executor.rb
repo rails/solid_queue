@@ -11,9 +11,9 @@ module SolidQueue
         after_destroy :release_all_claimed_executions
       end
 
-      def fail_all_claimed_executions_with(error)
+      def fail_all_claimed_executions_with(error, reraise:)
         if claims_executions?
-          claimed_executions.fail_all_with(error)
+          claimed_executions.fail_all_with(error, reraise: reraise)
         end
       end
 
