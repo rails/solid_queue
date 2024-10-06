@@ -11,7 +11,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 Solid Queue is configured by default in new Rails 8 applications. But if you're running an earlier version, you can add it manually following these steps:
 
 1. `bundle add solid_queue`
-2. `bin/rails solid_queue:install`
+2. `bin/rails generate solid_queue:install`
 
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
@@ -43,7 +43,7 @@ production:
     migrations_paths: db/queue_migrate
 ```
 
-Note: Calling `bin/rails solid_queue:install` will automatically add `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config/environments/production.rb`, so no additional configuration is needed there (although you must make sure that you use the `queue` name in `database.yml` for this to match!). But if you want to use Solid Queue in a different environment (like staging or even development), you'll have to manually add that `config.solid_queue.connects_to` line to the respective environment file. And, as always, make sure that the name you're using for the database in `config/database.yml` matches the name you use in `config.solid_queue.connects_to`.
+Note: Calling `bin/rails generate solid_queue:install` will automatically add `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config/environments/production.rb`, so no additional configuration is needed there (although you must make sure that you use the `queue` name in `database.yml` for this to match!). But if you want to use Solid Queue in a different environment (like staging or even development), you'll have to manually add that `config.solid_queue.connects_to` line to the respective environment file. And, as always, make sure that the name you're using for the database in `config/database.yml` matches the name you use in `config.solid_queue.connects_to`.
 
 Then run `db:prepare` in production to ensure the database is created and the schema is loaded.
 
