@@ -65,6 +65,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     else
       failed_with(result.error)
     end
+
+    job.job_batch.touch(:changed_at, :last_changed_at) if job.batch_id.present?
   ensure
     job.unblock_next_blocked_job
   end
