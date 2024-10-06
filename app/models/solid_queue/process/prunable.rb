@@ -23,7 +23,7 @@ module SolidQueue
 
       def prune
         error = Processes::ProcessPrunedError.new(last_heartbeat_at)
-        fail_all_claimed_executions_with(error)
+        fail_all_claimed_executions_with(error, reraise: false)
 
         deregister(pruned: true)
       end

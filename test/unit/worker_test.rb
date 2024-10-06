@@ -67,6 +67,23 @@ class WorkerTest < ActiveSupport::TestCase
     SolidQueue.on_thread_error = original_on_thread_error
   end
 
+  test "errors on claimed executions are reported via Rails error subscriber" do
+    subscriber = ErrorBuffer.new
+    Rails.error.subscribe(subscriber)
+
+    RaisingJob.perform_later(RuntimeError, "B")
+
+    @worker.start
+
+    wait_for_jobs_to_finish_for(1.second)
+    @worker.wake_up
+
+    assert_equal 1, subscriber.errors.count
+    assert_equal "This is a RuntimeError exception", subscriber.messages.first
+  ensure
+    Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
+  end
+
   test "claim and process more enqueued jobs than the pool size allows to process at once" do
     5.times do |i|
       StoreResultJob.perform_later(:paused, pause: 0.1.second)
