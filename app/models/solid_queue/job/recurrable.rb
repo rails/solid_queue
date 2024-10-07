@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :recurring_execution, dependent: :destroy
+        has_one :recurring_execution, strict_loading: false, dependent: :destroy
       end
     end
   end

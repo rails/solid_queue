@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :failed_execution
+        has_one :failed_execution, strict_loading: false
 
         scope :failed, -> { includes(:failed_execution).where.not(failed_execution: { id: nil }) }
       end
