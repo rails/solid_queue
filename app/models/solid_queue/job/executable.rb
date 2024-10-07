@@ -8,8 +8,8 @@ module SolidQueue
       included do
         include ConcurrencyControls, Schedulable, Retryable
 
-        has_one :ready_execution
-        has_one :claimed_execution
+        has_one :ready_execution, strict_loading: false
+        has_one :claimed_execution, strict_loading: false
 
         after_create :prepare_for_execution
 

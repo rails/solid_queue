@@ -10,7 +10,7 @@ module SolidQueue
 
     scope :ordered, -> { order(priority: :asc, job_id: :asc) }
 
-    belongs_to :job
+    belongs_to :job, strict_loading: false
 
     class << self
       def type

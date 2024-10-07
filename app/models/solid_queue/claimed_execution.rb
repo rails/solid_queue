@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
-  belongs_to :process
+  belongs_to :process, strict_loading: false
 
   scope :orphaned, -> { where.missing(:process) }
 
