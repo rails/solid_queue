@@ -1,6 +1,6 @@
 class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   create_table "solid_queue_blocked_executions", if_not_exists: true do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.string "concurrency_key", null: false
@@ -11,14 +11,14 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   end
 
   create_table "solid_queue_claimed_executions", if_not_exists: true do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
-    t.bigint "process_id"
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :process
     t.datetime "created_at", null: false
     t.index [ "process_id", "job_id" ], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
   end
 
   create_table "solid_queue_failed_executions", if_not_exists: true  do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
     t.text "error"
     t.datetime "created_at", null: false
   end
@@ -46,7 +46,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   create_table "solid_queue_processes", if_not_exists: true do |t|
     t.string "kind", null: false
     t.datetime "last_heartbeat_at", null: false, index: true
-    t.bigint "supervisor_id", index: true
+    t.references :supervisor
     t.integer "pid", null: false
     t.string "hostname"
     t.text "metadata"
@@ -56,7 +56,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   end
 
   create_table "solid_queue_ready_executions", if_not_exists: true do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.datetime "created_at", null: false
@@ -65,7 +65,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   end
 
   create_table "solid_queue_recurring_executions", if_not_exists: true do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
     t.string "task_key", null: false
     t.datetime "run_at", null: false
     t.datetime "created_at", null: false
@@ -87,7 +87,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
   end
 
   create_table "solid_queue_scheduled_executions", if_not_exists: true do |t|
-    t.bigint "job_id", null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
+    t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
     t.string "queue_name", null: false
     t.integer "priority", default: 0, null: false
     t.datetime "scheduled_at", null: false
