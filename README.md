@@ -13,7 +13,7 @@ Solid Queue is configured by default in new Rails 8 applications. But if you're 
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
-This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
+This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the database migration. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
 Once you've done that, you will then have to add the configuration for the queue database in `config/database.yml`. If you're using SQLite, it'll look like this:
 
@@ -58,7 +58,7 @@ For small projects, you can run Solid Queue on the same machine as your webserve
 
 Running Solid Queue in a separate database is recommended, but it's also possible to use one single database for both the app and the queue. Just follow these steps:
 
-1. Copy the contents of `db/queue_schema.rb` into a normal migration and delete `db/queue_schema.rb`
+1. Move `db/queue_migrate/1_create_solid_queue_tables.rb` into a normal migration
 2. Remove `config.solid_queue.connects_to` from `production.rb`
 3. Migrate your database. You are ready to run `bin/jobs`
 
