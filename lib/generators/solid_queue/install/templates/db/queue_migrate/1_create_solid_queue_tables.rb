@@ -12,7 +12,7 @@ class CreateSolidQueueTables < ActiveRecord::Migration[7.2]
 
   create_table "solid_queue_claimed_executions", if_not_exists: true do |t|
     t.references :job, null: false, index: { unique: true }, foreign_key: { to_table: :solid_queue_jobs, on_delete: :cascade }
-    t.references :process
+    t.references :process, index: false
     t.datetime "created_at", null: false
     t.index [ "process_id", "job_id" ], name: "index_solid_queue_claimed_executions_on_process_id_and_job_id"
   end
