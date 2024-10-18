@@ -43,8 +43,6 @@ production:
     migrations_paths: db/queue_migrate
 ```
 
-Note: Calling `bin/rails solid_queue:install` will automatically add `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config/environments/production.rb`, so no additional configuration is needed there (although you must make sure that you use the `queue` name in `database.yml` for this to match!). But if you want to use Solid Queue in a different environment (like staging or even development), you'll have to manually add that `config.solid_queue.connects_to` line to the respective environment file. And, as always, make sure that the name you're using for the database in `config/database.yml` matches the name you use in `config.solid_queue.connects_to`.
-
 Then run `db:prepare` in production to ensure the database is created and the schema is loaded.
 
 Now you're ready to start processing jobs by running `bin/jobs` on the server that's doing the work. This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
@@ -53,6 +51,39 @@ For small projects, you can run Solid Queue on the same machine as your webserve
 
 **Note**: future changes to the schema will come in the form of regular migrations.
 
+### Usage in development and other non-production environments
+
+Calling `bin/rails solid_queue:install` will automatically add `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config/environments/production.rb`. In order to use Solid Queue in other environments (such as development or staging), you'll need to add a similar configuration(s).
+
+For example, if you're using Sqlite in development, update `database.yml` as follows:
+
+```yaml
+development:
+  primary:
+    <<: *default
+    database: storage/development.sqlite3
+  queue:
+    <<: *default
+    database: storage/development_queue.sqlite3
+    migrations_paths: db/queue_migrate
+```
+
+Next, add the following to `development.rb`
+
+```ruby
+  # Use Solid Queue in Development.
+  config.active_job.queue_adapter = :solid_queue
+  config.solid_queue.connects_to = {database: {writing: :queue}}
+```
+
+Once you've added this, again run `db:prepare` to create the Solid Queue database and load the schema.
+
+Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via the Puma plugin. In `puma.rb` update the following line:
+
+```ruby
+# You can either set the env var, or check for development
+plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
+```
 
 ### Single database configuration
 
@@ -86,6 +117,7 @@ Solid Queue was designed for the highest throughput when used with MySQL 8+ or P
 ### Workers, dispatchers and scheduler
 
 We have several types of actors in Solid Queue:
+
 - _Workers_ are in charge of picking jobs ready to run from queues and processing them. They work off the `solid_queue_ready_executions` table.
 - _Dispatchers_ are in charge of selecting jobs scheduled to run in the future that are due and _dispatching_ them, which is simply moving them from the `solid_queue_scheduled_executions` table over to the `solid_queue_ready_executions` table so that workers can pick them up. On top of that, they do some maintenance work related to [concurrency controls](#concurrency-controls).
 - The _scheduler_ manages [recurring tasks](#recurring-tasks), enqueuing jobs for them when they're due.
@@ -98,7 +130,6 @@ By default, Solid Queue will try to find your configuration under `config/queue.
 ```
 bin/jobs -c config/calendar.yml
 ```
-
 
 This is what this configuration looks like:
 
