@@ -252,7 +252,7 @@ class MyJob < ApplicationJob
 
   # ...
 ```
-- `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an Active Record record, the key will be built from its class name and `id`.
+- `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an ActiveRecord record, the key will be built from its class name and `id`.
 - `to` is `1` by default.
 - `duration` is set to `SolidQueue.default_concurrency_control_period` by default, which itself defaults to `3 minutes`, but that you can configure as well.
 - `group` is used to control the concurrency of different job classes together. It defaults to the job class name.
@@ -348,7 +348,7 @@ to your `puma.rb` configuration.
 
 
 ## Jobs and transactional integrity
-:warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and viceversa, and ensuring that your job won't be enqueued until the transaction within which you're enqueing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
+:warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and viceversa, and ensuring that your job won't be enqueued until the transaction within which you're enqueuing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you.
 
 Because this can be quite tricky and many people shouldn't need to worry about it, by default Solid Queue is configured in a different database as the main app, **job enqueuing is deferred until any ongoing transaction is committed** thanks to Active Job's built-in capability to do this. This means that even if you run Solid Queue in the same DB as your app, you won't be taking advantage of this transactional integrity.
 
