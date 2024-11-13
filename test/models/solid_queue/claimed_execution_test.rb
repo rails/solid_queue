@@ -67,7 +67,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     job = claimed_execution.job
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      claimed_execution.failed_with(RuntimeError.new, reraise: false)
+      claimed_execution.failed_with(RuntimeError.new)
     end
 
     assert job.reload.failed?

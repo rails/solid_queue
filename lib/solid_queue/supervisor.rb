@@ -173,7 +173,7 @@ module SolidQueue
       def handle_claimed_jobs_by(terminated_fork, status)
         if registered_process = process.supervisees.find_by(name: terminated_fork.name)
           error = Processes::ProcessExitError.new(status)
-          registered_process.fail_all_claimed_executions_with(error, reraise: false)
+          registered_process.fail_all_claimed_executions_with(error)
         end
       end
 
