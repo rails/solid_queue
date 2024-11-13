@@ -35,19 +35,19 @@ default: &default
 development:
   primary:
     <<: *default
-    database: <%= database_name_from("solid_queue_development") %>
-  replica:
+    database: <%= database_name_from("development") %>
+  queue:
     <<: *default
-    database: <%= database_name_from("solid_queue_development") %>
-    replica: true
+    database: <%= database_name_from("development_queue") %>
+    migrations_paths: db/queue_migrate
 
 test:
   primary:
     <<: *default
     pool: 20
-    database: <%= database_name_from("solid_queue_test") %>
-  replica:
+    database: <%= database_name_from("test") %>
+  queue:
     <<: *default
     pool: 20
-    database: <%= database_name_from("solid_queue_test") %>
-    replica: true
+    database: <%= database_name_from("test_queue") %>
+    migrations_paths: db/queue_migrate
