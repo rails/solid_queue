@@ -34,7 +34,7 @@ module SolidQueue
       def eligible_queues
         if include_all_queues? then all_queues
         else
-          exact_names + prefixed_names
+          in_raw_order(exact_names + prefixed_names)
         end
       end
 
@@ -42,8 +42,12 @@ module SolidQueue
         "*".in? raw_queues
       end
 
+      def all_queues
+        relation.distinct(:queue_name).pluck(:queue_name)
+      end
+
       def exact_names
-        raw_queues.select { |queue| !queue.include?("*") }
+        raw_queues.select { |queue| exact_name?(queue) }
       end
 
       def prefixed_names
@@ -54,15 +58,41 @@ module SolidQueue
       end
 
       def prefixes
-        @prefixes ||= raw_queues.select { |queue| queue.ends_with?("*") }.map { |queue| queue.tr("*", "%") }
+        @prefixes ||= raw_queues.select { |queue| prefixed_name?(queue) }.map { |queue| queue.tr("*", "%") }
       end
 
-      def all_queues
-        relation.distinct(:queue_name).pluck(:queue_name)
+      def exact_name?(queue)
+        !queue.include?("*")
+      end
+
+      def prefixed_name?(queue)
+        queue.ends_with?("*")
       end
 
       def paused_queues
         @paused_queues ||= Pause.all.pluck(:queue_name)
+      end
+
+      def in_raw_order(queues)
+        # Only need to sort if we have prefixes and more than one queue name.
+        # Exact names are selected in the same order as they're found
+        if queues.one? || prefixes.empty?
+          queues
+        else
+          queues = queues.dup
+          raw_queues.flat_map { |raw_queue| delete_in_order(raw_queue, queues) }.compact
+        end
+      end
+
+      def delete_in_order(raw_queue, queues)
+        if exact_name?(raw_queue)
+          queues.delete(raw_queue)
+        elsif prefixed_name?(raw_queue)
+          prefix = raw_queue.tr("*", "")
+          queues.select { |queue| queue.start_with?(prefix) }.tap do |matches|
+            queues -= matches
+          end
+        end
       end
   end
 end
