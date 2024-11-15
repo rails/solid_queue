@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :scheduled_execution
+        has_one :scheduled_execution, strict_loading: false
 
         scope :scheduled, -> { where(finished_at: nil) }
       end

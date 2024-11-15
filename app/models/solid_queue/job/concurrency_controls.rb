@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_one :blocked_execution
+        has_one :blocked_execution, strict_loading: false
 
         delegate :concurrency_limit, :concurrency_duration, to: :job_class
 
