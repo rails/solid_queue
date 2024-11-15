@@ -64,6 +64,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       finished
     else
       failed_with(result.error)
+      raise result.error
     end
   ensure
     job.unblock_next_blocked_job
