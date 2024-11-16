@@ -7,3 +7,4 @@ AllCops:
   TargetRubyVersion: 3.0
   Exclude:
     - "test/dummy/db/schema.rb"
+    - "test/dummy/db/queue_schema.rb"

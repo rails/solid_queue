@@ -2,11 +2,19 @@
 set -eu
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-docker-compose up -d --remove-orphans
-docker-compose ps
+if docker compose version &> /dev/null; then
+  DOCKER_COMPOSE_CMD="docker compose"
+else
+  DOCKER_COMPOSE_CMD="docker-compose"
+fi
+
+$DOCKER_COMPOSE_CMD up -d --remove-orphans
+$DOCKER_COMPOSE_CMD ps
 
 bundle
 
 echo "Creating databases..."
 
-rails db:reset
+rails db:reset TARGET_DB=sqlite
+rails db:reset TARGET_DB=mysql
+rails db:reset TARGET_DB=postgres

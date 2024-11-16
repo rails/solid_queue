@@ -149,6 +149,9 @@ Here's an overview of the different options:
   This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
+
+  Check the sections below on [how queue order behaves combined with priorities](#queue-order-and-priorities), and [how the way you specify the queues per worker might affect performance](#queues-specification-and-performance).
+
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
@@ -163,6 +166,67 @@ Active Job also supports positive integer priorities when enqueuing jobs. In Sol
 This is useful when you run jobs with different importance or urgency in the same queue. Within the same queue, jobs will be picked in order of priority, but in a list of queues, the queue order takes precedence, so in the previous example with `real_time,background`, jobs in the `real_time` queue will be picked before jobs in the `background` queue, even if those in the `background` queue have a higher priority (smaller value) set.
 
 We recommend not mixing queue order with priorities but either choosing one or the other, as that will make job execution order more straightforward for you.
+
+### Queues specification and performance
+
+To keep polling performant and ensure a covering index is always used, Solid Queue only does two types of polling queries:
+```sql
+-- No filtering by queue
+SELECT job_id
+FROM solid_queue_ready_executions
+ORDER BY priority ASC, job_id ASC
+LIMIT ?
+FOR UPDATE SKIP LOCKED;
+
+-- Filtering by a single queue
+SELECT job_id
+FROM solid_queue_ready_executions
+WHERE queue_name = ?
+ORDER BY priority ASC, job_id ASC
+LIMIT ?
+FOR UPDATE SKIP LOCKED;
+```
+
+The first one (no filtering by queue) is used when you specify
+```yml
+queues: *
+```
+and there aren't any queues paused, as we want to target all queues.
+
+In other cases, we need to have a list of queues to filter by, in order, because we can only filter by a single queue at a time to ensure we use an index to sort. This means that if you specify your queues as:
+```yml
+queues: beta*
+```
+
+we'll need to get a list of all existing queues matching that prefix first, with a query that would look like this:
+```sql
+SELECT DISTINCT(queue_name)
+FROM solid_queue_ready_executions
+WHERE queue_name LIKE 'beta%';
+```
+
+This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL and SQLite, however, don't implement this technique, which means that if your `solid_queue_ready_executions` table is very big because your queues get very deep, this query will get slow. Normally your `solid_queue_ready_executions` table will be small, but it can happen.
+
+Similarly to using prefixes, the same will happen if you have paused queues, because we need to get a list of all queues with a query like
+```sql
+SELECT DISTINCT(queue_name)
+FROM solid_queue_ready_executions
+```
+
+and then remove the paused ones. Pausing in general should be something rare, used in special circumstances, and for a short period of time. If you don't want to process jobs from a queue anymore, the best way to do that is to remove it from your list of queues.
+
+💡 To sum up, **if you want to ensure optimal performance on polling**, the best way to do that is to always specify exact names for them, and not have any queues paused.
+
+Do this:
+
+```yml
+queues: background, backend
+```
+
+instead of this:
+```yml
+queues: back*
+```
 
 
 ### Threads, processes and signals
