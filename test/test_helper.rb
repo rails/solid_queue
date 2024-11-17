@@ -24,11 +24,20 @@ module BlockLogDeviceTimeoutExceptions
 end
 
 Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
+class ExpectedTestError < RuntimeError; end
+
 
 class ActiveSupport::TestCase
   include ProcessesTestHelper, JobsTestHelper
 
+  setup do
+    # Could be cleaner with one several minitest gems, but didn't want to add new dependency
+    @_on_thread_error = SolidQueue.on_thread_error
+    SolidQueue.on_thread_error = silent_on_thread_error_for(ExpectedTestError)
+  end
+
   teardown do
+    SolidQueue.on_thread_error = @_on_thread_error
     JobBuffer.clear
 
     if SolidQueue.supervisor_pidfile && File.exist?(SolidQueue.supervisor_pidfile)
@@ -68,5 +77,29 @@ class ActiveSupport::TestCase
     # processes.
     def skip_active_record_query_cache(&block)
       SolidQueue::Record.uncached(&block)
+    end
+
+    # Silences specified exceptions during the execution of a block
+    #
+    # @param [Exception, Array<Exception>] expected an Exception or an array of Exceptions to ignore
+    # @yield Executes the provided block with specified exception(s) silenced
+    def silence_on_thread_error_for(expected, &block)
+      SolidQueue.with(on_thread_error: silent_on_thread_error_for(expected)) do
+        block.call
+      end
+    end
+
+    # Does not call on_thread_error for expected exceptions
+    # @param [Exception, Array<Exception>] expected an Exception or an array of Exceptions to ignore
+    def silent_on_thread_error_for(expected)
+      current_proc = SolidQueue.on_thread_error
+
+      ->(exception) do
+        expected_exceptions = Array(expected)
+
+        unless expected_exceptions.any? { exception.instance_of?(_1) }
+          current_proc.call(exception)
+        end
+      end
     end
 end

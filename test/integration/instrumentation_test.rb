@@ -162,7 +162,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
   test "errors when deregistering processes are included in deregister_process events" do
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
-    error = RuntimeError.new("everything is broken")
+    error = ExpectedTestError.new("everything is broken")
     SolidQueue::Process.any_instance.expects(:destroy!).raises(error).at_least_once
 
     events = subscribed("deregister_process.solid_queue") do
@@ -182,7 +182,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "retrying failed job emits retry event" do
-    RaisingJob.perform_later(RuntimeError, "A")
+    RaisingJob.perform_later(ExpectedTestError, "A")
     job = SolidQueue::Job.last
 
     worker = SolidQueue::Worker.new.tap(&:start)
@@ -198,7 +198,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   end
 
   test "retrying failed jobs in bulk emits retry_all" do
-    3.times { RaisingJob.perform_later(RuntimeError, "A") }
+    3.times { RaisingJob.perform_later(ExpectedTestError, "A") }
     AddToBufferJob.perform_later("A")
 
     jobs = SolidQueue::Job.last(4)
@@ -392,7 +392,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   test "thread errors emit thread_error events" do
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
 
-    error = RuntimeError.new("everything is broken")
+    error = ExpectedTestError.new("everything is broken")
     SolidQueue::ClaimedExecution::Result.expects(:new).raises(error).at_least_once
 
     AddToBufferJob.perform_later "hey!"

@@ -130,6 +130,8 @@ GEM
     rake (13.2.1)
     rdoc (6.8.1)
       psych (>= 4.0.0)
+    rdoc (6.6.3.1)
+      psych (>= 4.0.0)
     regexp_parser (2.9.2)
     reline (0.5.12)
       io-console (~> 0.5)
@@ -192,6 +194,7 @@ DEPENDENCIES
   ostruct
   pg
   puma
+  rdoc
   rubocop-rails-omakase
   solid_queue!
   sqlite3

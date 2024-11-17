@@ -47,4 +47,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "ostruct"
   spec.add_development_dependency "logger"
   spec.add_development_dependency "fiddle"
+  spec.add_development_dependency "rdoc"
 end
