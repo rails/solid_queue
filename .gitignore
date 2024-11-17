@@ -14,5 +14,8 @@
 # Folder for Visual Studio Code
 /.vscode/
 
+# Files for RVM holdouts
+.ruby-gemset
+
 # misc
 .DS_Store

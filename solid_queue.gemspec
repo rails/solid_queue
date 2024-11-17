@@ -44,4 +44,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "pg"
   spec.add_development_dependency "sqlite3"
   spec.add_development_dependency "rubocop-rails-omakase"
+  spec.add_development_dependency "ostruct"
+  spec.add_development_dependency "logger"
+  spec.add_development_dependency "fiddle"
 end
