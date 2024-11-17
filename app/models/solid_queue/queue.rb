@@ -40,6 +40,19 @@ module SolidQueue
       @size ||= ReadyExecution.queued_as(name).count
     end
 
+    def latency
+      @latency = begin
+        now = Time.current
+        oldest_enqueued_at = SolidQueue::ReadyExecution.queued_as(name).minimum(:created_at) || now
+
+        (now - oldest_enqueued_at).to_i
+      end
+    end
+
+    def human_latency
+      ActiveSupport::Duration.build(latency).inspect
+    end
+
     def ==(queue)
       name == queue.name
     end
