@@ -101,7 +101,7 @@ module SolidQueue
 
       private
         def ready
-          ReadyExecution.create_or_find_by!(job_id: id)
+          ReadyExecution.find_by_job_id(id) || ReadyExecution.create!(job_id: id)
         end
 
         def execution
