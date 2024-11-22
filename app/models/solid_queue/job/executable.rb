@@ -101,7 +101,9 @@ module SolidQueue
 
       private
         def ready
-          ReadyExecution.find_by_job_id(id) || ReadyExecution.create!(job_id: id)
+          ReadyExecution.create!(job_id: id)
+        rescue ActiveRecord::RecordNotUnique
+          ReadyExecution.find_by_job_id(id)
         end
 
         def execution
