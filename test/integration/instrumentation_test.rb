@@ -391,9 +391,10 @@ class InstrumentationTest < ActiveSupport::TestCase
 
   test "thread errors emit thread_error events" do
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
-
     error = ExpectedTestError.new("everything is broken")
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(error).at_least_once
+
+    # Allows the job to process normally, but trigger the error path in ClaimedExecution.execute
+    Concurrent::Maybe.expects(:just).returns(Concurrent::Maybe.nothing(error))
 
     AddToBufferJob.perform_later "hey!"
 
