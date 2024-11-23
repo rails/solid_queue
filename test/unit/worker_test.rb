@@ -51,7 +51,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(ExpectedTestError.new("everything is broken")).at_least_once
+    Concurrent::Maybe.expects(:just).returns(Concurrent::Maybe.nothing(ExpectedTestError.new("everything is broken")))
 
     AddToBufferJob.perform_later "hey!"
 
