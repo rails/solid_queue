@@ -5,12 +5,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   scope :orphaned, -> { where.missing(:process) }
 
-  class Result < Struct.new(:success, :error)
-    def success?
-      success
-    end
-  end
-
   class << self
     def claiming(job_ids, process_id, &block)
       job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
@@ -60,12 +54,9 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   def perform
     result = execute
 
-    if result.success?
-      finished
-    else
-      failed_with(result.error)
-      raise result.error
-    end
+    result.just? ? finished : failed_with(result.reason)
+
+    result
   ensure
     job.unblock_next_blocked_job
   end
@@ -93,9 +84,9 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   private
     def execute
       ActiveJob::Base.execute(job.arguments)
-      Result.new(true, nil)
+      Concurrent::Maybe.just(true)
     rescue Exception => e
-      Result.new(false, e)
+      Concurrent::Maybe.nothing(e)
     end
 
     def finished
