@@ -37,15 +37,9 @@ module SolidQueue::Processes
       end
 
       def launch_heartbeat
-        @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
+        @heartbeat_task = SolidQueue::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
           wrap_in_app_executor { heartbeat }
         end
-
-        @heartbeat_task.add_observer do |_, _, error|
-          handle_thread_error(error) if error
-        end
-
-        @heartbeat_task.execute
       end
 
       def stop_heartbeat

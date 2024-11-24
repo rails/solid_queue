@@ -12,16 +12,10 @@ module SolidQueue
     end
 
     def start
-      @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: interval) do
+      @concurrency_maintenance_task = SolidQueue::TimerTask.new(run_now: true, execution_interval: interval) do
         expire_semaphores
         unblock_blocked_executions
       end
-
-      @concurrency_maintenance_task.add_observer do |_, _, error|
-        handle_thread_error(error) if error
-      end
-
-      @concurrency_maintenance_task.execute
     end
 
     def stop
