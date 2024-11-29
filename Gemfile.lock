@@ -97,7 +97,7 @@ GEM
     pg (1.5.4)
     psych (5.2.0)
       stringio
-    puma (6.4.2)
+    puma (6.4.3)
       nio4r (~> 2.0)
     raabro (1.4.0)
     racc (1.8.1)
