@@ -82,7 +82,7 @@ GEM
     mocha (2.1.0)
       ruby2_keywords (>= 0.0.5)
     mutex_m (0.3.0)
-    mysql2 (0.5.4)
+    mysql2 (0.5.6)
     nio4r (2.7.4)
     nokogiri (1.16.7-arm64-darwin)
       racc (~> 1.4)
