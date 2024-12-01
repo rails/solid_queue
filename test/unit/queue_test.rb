@@ -48,16 +48,28 @@ class QueueTest < ActiveSupport::TestCase
     assert_in_delta 5.minutes.to_i, @background_queue.latency, 1.second.to_i
     assert_equal 0, @default_queue.latency
 
+    @background_queue = SolidQueue::Queue.find_by_name("background")
+    @default_queue = SolidQueue::Queue.find_by_name("default")
     travel_to 10.minutes.from_now
 
     assert_in_delta 15.minutes.to_i, @background_queue.latency, 1.second.to_i
     assert_equal 0, @default_queue.latency
   end
 
+  test "returns memoized latency after the first call" do
+    travel_to 5.minutes.from_now
+
+    assert_in_delta 5.minutes.to_i, @background_queue.latency, 1.second.to_i
+
+    travel_to 10.minutes.from_now
+
+    assert_in_delta 5.minutes.to_i, @background_queue.latency, 1.second.to_i
+  end
+
   test "return human latency on each queue" do
     travel_to 5.minutes.from_now
 
-    assert_match /5 minutes/, @background_queue.human_latency
-    assert_match /0 seconds/, @default_queue.human_latency
+    assert_match (/5 minutes/), @background_queue.human_latency
+    assert_match (/0 seconds/), @default_queue.human_latency
   end
 end

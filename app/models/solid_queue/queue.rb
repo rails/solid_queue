@@ -41,7 +41,7 @@ module SolidQueue
     end
 
     def latency
-      @latency = begin
+      @latency ||= begin
         now = Time.current
         oldest_enqueued_at = ReadyExecution.queued_as(name).minimum(:created_at) || now
 
