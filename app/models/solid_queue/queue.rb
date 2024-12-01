@@ -43,7 +43,7 @@ module SolidQueue
     def latency
       @latency = begin
         now = Time.current
-        oldest_enqueued_at = SolidQueue::ReadyExecution.queued_as(name).minimum(:created_at) || now
+        oldest_enqueued_at = ReadyExecution.queued_as(name).minimum(:created_at) || now
 
         (now - oldest_enqueued_at).to_i
       end
