@@ -26,7 +26,7 @@ end
 Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
 
 class ActiveSupport::TestCase
-  include ProcessesTestHelper, JobsTestHelper
+  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper
 
   teardown do
     JobBuffer.clear

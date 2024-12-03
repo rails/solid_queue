@@ -48,6 +48,16 @@ class SupervisorTest < ActiveSupport::TestCase
     assert_not process_exists?(pid)
   end
 
+  test "start with invalid configuration" do
+    pid, _out, err = run_supervisor_as_fork_with_captured_io(recurring_schedule_file: config_file_path(:recurring_with_invalid), skip_recurring: false)
+
+    sleep(0.5)
+    assert_no_registered_processes
+
+    assert_not process_exists?(pid)
+    assert_match %r{Invalid processes configured}, err
+  end
+
   test "create and delete pidfile" do
     assert_not File.exist?(@pidfile)
 

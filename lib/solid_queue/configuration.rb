@@ -36,6 +36,14 @@ module SolidQueue
       end
     end
 
+    def valid?
+      skip_recurring_tasks? || recurring_tasks.none? || recurring_tasks.all?(&:valid?)
+    end
+
+    def invalid_tasks
+      recurring_tasks.select(&:invalid?)
+    end
+
     def max_number_of_threads
       # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
       workers_options.map { |options| options[:threads] }.max + 2
@@ -100,7 +108,7 @@ module SolidQueue
       def recurring_tasks
         @recurring_tasks ||= recurring_tasks_config.map do |id, options|
           RecurringTask.from_configuration(id, **options)
-        end.select(&:valid?)
+        end
       end
 
       def processes_config
