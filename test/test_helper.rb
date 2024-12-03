@@ -28,7 +28,7 @@ class ExpectedTestError < RuntimeError; end
 
 
 class ActiveSupport::TestCase
-  include ProcessesTestHelper, JobsTestHelper
+  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper
 
   setup do
     # Could be cleaner with one several minitest gems, but didn't want to add new dependency

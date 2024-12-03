@@ -90,6 +90,26 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1, recurring_tasks: nil
   end
 
+  test "detects when there are invalid recurring tasks" do
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))
+
+    assert_not configuration.valid?
+
+    assert_equal configuration.invalid_tasks.size, 1
+  end
+
+  test "is valid when there are no recurring tasks" do
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring))
+
+    assert configuration.valid?
+  end
+
+  test "is valid when recurring tasks are skipped" do
+    configuration = SolidQueue::Configuration.new(skip_recurring: true)
+
+    assert configuration.valid?
+  end
+
   private
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
@@ -120,9 +140,5 @@ class ConfigurationTest < ActiveSupport::TestCase
       else
         assert_equal expected_value, value
       end
-    end
-
-    def config_file_path(name)
-      Rails.root.join("config/#{name}.yml")
     end
 end
