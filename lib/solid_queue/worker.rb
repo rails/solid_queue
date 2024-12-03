@@ -7,6 +7,7 @@ module SolidQueue
     after_boot :run_start_hooks
     before_shutdown :run_stop_hooks
 
+
     attr_accessor :queues, :pool
 
     def initialize(**options)
@@ -29,7 +30,7 @@ module SolidQueue
             pool.post(execution)
           end
 
-          executions.size
+          pool.idle? ? polling_interval : 10.minutes
         end
       end
 
