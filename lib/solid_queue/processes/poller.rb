@@ -25,11 +25,11 @@ module SolidQueue::Processes
         loop do
           break if shutting_down?
 
-          wrap_in_app_executor do
-            unless poll > 0
-              interruptible_sleep(polling_interval)
-            end
+          delay = wrap_in_app_executor do
+            poll
           end
+
+          interruptible_sleep(delay)
         end
       ensure
         SolidQueue.instrument(:shutdown_process, process: self) do
