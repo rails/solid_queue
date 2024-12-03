@@ -13,13 +13,11 @@ module SolidQueue::Processes
       end
 
       def interruptible_sleep(time)
-        # Since this is invoked on the main thread, using some form of Async
-        # avoids a 35% slowdown (at least when running the test suite).
-        #
-        # Using Futures for architectural consistency with all the other Async in SolidQueue.
+        # Invoking from the main thread can result in a 35% slowdown (at least when running the test suite).
+        # Using some form of Async (Futures) addresses this performance issue.
         Concurrent::Promises.future(time) do |timeout|
           if timeout > 0 && queue.pop(timeout:)
-            queue.clear # exiting the poll wait guarantees testing for SHUTDOWN before next poll
+            queue.clear
           end
         end.value
       end

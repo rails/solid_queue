@@ -55,14 +55,13 @@ GEM
     connection_pool (2.4.1)
     crass (1.0.6)
     date (3.4.1)
-    debug (1.7.1)
-      irb (>= 1.5.0)
-      reline (>= 0.3.1)
+    debug (1.9.2)
+      irb (~> 1.10)
+      reline (>= 0.3.8)
     drb (2.2.1)
     erubi (1.13.0)
     et-orbi (1.2.11)
       tzinfo
-    fiddle (1.1.2)
     fugit (1.11.1)
       et-orbi (~> 1, >= 1.2.11)
       raabro (~> 1.4)
@@ -76,7 +75,7 @@ GEM
       reline (>= 0.4.2)
     json (2.8.2)
     language_server-protocol (3.17.0.3)
-    logger (1.6.0)
+    logger (1.6.2)
     loofah (2.23.1)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
@@ -93,7 +92,6 @@ GEM
       racc (~> 1.4)
     nokogiri (1.16.7-x86_64-linux)
       racc (~> 1.4)
-    ostruct (0.6.0)
     parallel (1.26.3)
     parser (3.3.6.0)
       ast (~> 2.4.1)
@@ -186,12 +184,10 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  debug
-  fiddle
+  debug (~> 1.9)
   logger
   mocha
   mysql2
-  ostruct
   pg
   puma
   rdoc
