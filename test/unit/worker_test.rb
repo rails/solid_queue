@@ -28,14 +28,14 @@ class WorkerTest < ActiveSupport::TestCase
     original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, ->(error) { errors << error.message }
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
 
-    SolidQueue::ReadyExecution.expects(:claim).raises(RuntimeError.new("everything is broken")).at_least_once
+    SolidQueue::ReadyExecution.expects(:claim).raises(ExpectedTestError.new("everything is broken")).at_least_once
 
     AddToBufferJob.perform_later "hey!"
 
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2).tap(&:start)
     sleep(1)
 
-    assert_raises RuntimeError do
+    assert_raises ExpectedTestError do
       worker.stop
     end
 
@@ -51,7 +51,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(RuntimeError.new("everything is broken")).at_least_once
+    SolidQueue::ClaimedExecution::Result.expects(:new).raises(ExpectedTestError.new("everything is broken")).at_least_once
 
     AddToBufferJob.perform_later "hey!"
 
@@ -71,7 +71,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    RaisingJob.perform_later(RuntimeError, "B")
+    RaisingJob.perform_later(ExpectedTestError, "B")
 
     @worker.start
 
@@ -79,7 +79,7 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.wake_up
 
     assert_equal 1, subscriber.errors.count
-    assert_equal "This is a RuntimeError exception", subscriber.messages.first
+    assert_equal "This is a ExpectedTestError exception", subscriber.messages.first
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
   end

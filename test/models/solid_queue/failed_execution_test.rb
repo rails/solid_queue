@@ -7,7 +7,7 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
   end
 
   test "run job that fails" do
-    RaisingJob.perform_later(RuntimeError, "A")
+    RaisingJob.perform_later(ExpectedTestError, "A")
     @worker.start
 
     assert_equal 1, SolidQueue::FailedExecution.count
@@ -15,15 +15,17 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
   end
 
   test "run job that fails with a SystemStackError (stack level too deep)" do
-    InfiniteRecursionJob.perform_later
-    @worker.start
+    silence_on_thread_error_for(SystemStackError) do
+      InfiniteRecursionJob.perform_later
+      @worker.start
 
-    assert_equal 1, SolidQueue::FailedExecution.count
-    assert SolidQueue::Job.last.failed?
+      assert_equal 1, SolidQueue::FailedExecution.count
+      assert SolidQueue::Job.last.failed?
+    end
   end
 
   test "retry failed job" do
-    RaisingJob.perform_later(RuntimeError, "A")
+    RaisingJob.perform_later(ExpectedTestError, "A")
     @worker.start
 
     assert_difference -> { SolidQueue::FailedExecution.count }, -1 do
@@ -34,7 +36,7 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
   end
 
   test "retry failed jobs in bulk" do
-    1.upto(5) { |i| RaisingJob.perform_later(RuntimeError, i) }
+    1.upto(5) { |i| RaisingJob.perform_later(ExpectedTestError, i) }
     1.upto(3) { |i| AddToBufferJob.perform_later(i) }
 
     @worker.start

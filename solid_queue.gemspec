@@ -37,11 +37,13 @@ Gem::Specification.new do |spec|
   spec.add_dependency "fugit", "~> 1.11.0"
   spec.add_dependency "thor", "~> 1.3.1"
 
-  spec.add_development_dependency "debug"
+  spec.add_development_dependency "debug", "~> 1.9"
   spec.add_development_dependency "mocha"
   spec.add_development_dependency "puma"
   spec.add_development_dependency "mysql2"
   spec.add_development_dependency "pg"
   spec.add_development_dependency "sqlite3"
   spec.add_development_dependency "rubocop-rails-omakase"
+  spec.add_development_dependency "rdoc"
+  spec.add_development_dependency "logger"
 end

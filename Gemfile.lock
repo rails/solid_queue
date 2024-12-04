@@ -75,6 +75,7 @@ GEM
       reline (>= 0.4.2)
     json (2.8.2)
     language_server-protocol (3.17.0.3)
+    logger (1.6.2)
     loofah (2.23.1)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
@@ -177,16 +178,19 @@ GEM
 PLATFORMS
   arm64-darwin-22
   arm64-darwin-23
+  arm64-darwin-24
   x86_64-darwin-21
   x86_64-darwin-23
   x86_64-linux
 
 DEPENDENCIES
-  debug
+  debug (~> 1.9)
+  logger
   mocha
   mysql2
   pg
   puma
+  rdoc
   rubocop-rails-omakase
   solid_queue!
   sqlite3
