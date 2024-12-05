@@ -10,7 +10,7 @@
 <% if ENV["TARGET_DB"] == "sqlite" %>
 default: &default
   adapter: sqlite3
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 50 } %>
+  pool: 50
   retries: 100
 
 <% elsif ENV["TARGET_DB"] == "postgres" %>
@@ -18,7 +18,7 @@ default: &default
   adapter: postgresql
   encoding: unicode
   username: postgres
-  pool: 5
+  pool: 20
   host: "127.0.0.1"
   port: 55432
   gssencmode: disable # https://github.com/ged/ruby-pg/issues/311
@@ -27,7 +27,7 @@ default: &default
 default: &default
   adapter: mysql2
   username: root
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  pool: 20
   host: "127.0.0.1"
   port: 33060
 <% end %>
@@ -36,6 +36,14 @@ development:
   primary:
     <<: *default
     database: <%= database_name_from("development") %>
+  shard_one:
+    <<: *default
+    database: <%= database_name_from("development_shard_one") %>
+    migrations_paths: db/migrate_shards
+  shard_two:
+    <<: *default
+    database: <%= database_name_from("development_shard_two") %>
+    migrations_paths: db/migrate_shards
   queue:
     <<: *default
     database: <%= database_name_from("development_queue") %>
@@ -44,10 +52,16 @@ development:
 test:
   primary:
     <<: *default
-    pool: 20
     database: <%= database_name_from("test") %>
+  shard_one:
+    <<: *default
+    database: <%= database_name_from("test_shard_one") %>
+    migrations_paths: db/migrate_shards
+  shard_two:
+    <<: *default
+    database: <%= database_name_from("test_shard_two") %>
+    migrations_paths: db/migrate_shards
   queue:
     <<: *default
-    pool: 20
     database: <%= database_name_from("test_queue") %>
     migrations_paths: db/queue_migrate

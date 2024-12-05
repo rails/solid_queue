@@ -6,5 +6,4 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 AllCops:
   TargetRubyVersion: 3.3
   Exclude:
-    - "test/dummy/db/schema.rb"
-    - "test/dummy/db/queue_schema.rb"
+    - "**/*_schema.rb"
