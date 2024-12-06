@@ -68,6 +68,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job.scheduled_at, execution.scheduled_at
   end
 
+  test "enqueue jobs within a connected_to block for the primary DB" do
+    ShardedRecord.connected_to(role: :writing, shard: :shard_two) do
+      ShardedJobResult.create!(value: "in shard two")
+      AddToBufferJob.perform_later("enqueued within block")
+    end
+
+    job = SolidQueue::Job.last
+    assert_equal "enqueued within block", job.arguments.dig("arguments", 0)
+  end
+
   test "enqueue jobs without concurrency controls" do
     active_job = AddToBufferJob.perform_later(1)
     assert_nil active_job.concurrency_limit
