@@ -37,11 +37,21 @@ module SolidQueue
     end
 
     def valid?
-      skip_recurring_tasks? || recurring_tasks.none? || recurring_tasks.all?(&:valid?)
+      configured_processes.any? && (skip_recurring_tasks? || invalid_tasks.none?)
     end
 
-    def invalid_tasks
-      recurring_tasks.select(&:invalid?)
+    def error_messages
+      if configured_processes.none?
+        "No workers or processed configured. Exiting..."
+      else
+        error_messages = invalid_tasks.map do |task|
+            all_messages = task.errors.full_messages.map { |msg| "\t#{msg}" }.join("\n")
+            "#{task.key}:\n#{all_messages}"
+          end
+          .join("\n")
+
+        "Invalid processes configured:\n#{error_messages}"
+      end
     end
 
     def max_number_of_threads
@@ -60,6 +70,10 @@ module SolidQueue
           only_dispatch: false,
           skip_recurring: false
         }
+      end
+
+      def invalid_tasks
+        recurring_tasks.select(&:invalid?)
       end
 
       def only_work?

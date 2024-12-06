@@ -94,8 +94,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))
 
     assert_not configuration.valid?
-
-    assert_equal configuration.invalid_tasks.size, 1
   end
 
   test "is valid when there are no recurring tasks" do
