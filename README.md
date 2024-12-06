@@ -504,8 +504,14 @@ MyJob.perform_later(42, status: "custom_status")
 
 - `priority`: a numeric priority value to be used when enqueuing the job.
 
-
 Tasks are enqueued at their corresponding times by the scheduler, and each task schedules the next one. This is pretty much [inspired by what GoodJob does](https://github.com/bensheldon/good_job/blob/994ecff5323bf0337e10464841128fda100750e6/lib/good_job/cron_manager.rb).
+
+For recurring tasks defined as a `command`, you can also change the job class that runs them as follows:
+```ruby
+Rails.application.config.after_initialize do # or to_prepare
+  SolidQueue::RecurringTask.default_job_class = MyRecurringCommandJob
+end
+```
 
 It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
 
