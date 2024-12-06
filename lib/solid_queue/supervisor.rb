@@ -10,28 +10,12 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(**options)
 
-        if configuration.configured_processes.any?
-          if configuration.valid?
-            new(configuration).tap(&:start)
-          else
-            abort_due_to_invalid_tasks(configuration)
-          end
+        if configuration.valid?
+          new(configuration).tap(&:start)
         else
-          abort "No workers or processed configured. Exiting..."
+          abort configuration.error_messages
         end
       end
-
-      private
-        def abort_due_to_invalid_tasks(configuration)
-          error_messages = configuration.invalid_tasks
-            .map do |task|
-              all_messages = task.errors.full_messages.map { |msg| "\t#{msg}" }.join("\n")
-              "#{task.key}:\n#{all_messages}"
-            end
-            .join("\n")
-
-          abort "Invalid processes configured:\n#{error_messages}"
-        end
     end
 
     def initialize(configuration)
