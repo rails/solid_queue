@@ -36,6 +36,24 @@ module SolidQueue
       end
     end
 
+    def valid?
+      configured_processes.any? && (skip_recurring_tasks? || invalid_tasks.none?)
+    end
+
+    def error_messages
+      if configured_processes.none?
+        "No workers or processed configured. Exiting..."
+      else
+        error_messages = invalid_tasks.map do |task|
+            all_messages = task.errors.full_messages.map { |msg| "\t#{msg}" }.join("\n")
+            "#{task.key}:\n#{all_messages}"
+          end
+          .join("\n")
+
+        "Invalid processes configured:\n#{error_messages}"
+      end
+    end
+
     def max_number_of_threads
       # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
       workers_options.map { |options| options[:threads] }.max + 2
@@ -52,6 +70,10 @@ module SolidQueue
           only_dispatch: false,
           skip_recurring: false
         }
+      end
+
+      def invalid_tasks
+        recurring_tasks.select(&:invalid?)
       end
 
       def only_work?
@@ -100,7 +122,7 @@ module SolidQueue
       def recurring_tasks
         @recurring_tasks ||= recurring_tasks_config.map do |id, options|
           RecurringTask.from_configuration(id, **options)
-        end.select(&:valid?)
+        end
       end
 
       def processes_config
