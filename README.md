@@ -6,6 +6,31 @@ Besides regular job enqueuing and processing, Solid Queue supports delayed jobs,
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails's multi-threading.
 
+## Table of contents
+
+- [Installation](#installation)
+  - [Single database configuration](#single-database-configuration)
+  - [Incremental adoption](#incremental-adoption)
+  - [High performance requirements](#high-performance-requirements)
+- [Configuration](#configuration)
+  - [Workers, dispatchers and scheduler](#workers-dispatchers-and-scheduler)
+  - [Queue order and priorities](#queue-order-and-priorities)
+  - [Queues specification and performance](#queues-specification-and-performance)
+  - [Threads, processes and signals](#threads-processes-and-signals)
+  - [Database configuration](#database-configuration)
+  - [Other configuration settings](#other-configuration-settings)
+- [Lifecycle hooks](#lifecycle-hooks)
+- [Errors when enqueuing](#errors-when-enqueuing)
+- [Concurrency controls](#concurrency-controls)
+- [Failed jobs and retries](#failed-jobs-and-retries)
+  - [Error reporting on jobs](#error-reporting-on-jobs)
+- [Puma plugin](#puma-plugin)
+- [Jobs and transactional integrity](#jobs-and-transactional-integrity)
+- [Recurring tasks](#recurring-tasks)
+- [Inspiration](#inspiration)
+- [License](#license)
+
+
 ## Installation
 
 Solid Queue is configured by default in new Rails 8 applications. But if you're running an earlier version, you can add it manually following these steps:
@@ -64,7 +89,7 @@ Running Solid Queue in a separate database is recommended, but it's also possibl
 
 You won't have multiple databases, so `database.yml` doesn't need to have primary and queue database.
 
-## Incremental adoption
+### Incremental adoption
 
 If you're planning to adopt Solid Queue incrementally by switching one job at the time, you can do so by leaving the `config.active_job.queue_adapter` set to your old backend, and then set the `queue_adapter` directly in the jobs you're moving:
 
@@ -77,7 +102,7 @@ class MyJob < ApplicationJob
 end
 ```
 
-## High performance requirements
+### High performance requirements
 
 Solid Queue was designed for the highest throughput when used with MySQL 8+ or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue. You can also use it with SQLite on smaller applications.
 
@@ -250,6 +275,32 @@ You can configure the database used by Solid Queue via the `config.solid_queue.c
 
 All the options available to Active Record for multiple databases can be used here.
 
+### Other configuration settings
+
+_Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
+
+There are several settings that control how Solid Queue works that you can set as well:
+- `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
+- `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
+- `on_thread_error`: custom lambda/Proc to call when there's an error within a Solid Queue thread that takes the exception raised as argument. Defaults to
+
+  ```ruby
+  -> (exception) { Rails.error.report(exception, handled: false) }
+  ```
+
+  **This is not used for errors raised within a job execution**. Errors happening in jobs are handled by Active Job's `retry_on` or `discard_on`, and ultimately will result in [failed jobs](#failed-jobs-and-retries). This is for errors happening within Solid Queue itself.
+
+- `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
+- `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
+- `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
+- `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
+- `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to `true`.
+- `supervisor_pidfile`: path to a pidfile that the supervisor will create when booting to prevent running more than one supervisor in the same host, or in case you want to use it for a health check. It's `nil` by default.
+- `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
+- `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
+- `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+
+
 ## Lifecycle hooks
 
 In Solid queue, you can hook into two different points in the supervisor's life:
@@ -277,30 +328,6 @@ SolidQueue.on_stop { stop_metrics_server }
 
 These can be called several times to add multiple hooks, but it needs to happen before Solid Queue is started. An initializer would be a good place to do this.
 
-### Other configuration settings
-
-_Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
-
-There are several settings that control how Solid Queue works that you can set as well:
-- `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
-- `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
-- `on_thread_error`: custom lambda/Proc to call when there's an error within a Solid Queue thread that takes the exception raised as argument. Defaults to
-
-  ```ruby
-  -> (exception) { Rails.error.report(exception, handled: false) }
-  ```
-
-  **This is not used for errors raised within a job execution**. Errors happening in jobs are handled by Active Job's `retry_on` or `discard_on`, and ultimately will result in [failed jobs](#failed-jobs-and-retries). This is for errors happening within Solid Queue itself.
-
-- `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
-- `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
-- `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
-- `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
-- `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to `true`.
-- `supervisor_pidfile`: path to a pidfile that the supervisor will create when booting to prevent running more than one supervisor in the same host, or in case you want to use it for a health check. It's `nil` by default.
-- `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
-- `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true—defaults to 1 day. **Note:** Right now, there's no automatic cleanup of finished jobs. You'd need to do this by periodically invoking `SolidQueue::Job.clear_finished_in_batches`, but this will happen automatically in the near future.
-- `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
 
 ## Errors when enqueuing
 
