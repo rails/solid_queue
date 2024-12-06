@@ -92,6 +92,30 @@ class DispatcherTest < ActiveSupport::TestCase
     another_dispatcher&.stop
   end
 
+  test "sleeps `0.seconds` between polls if there are ready to dispatch jobs" do
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
+    dispatcher.expects(:interruptible_sleep).with(0.seconds).at_least(3)
+    dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+
+    3.times { AddToBufferJob.set(wait: 0.1).perform_later("I'm scheduled") }
+    assert_equal 3, SolidQueue::ScheduledExecution.count
+    sleep 0.1
+
+    dispatcher.start
+    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
+
+    assert_equal 0, SolidQueue::ScheduledExecution.count
+    assert_equal 3, SolidQueue::ReadyExecution.count
+  end
+
+  test "sleeps `polling_interval` between polls if there are no un-dispatched jobs" do
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
+    dispatcher.expects(:interruptible_sleep).with(0.seconds).never
+    dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+    dispatcher.start
+    sleep 0.1
+  end
+
   private
     def with_polling(silence:)
       old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
