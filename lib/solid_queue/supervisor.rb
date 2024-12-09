@@ -10,10 +10,10 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(**options)
 
-        if configuration.configured_processes.any?
+        if configuration.valid?
           new(configuration).tap(&:start)
         else
-          abort "No workers or processed configured. Exiting..."
+          abort configuration.error_messages
         end
       end
     end

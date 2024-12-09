@@ -7,6 +7,16 @@ module ProcessesTestHelper
     end
   end
 
+  def run_supervisor_as_fork_with_captured_io(**options)
+    pid = nil
+    out, err = capture_subprocess_io do
+      pid = run_supervisor_as_fork(**options)
+      wait_for_registered_processes(4)
+    end
+
+    [ pid, out, err ]
+  end
+
   def wait_for_registered_processes(count, timeout: 1.second)
     wait_while_with_timeout(timeout) { SolidQueue::Process.count != count }
   end
