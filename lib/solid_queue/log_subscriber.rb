@@ -162,7 +162,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
   private
     def formatted_event(event, action:, **attributes)
-      "SolidQueue-#{SolidQueue::VERSION} #{action} (#{event.duration.round(1)}ms)  #{formatted_attributes(**attributes)}"
+      "#{SolidQueue.reporting_label} #{action} (#{event.duration.round(1)}ms)  #{formatted_attributes(**attributes)}"
     end
 
     def formatted_attributes(**attributes)
