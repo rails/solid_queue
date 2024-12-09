@@ -4,7 +4,7 @@ module SolidQueue
   module AppExecutor
     def wrap_in_app_executor(&block)
       if SolidQueue.app_executor
-        SolidQueue.app_executor.wrap(&block)
+        SolidQueue.app_executor.wrap(source: "application.solid_queue", &block)
       else
         yield
       end
