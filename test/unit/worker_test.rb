@@ -51,7 +51,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(ExpectedTestError.new("everything is broken")).at_least_once
+    Concurrent::Maybe.expects(:just).returns(Concurrent::Maybe.nothing(ExpectedTestError.new("everything is broken")))
 
     AddToBufferJob.perform_later "hey!"
 
@@ -169,6 +169,26 @@ class WorkerTest < ActiveSupport::TestCase
     assert @worker.pool.shutdown?
   ensure
     SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+  end
+
+  test "sleeps `10.minutes` if at capacity" do
+    3.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+
+    @worker.expects(:interruptible_sleep).with(10.minutes).at_least_once
+    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).never
+
+    @worker.start
+    sleep 1.second
+  end
+
+  test "sleeps `polling_interval` if worker not at capacity" do
+    2.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+
+    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).at_least_once
+    @worker.expects(:interruptible_sleep).with(10.minutes).never
+
+    @worker.start
+    sleep 1.second
   end
 
   private
