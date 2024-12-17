@@ -1,5 +1,8 @@
-periodic_store_result:
-    class: StoreResultJorrrrrrb
-    queue: default
-    args: [42, { status: "custom_status" }]
-    schedule: every second
+periodic_invalid_class:
+  class: StoreResultJorrrrrrb
+  queue: default
+  args: [42, { status: "custom_status" }]
+  schedule: every second
+periodic_incorrect_schedule:
+  class: StoreResultJob
+  schedule: every 1.minute

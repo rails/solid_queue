@@ -13,7 +13,7 @@ module SolidQueue
         if configuration.valid?
           new(configuration).tap(&:start)
         else
-          abort configuration.error_messages
+          abort configuration.errors.full_messages.join("\n") + "\nExiting..."
         end
       end
     end

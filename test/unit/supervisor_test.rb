@@ -41,22 +41,22 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   test "start with empty configuration" do
-    pid, _out, err = run_supervisor_as_fork_with_captured_io(workers: [], dispatchers: [])
+    pid, _out, error = run_supervisor_as_fork_with_captured_io(workers: [], dispatchers: [])
     sleep(0.5)
     assert_no_registered_processes
 
     assert_not process_exists?(pid)
-    assert_match %r{No workers or processed configured. Exiting...}, err
+    assert_match %r{No processes configured}, error
   end
 
-  test "start with invalid configuration" do
-    pid, _out, err = run_supervisor_as_fork_with_captured_io(recurring_schedule_file: config_file_path(:recurring_with_invalid), skip_recurring: false)
+  test "start with invalid recurring tasks" do
+    pid, _out, error = run_supervisor_as_fork_with_captured_io(recurring_schedule_file: config_file_path(:recurring_with_invalid), skip_recurring: false)
 
     sleep(0.5)
     assert_no_registered_processes
 
     assert_not process_exists?(pid)
-    assert_match %r{Invalid processes configured}, err
+    assert_match %r{Invalid recurring tasks}, error
   end
 
   test "create and delete pidfile" do
