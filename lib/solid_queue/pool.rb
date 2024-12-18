@@ -18,20 +18,16 @@ module SolidQueue
     def post(execution)
       available_threads.decrement
 
-      future = Concurrent::Future.new(args: [ execution ], executor: executor) do |thread_execution|
+      Concurrent::Promises.future_on(executor, execution) do |thread_execution|
         wrap_in_app_executor do
           thread_execution.perform
         ensure
           available_threads.increment
           mutex.synchronize { on_idle.try(:call) if idle? }
         end
+      end.on_rejection! do |e|
+        handle_thread_error(e)
       end
-
-      future.add_observer do |_, _, error|
-        handle_thread_error(error) if error
-      end
-
-      future.execute
     end
 
     def idle_threads
