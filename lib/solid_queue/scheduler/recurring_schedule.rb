@@ -41,6 +41,7 @@ module SolidQueue
 
     private
       def persist_tasks
+        SolidQueue::RecurringTask.static.where.not(key: task_keys).delete_all
         SolidQueue::RecurringTask.create_or_update_all configured_tasks
       end
 

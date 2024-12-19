@@ -64,13 +64,13 @@ class RecurringTasksTest < ActiveSupport::TestCase
     scheduler1 = SolidQueue::Scheduler.new(recurring_tasks: another_task).tap(&:start)
     wait_for_registered_processes(6, timeout: 1.second)
 
-    assert_recurring_tasks configured_task.merge(another_task)
+    assert_recurring_tasks another_task
 
     updated_task = { example_task: { class: "AddToBufferJob", schedule: "every minute" } }
     scheduler2 = SolidQueue::Scheduler.new(recurring_tasks: updated_task).tap(&:start)
     wait_for_registered_processes(7, timeout: 1.second)
 
-    assert_recurring_tasks configured_task.merge(updated_task)
+    assert_recurring_tasks updated_task
 
     terminate_process(@pid)
     scheduler1.stop

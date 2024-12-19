@@ -53,5 +53,3 @@ jobs:
           bin/rails db:setup
       - name: Run tests
         run: bin/rails test
-      - name: Run tests with separate connection
-        run: SEPARATE_CONNECTION=1 bin/rails test

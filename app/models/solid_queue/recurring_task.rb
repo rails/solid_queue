@@ -67,11 +67,15 @@ module SolidQueue
           end
         end
 
-        payload[:active_job_id] = active_job.job_id if active_job
+        active_job.tap do |enqueued_job|
+          payload[:active_job_id] = enqueued_job.job_id
+        end
       rescue RecurringExecution::AlreadyRecorded
         payload[:skipped] = true
+        false
       rescue Job::EnqueueError => error
         payload[:enqueue_error] = error.message
+        false
       end
     end
 

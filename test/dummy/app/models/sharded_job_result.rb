@@ -1,0 +1,2 @@
+class ShardedJobResult < ShardedRecord
+end

@@ -22,7 +22,9 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     job = claimed_execution.job
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      claimed_execution.perform
+      assert_raises RuntimeError do
+        claimed_execution.perform
+      end
     end
 
     assert_not job.reload.finished?
@@ -37,10 +39,12 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   test "job failures are reported via Rails error subscriber" do
     subscriber = ErrorBuffer.new
 
-    with_error_subscriber(subscriber) do
-      claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "B")
+    assert_raises RuntimeError do
+      with_error_subscriber(subscriber) do
+        claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "B")
 
-      claimed_execution.perform
+        claimed_execution.perform
+      end
     end
 
     assert_equal 1, subscriber.errors.count

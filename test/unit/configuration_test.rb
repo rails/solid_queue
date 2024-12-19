@@ -54,11 +54,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 2
   end
 
-  test "max number of threads" do
-    configuration = SolidQueue::Configuration.new
-    assert 7, configuration.max_number_of_threads
-  end
-
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     configuration = SolidQueue::Configuration.new(workers: [ background_worker ])
@@ -88,6 +83,32 @@ class ConfigurationTest < ActiveSupport::TestCase
   test "no recurring tasks configuration when explicitly excluded" do
     configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ], skip_recurring: true)
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1, recurring_tasks: nil
+  end
+
+  test "validate configuration" do
+    # Valid and invalid recurring tasks
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))
+    assert_not configuration.valid?
+    assert configuration.errors.full_messages.one?
+    error = configuration.errors.full_messages.first
+
+    assert error.include?("Invalid recurring tasks")
+    assert error.include?("periodic_invalid_class: Class name doesn't correspond to an existing class")
+    assert error.include?("periodic_incorrect_schedule: Schedule is not a supported recurring schedule")
+
+    assert SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring)).valid?
+    assert SolidQueue::Configuration.new(skip_recurring: true).valid?
+
+    # No processes
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [])
+    assert_not configuration.valid?
+    assert_equal [ "No processes configured" ], configuration.errors.full_messages
+
+    # Not enough DB connections
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
+    assert_not configuration.valid?
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+. Increase it in `config\/database.yml`/,
+      configuration.errors.full_messages.first
   end
 
   private
@@ -120,9 +141,5 @@ class ConfigurationTest < ActiveSupport::TestCase
       else
         assert_equal expected_value, value
       end
-    end
-
-    def config_file_path(name)
-      Rails.root.join("config/#{name}.yml")
     end
 end

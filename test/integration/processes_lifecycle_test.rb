@@ -144,11 +144,11 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
   test "process some jobs that raise errors" do
     2.times { enqueue_store_result_job("no error", :background) }
     2.times { enqueue_store_result_job("no error", :default) }
-    error1 = enqueue_store_result_job("error", :background, exception: RuntimeError)
+    error1 = enqueue_store_result_job("error", :background, exception: ExpectedTestError)
     enqueue_store_result_job("no error", :background, pause: 0.03)
-    error2 = enqueue_store_result_job("error", :background, exception: RuntimeError, pause: 0.05)
+    error2 = enqueue_store_result_job("error", :background, exception: ExpectedTestError, pause: 0.05)
     2.times { enqueue_store_result_job("no error", :default, pause: 0.01) }
-    error3 = enqueue_store_result_job("error", :default, exception: RuntimeError)
+    error3 = enqueue_store_result_job("error", :default, exception: ExpectedTestError)
 
     wait_for_jobs_to_finish_for(2.second, except: [ error1, error2, error3 ])
 

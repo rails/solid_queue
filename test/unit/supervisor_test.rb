@@ -41,11 +41,22 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   test "start with empty configuration" do
-    pid = run_supervisor_as_fork(workers: [], dispatchers: [])
+    pid, _out, error = run_supervisor_as_fork_with_captured_io(workers: [], dispatchers: [])
     sleep(0.5)
     assert_no_registered_processes
 
     assert_not process_exists?(pid)
+    assert_match %r{No processes configured}, error
+  end
+
+  test "start with invalid recurring tasks" do
+    pid, _out, error = run_supervisor_as_fork_with_captured_io(recurring_schedule_file: config_file_path(:recurring_with_invalid), skip_recurring: false)
+
+    sleep(0.5)
+    assert_no_registered_processes
+
+    assert_not process_exists?(pid)
+    assert_match %r{Invalid recurring tasks}, error
   end
 
   test "create and delete pidfile" do
@@ -66,11 +77,12 @@ class SupervisorTest < ActiveSupport::TestCase
     FileUtils.mkdir_p(File.dirname(@pidfile))
     File.write(@pidfile, ::Process.pid.to_s)
 
-    pid = run_supervisor_as_fork
+    pid, _out, err = run_supervisor_as_fork_with_captured_io
     wait_for_registered_processes(4)
 
     assert File.exist?(@pidfile)
     assert_not_equal pid, File.read(@pidfile).strip.to_i
+    assert_match %r{A Solid Queue supervisor is already running}, err
 
     wait_for_process_termination_with_timeout(pid, exitstatus: 1)
   end

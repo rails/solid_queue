@@ -85,7 +85,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   test "run several jobs over the same record sequentially, with some of them failing" do
     ("A".."F").each_with_index do |name, i|
       # A, C, E will fail, for i= 0, 2, 4
-      SequentialUpdateResultJob.perform_later(@result, name: name, pause: 0.2.seconds, exception: (RuntimeError if i.even?))
+      SequentialUpdateResultJob.perform_later(@result, name: name, pause: 0.2.seconds, exception: (ExpectedTestError if i.even?))
     end
 
     ("G".."K").each do |name|

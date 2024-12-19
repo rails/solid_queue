@@ -145,6 +145,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def replace_fork(event)
+    supervisor_pid = event.payload[:supervisor_pid]
     status = event.payload[:status]
     attributes = event.payload.slice(:pid).merge \
       status: (status.exitstatus || "no exit status set"),
@@ -155,7 +156,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
 
     if replaced_fork = event.payload[:fork]
       info formatted_event(event, action: "Replaced terminated #{replaced_fork.kind}", **attributes.merge(hostname: replaced_fork.hostname, name: replaced_fork.name))
-    else
+    elsif supervisor_pid != 1 # Running Docker, possibly having some processes that have been reparented
       warn formatted_event(event, action: "Tried to replace forked process but it had already died", **attributes)
     end
   end

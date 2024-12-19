@@ -28,14 +28,14 @@ class WorkerTest < ActiveSupport::TestCase
     original_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, ->(error) { errors << error.message }
     previous_thread_report_on_exception, Thread.report_on_exception = Thread.report_on_exception, false
 
-    SolidQueue::ReadyExecution.expects(:claim).raises(RuntimeError.new("everything is broken")).at_least_once
+    SolidQueue::ReadyExecution.expects(:claim).raises(ExpectedTestError.new("everything is broken")).at_least_once
 
     AddToBufferJob.perform_later "hey!"
 
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2).tap(&:start)
     sleep(1)
 
-    assert_raises RuntimeError do
+    assert_raises ExpectedTestError do
       worker.stop
     end
 
@@ -51,7 +51,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(RuntimeError.new("everything is broken")).at_least_once
+    SolidQueue::ClaimedExecution::Result.expects(:new).raises(ExpectedTestError.new("everything is broken")).at_least_once
 
     AddToBufferJob.perform_later "hey!"
 
@@ -65,6 +65,23 @@ class WorkerTest < ActiveSupport::TestCase
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
     SolidQueue.on_thread_error = original_on_thread_error
+  end
+
+  test "errors on claimed executions are reported via Rails error subscriber" do
+    subscriber = ErrorBuffer.new
+    Rails.error.subscribe(subscriber)
+
+    RaisingJob.perform_later(ExpectedTestError, "B")
+
+    @worker.start
+
+    wait_for_jobs_to_finish_for(1.second)
+    @worker.wake_up
+
+    assert_equal 1, subscriber.errors.count
+    assert_equal "This is a ExpectedTestError exception", subscriber.messages.first
+  ensure
+    Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
   end
 
   test "claim and process more enqueued jobs than the pool size allows to process at once" do
@@ -152,6 +169,26 @@ class WorkerTest < ActiveSupport::TestCase
     assert @worker.pool.shutdown?
   ensure
     SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+  end
+
+  test "sleeps `10.minutes` if at capacity" do
+    3.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+
+    @worker.expects(:interruptible_sleep).with(10.minutes).at_least_once
+    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).never
+
+    @worker.start
+    sleep 1.second
+  end
+
+  test "sleeps `polling_interval` if worker not at capacity" do
+    2.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+
+    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).at_least_once
+    @worker.expects(:interruptible_sleep).with(10.minutes).never
+
+    @worker.start
+    sleep 1.second
   end
 
   private

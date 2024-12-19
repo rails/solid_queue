@@ -4,11 +4,13 @@ require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
+    SolidQueue.on_thread_error = silent_on_thread_error_for([ ExpectedTestError, RaisingJob::DefaultError ])
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
     @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
   end
 
   teardown do
+    SolidQueue.on_thread_error = @on_thread_error
     @worker.stop
     @dispatcher.stop
 
@@ -29,8 +31,8 @@ class JobsLifecycleTest < ActiveSupport::TestCase
   end
 
   test "enqueue and run jobs that fail without retries" do
-    RaisingJob.perform_later(RuntimeError, "A")
-    RaisingJob.perform_later(RuntimeError, "B")
+    RaisingJob.perform_later(ExpectedTestError, "A")
+    RaisingJob.perform_later(ExpectedTestError, "B")
     jobs = SolidQueue::Job.last(2)
 
     @dispatcher.start
@@ -38,7 +40,7 @@ class JobsLifecycleTest < ActiveSupport::TestCase
 
     wait_for_jobs_to_finish_for(3.seconds)
 
-    message = "raised RuntimeError for the 1st time"
+    message = "raised ExpectedTestError for the 1st time"
     assert_equal [ "A: #{message}", "B: #{message}" ], JobBuffer.values.sort
 
     assert_empty SolidQueue::Job.finished

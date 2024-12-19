@@ -5,7 +5,7 @@
 /tmp/
 /test/dummy/db/*.sqlite3
 /test/dummy/db/*.sqlite3-*
-/test/dummy/log/*.log
+/test/dummy/log/*.log*
 /test/dummy/tmp/
 
 # Folder for JetBrains IDEs
@@ -13,6 +13,9 @@
 
 # Folder for Visual Studio Code
 /.vscode/
+
+# Files for RVM holdouts
+.ruby-gemset
 
 # misc
 .DS_Store

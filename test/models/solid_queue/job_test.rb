@@ -68,6 +68,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job.scheduled_at, execution.scheduled_at
   end
 
+  test "enqueue jobs within a connected_to block for the primary DB" do
+    ShardedRecord.connected_to(role: :writing, shard: :shard_two) do
+      ShardedJobResult.create!(value: "in shard two")
+      AddToBufferJob.perform_later("enqueued within block")
+    end
+
+    job = SolidQueue::Job.last
+    assert_equal "enqueued within block", job.arguments.dig("arguments", 0)
+  end
+
   test "enqueue jobs without concurrency controls" do
     active_job = AddToBufferJob.perform_later(1)
     assert_nil active_job.concurrency_limit
@@ -249,21 +259,19 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
-  if ENV["SEPARATE_CONNECTION"] && ENV["TARGET_DB"] != "sqlite"
-    test "uses a different connection and transaction than the one in use when connects_to is specified" do
-      assert_difference -> { SolidQueue::Job.count } do
-        assert_no_difference -> { JobResult.count } do
-          JobResult.transaction do
-            JobResult.create!(queue_name: "default", value: "this will be rolled back")
-            StoreResultJob.perform_later("enqueued inside a rolled back transaction")
-            raise ActiveRecord::Rollback
-          end
+  test "enqueue successfully inside a rolled-back transaction in the app DB" do
+    assert_difference -> { SolidQueue::Job.count } do
+      assert_no_difference -> { JobResult.count } do
+        JobResult.transaction do
+          JobResult.create!(queue_name: "default", value: "this will be rolled back")
+          StoreResultJob.perform_later("enqueued inside a rolled back transaction")
+          raise ActiveRecord::Rollback
         end
       end
-
-      job = SolidQueue::Job.last
-      assert_equal "enqueued inside a rolled back transaction", job.arguments.dig("arguments", 0)
     end
+
+    job = SolidQueue::Job.last
+    assert_equal "enqueued inside a rolled back transaction", job.arguments.dig("arguments", 0)
   end
 
   private
