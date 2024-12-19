@@ -80,17 +80,17 @@ For small projects, you can run Solid Queue on the same machine as your webserve
 
 Calling `bin/rails solid_queue:install` will automatically add `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config/environments/production.rb`. In order to use Solid Queue in other environments (such as development or staging), you'll need to add a similar configuration(s).
 
-For example, if you're using Sqlite in development, update `database.yml` as follows:
+For example, if you're using SQLite in development, update `database.yml` as follows:
 
-```yaml
+```diff
 development:
   primary:
     <<: *default
     database: storage/development.sqlite3
-  queue:
-    <<: *default
-    database: storage/development_queue.sqlite3
-    migrations_paths: db/queue_migrate
++  queue:
++    <<: *default
++    database: storage/development_queue.sqlite3
++    migrations_paths: db/queue_migrate
 ```
 
 Next, add the following to `development.rb`
@@ -101,13 +101,41 @@ Next, add the following to `development.rb`
   config.solid_queue.connects_to = {database: {writing: :queue}}
 ```
 
-Once you've added this, again run `db:prepare` to create the Solid Queue database and load the schema.
+Once you've added this, run `db:prepare` to create the Solid Queue database and load the schema.
 
 Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via the Puma plugin. In `puma.rb` update the following line:
 
 ```ruby
 # You can either set the env var, or check for development
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
+```
+
+**Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will need to also need to update it to use a database.
+
+In `config/cable.yml`
+
+```diff
+development:
+-  adapter: async
++ adapter: solid_cable
++  connects_to:
++    database:
++      writing: cable
++  polling_interval: 0.1.seconds
++  message_retention: 1.day
+```
+
+In `config/database.yml`
+
+```diff
+development:
+  primary:
+    <<: *default
+    database: storage/development.sqlite3
++  cable:
++    <<: *default
++    database: storage/development_cable.sqlite3
++    migrations_paths: db/cable_migrate
 ```
 
 ### Single database configuration
