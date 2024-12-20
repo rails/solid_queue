@@ -12,6 +12,8 @@ module SolidQueue
 
     scope :static, -> { where(static: true) }
 
+    has_many :recurring_executions, foreign_key: :task_key, primary_key: :key
+
     mattr_accessor :default_job_class
     self.default_job_class = RecurringJob
 
@@ -51,6 +53,18 @@ module SolidQueue
 
     def next_time
       parsed_schedule.next_time.utc
+    end
+
+    def previous_time
+      parsed_schedule.previous_time.utc
+    end
+
+    def last_enqueued_time
+      if recurring_executions.loaded?
+        recurring_executions.map(&:run_at).max
+      else
+        recurring_executions.maximum(:run_at)
+      end
     end
 
     def enqueue(at:)
