@@ -110,7 +110,7 @@ Finally, in order for jobs to be processed, you'll need to have Solid Queue runn
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
 ```
 
-**Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will need to also need to update it to use a database.
+**Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will also need to update it to use a database.
 
 In `config/cable.yml`
 
