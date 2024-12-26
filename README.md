@@ -115,7 +115,7 @@ You can also just use `bin/jobs`, but in this case you might want to [set a diff
 config.solid_queue.logger = ActiveSupport::Logger.new(STDOUT)
 ```
 
-**Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will need to also need to update it to use a database.
+**Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will also need to update it to use a database.
 
 In `config/cable.yml`
 
