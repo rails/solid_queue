@@ -98,16 +98,21 @@ Next, add the following to `development.rb`
 ```ruby
   # Use Solid Queue in Development.
   config.active_job.queue_adapter = :solid_queue
-  config.solid_queue.connects_to = {database: {writing: :queue}}
+  config.solid_queue.connects_to = { database: { writing: :queue } }
 ```
 
 Once you've added this, run `db:prepare` to create the Solid Queue database and load the schema.
 
-Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via the Puma plugin. In `puma.rb` update the following line:
+Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via [the Puma plugin](#puma-plugin) as well. In `puma.rb` update the following line:
 
 ```ruby
 # You can either set the env var, or check for development
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
+```
+
+You can also just use `bin/jobs`, but in this case you might want to [set a different logger for Solid Queue](#other-configuration-settings) because the default logger will log to `log/development.log` and you won't see anything when you run `bin/jobs`. For example:
+```ruby
+config.solid_queue.logger = ActiveSupport::Logger.new(STDOUT)
 ```
 
 **Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will need to also need to update it to use a database.
