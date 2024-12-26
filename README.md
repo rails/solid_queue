@@ -98,19 +98,24 @@ Next, add the following to `development.rb`
 ```ruby
   # Use Solid Queue in Development.
   config.active_job.queue_adapter = :solid_queue
-  config.solid_queue.connects_to = {database: {writing: :queue}}
+  config.solid_queue.connects_to = { database: { writing: :queue } }
 ```
 
 Once you've added this, run `db:prepare` to create the Solid Queue database and load the schema.
 
-Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via the Puma plugin. In `puma.rb` update the following line:
+Finally, in order for jobs to be processed, you'll need to have Solid Queue running. In Development, this can be done via [the Puma plugin](#puma-plugin) as well. In `puma.rb` update the following line:
 
 ```ruby
 # You can either set the env var, or check for development
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
 ```
 
-**Import Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will also need to update it to use a database.
+You can also just use `bin/jobs`, but in this case you might want to [set a different logger for Solid Queue](#other-configuration-settings) because the default logger will log to `log/development.log` and you won't see anything when you run `bin/jobs`. For example:
+```ruby
+config.solid_queue.logger = ActiveSupport::Logger.new(STDOUT)
+```
+
+**Note about Action Cable**: If you use Action Cable (or anything dependent on Action Cable, such as Turbo Streams), you will also need to update it to use a database.
 
 In `config/cable.yml`
 
@@ -503,7 +508,7 @@ If you're using Puma in development but you don't want to use Solid Queue in dev
 ```ruby
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 ```
-that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Pumna would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
+that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Puma would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
 
 
 ## Jobs and transactional integrity
