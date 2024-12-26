@@ -503,7 +503,7 @@ If you're using Puma in development but you don't want to use Solid Queue in dev
 ```ruby
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 ```
-that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Pumna would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
+that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Puma would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
 
 
 ## Jobs and transactional integrity
