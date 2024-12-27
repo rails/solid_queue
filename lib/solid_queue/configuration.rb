@@ -141,8 +141,8 @@ module SolidQueue
 
       def recurring_tasks
         @recurring_tasks ||= recurring_tasks_config.map do |id, options|
-          RecurringTask.from_configuration(id, **options)
-        end
+          RecurringTask.from_configuration(id, **options) if options.has_key?(:schedule)
+        end.compact
       end
 
       def processes_config
