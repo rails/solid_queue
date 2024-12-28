@@ -11,15 +11,8 @@ Gem::Specification.new do |spec|
   spec.license     = "MIT"
 
   spec.post_install_message = <<~MESSAGE
-    Upgrading to Solid Queue 0.9.0? There are some breaking changes about how recurring tasks are configured.
-
-    Upgrading to Solid Queue 0.8.0 from < 0.6.0? You need to upgrade to 0.6.0 first.
-
-    Upgrading to Solid Queue 0.4.x, 0.5.x, 0.6.x or 0.7.x? There are some breaking changes about how Solid Queue is started,
-    configuration and new migrations.
-
-    --> Check https://github.com/rails/solid_queue/blob/main/UPGRADING.md
-    for upgrade instructions.
+    Upgrading from Solid Queue < 1.0? Check details on breaking changes and upgrade instructions
+    --> https://github.com/rails/solid_queue/blob/main/UPGRADING.md
   MESSAGE
 
   spec.metadata["homepage_uri"] = spec.homepage
