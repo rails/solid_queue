@@ -103,6 +103,10 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert configuration.valid?
     assert_processes configuration, :scheduler, 0
 
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_empty))
+    assert configuration.valid?
+    assert_processes configuration, :scheduler, 0
+
     # No processes
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [])
     assert_not configuration.valid?
