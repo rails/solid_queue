@@ -84,7 +84,7 @@ For example, if you're using SQLite in development, update `database.yml` as fol
 
 ```diff
 development:
-  primary:
++ primary:
     <<: *default
     database: storage/development.sqlite3
 +  queue:
