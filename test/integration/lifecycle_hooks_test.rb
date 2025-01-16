@@ -12,22 +12,30 @@ class LifecycleHooksTest < ActiveSupport::TestCase
     SolidQueue.on_worker_start { JobResult.create!(status: :hook_called, value: :worker_start) }
     SolidQueue.on_worker_stop { JobResult.create!(status: :hook_called, value: :worker_stop) }
 
-    pid = run_supervisor_as_fork(workers: [ { queues: "*" } ])
+    SolidQueue.on_dispatcher_start { JobResult.create!(status: :hook_called, value: :dispatcher_start) }
+    SolidQueue.on_dispatcher_stop { JobResult.create!(status: :hook_called, value: :dispatcher_stop) }
+
+    SolidQueue.on_scheduler_start { JobResult.create!(status: :hook_called, value: :scheduler_start) }
+    SolidQueue.on_scheduler_stop { JobResult.create!(status: :hook_called, value: :scheduler_stop) }
+
+    pid = run_supervisor_as_fork(workers: [ { queues: "*" } ], dispatchers: [ { batch_size: 100 } ], skip_recurring: false)
     wait_for_registered_processes(4)
 
     terminate_process(pid)
     wait_for_registered_processes(0)
 
     results = skip_active_record_query_cache do
-      assert_equal 4, JobResult.count
-      JobResult.last(4)
+      assert_equal 8, JobResult.count
+      JobResult.last(8)
     end
 
-    assert_equal "hook_called", results.map(&:status).first
-    assert_equal [ "start", "stop", "worker_start", "worker_stop" ], results.map(&:value).sort
+    assert_equal({ "hook_called" => 8 }, results.map(&:status).tally)
+    assert_equal %w[start stop worker_start worker_stop dispatcher_start dispatcher_stop scheduler_start scheduler_stop].sort, results.map(&:value).sort
   ensure
     SolidQueue::Supervisor.clear_hooks
     SolidQueue::Worker.clear_hooks
+    SolidQueue::Dispatcher.clear_hooks
+    SolidQueue::Scheduler.clear_hooks
   end
 
   test "handle errors on lifecycle hooks" do
@@ -48,5 +56,7 @@ class LifecycleHooksTest < ActiveSupport::TestCase
     SolidQueue.on_thread_error = previous_on_thread_error
     SolidQueue::Supervisor.clear_hooks
     SolidQueue::Worker.clear_hooks
+    SolidQueue::Dispatcher.clear_hooks
+    SolidQueue::Scheduler.clear_hooks
   end
 end

@@ -51,6 +51,22 @@ module SolidQueue
     Worker.on_stop(...)
   end
 
+  def on_dispatcher_start(...)
+    Dispatcher.on_start(...)
+  end
+
+  def on_dispatcher_stop(...)
+    Dispatcher.on_stop(...)
+  end
+
+  def on_scheduler_start(...)
+    Scheduler.on_start(...)
+  end
+
+  def on_scheduler_stop(...)
+    Scheduler.on_stop(...)
+  end
+
   def supervisor?
     supervisor
   end

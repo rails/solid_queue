@@ -3,11 +3,14 @@
 module SolidQueue
   class Scheduler < Processes::Base
     include Processes::Runnable
+    include LifecycleHooks
 
     attr_accessor :recurring_schedule
 
+    after_boot :run_start_hooks
     after_boot :schedule_recurring_tasks
     before_shutdown :unschedule_recurring_tasks
+    before_shutdown :run_stop_hooks
 
     def initialize(recurring_tasks:, **options)
       @recurring_schedule = RecurringSchedule.new(recurring_tasks)
