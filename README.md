@@ -36,7 +36,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 Solid Queue is configured by default in new Rails 8 applications. But if you're running an earlier version, you can add it manually following these steps:
 
 1. `bundle add solid_queue`
-2. `bin/rails solid_queue:install`
+2. `bin/rails generate solid_queue:install`
 
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
