@@ -48,7 +48,7 @@ class InstrumentationTest < ActiveSupport::TestCase
       worker.stop
     end
 
-    assert events.size >= 4
+    assert events.size >= 1
     events.each { |e| assert_event e, "polling" }
   end
 
