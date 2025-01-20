@@ -38,20 +38,12 @@ module SolidQueue
         concurrency_maintenance&.start
       end
 
-      def schedule_recurring_tasks
-        recurring_schedule.schedule_tasks
-      end
-
       def stop_concurrency_maintenance
         concurrency_maintenance&.stop
       end
 
-      def unschedule_recurring_tasks
-        recurring_schedule.unschedule_tasks
-      end
-
       def all_work_completed?
-        SolidQueue::ScheduledExecution.none? && recurring_schedule.empty?
+        SolidQueue::ScheduledExecution.none?
       end
 
       def set_procline
