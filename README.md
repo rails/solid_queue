@@ -38,6 +38,8 @@ Solid Queue is configured by default in new Rails 8 applications. But if you're 
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
+(Note: The minimum supported version of Rails is 7.1 and Ruby is 3.1.6.)
+
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
 Once you've done that, you will then have to add the configuration for the queue database in `config/database.yml`. If you're using SQLite, it'll look like this:

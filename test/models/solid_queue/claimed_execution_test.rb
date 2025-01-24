@@ -31,7 +31,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.failed?
     assert_equal "RuntimeError", job.failed_execution.exception_class
     assert_equal "This is a RuntimeError exception", job.failed_execution.message
-    assert_match /app\/jobs\/raising_job\.rb:\d+:in `perform'/, job.failed_execution.backtrace.first
+    assert_match /\/app\/jobs\/raising_job\.rb:\d+:in [`'](RaisingJob#)?perform'/, job.failed_execution.backtrace.first
 
     assert_equal @process, claimed_execution.process
   end
