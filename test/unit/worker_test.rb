@@ -176,6 +176,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     @worker.expects(:interruptible_sleep).with(10.minutes).at_least_once
     @worker.expects(:interruptible_sleep).with(@worker.polling_interval).never
+    @worker.expects(:handle_thread_error).never
 
     @worker.start
     sleep 1.second
@@ -186,6 +187,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     @worker.expects(:interruptible_sleep).with(@worker.polling_interval).at_least_once
     @worker.expects(:interruptible_sleep).with(10.minutes).never
+    @worker.expects(:handle_thread_error).never
 
     @worker.start
     sleep 1.second
