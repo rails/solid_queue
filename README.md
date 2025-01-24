@@ -9,6 +9,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 ## Table of contents
 
 - [Installation](#installation)
+  - [Usage in development and other non-production environments](#usage-in-development-and-other-non-production-environments)
   - [Single database configuration](#single-database-configuration)
   - [Incremental adoption](#incremental-adoption)
   - [High performance requirements](#high-performance-requirements)
