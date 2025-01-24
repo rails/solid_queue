@@ -25,7 +25,7 @@ module SolidQueue
       def poll
         batch = dispatch_next_batch
 
-        batch.size.zero? ? polling_interval : 0.seconds
+        batch.zero? ? polling_interval : 0.seconds
       end
 
       def dispatch_next_batch

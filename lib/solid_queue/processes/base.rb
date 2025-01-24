@@ -4,7 +4,7 @@ module SolidQueue
   module Processes
     class Base
       include Callbacks # Defines callbacks needed by other concerns
-      include AppExecutor, Registrable, Interruptible, Procline
+      include AppExecutor, Registrable, Procline
 
       attr_reader :name
 

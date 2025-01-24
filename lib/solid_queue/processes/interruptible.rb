@@ -2,6 +2,8 @@
 
 module SolidQueue::Processes
   module Interruptible
+    include SolidQueue::AppExecutor
+
     def wake_up
       interrupt
     end
@@ -13,17 +15,19 @@ module SolidQueue::Processes
       end
 
       # Sleeps for 'time'.  Can be interrupted asynchronously and return early via wake_up.
-      # @param time [Numeric] the time to sleep. 0 returns immediately.
-      # @return [true, nil]
-      # * returns `true` if an interrupt was requested via #wake_up between the
-      #   last call to `interruptible_sleep` and now, resulting in an early return.
-      # * returns `nil` if it slept the full `time` and was not interrupted.
+      # @param time [Numeric, Duration] the time to sleep. 0 returns immediately.
       def interruptible_sleep(time)
         # Invoking this from the main thread may result in significant slowdown.
         # Utilizing asynchronous execution (Futures) addresses this performance issue.
         Concurrent::Promises.future(time) do |timeout|
-          queue.pop(timeout:).tap { queue.clear }
+          queue.clear unless queue.pop(timeout:).nil?
+        end.on_rejection! do |e|
+          wrapped_exception = RuntimeError.new("Interruptible#interruptible_sleep - #{e.class}: #{e.message}")
+          wrapped_exception.set_backtrace(e.backtrace)
+          handle_thread_error(wrapped_exception)
         end.value
+
+        nil
       end
 
       def queue
