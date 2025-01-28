@@ -43,28 +43,14 @@ module SolidQueue
 
   delegate :on_start, :on_stop, to: Supervisor
 
-  def on_worker_start(...)
-    Worker.on_start(...)
-  end
-
-  def on_worker_stop(...)
-    Worker.on_stop(...)
-  end
-
-  def on_dispatcher_start(...)
-    Dispatcher.on_start(...)
-  end
-
-  def on_dispatcher_stop(...)
-    Dispatcher.on_stop(...)
-  end
-
-  def on_scheduler_start(...)
-    Scheduler.on_start(...)
-  end
-
-  def on_scheduler_stop(...)
-    Scheduler.on_stop(...)
+  # on_worker_start, on_worker_stop, on_dispatcher_start ...
+  %w[ worker dispatcher scheduler ].each do |process|
+    %w[ start stop ].each do |action|
+      define_method("on_#{process}_#{action}") do |&block|
+        # Worker.on_start(&block), Dispatcher.on_stop(&block)
+        const_get(process.capitalize).public_send("on_#{action}", &block)
+      end
+    end
   end
 
   def supervisor?

@@ -375,9 +375,9 @@ In Solid queue, you can hook into two different points in the supervisor's life:
 - `start`: after the supervisor has finished booting and right before it forks workers and dispatchers.
 - `stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown.
 
-And into two different points in a worker's life:
-- `worker_start`: after the worker has finished booting and right before it starts the polling loop.
-- `worker_stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown (which is just `exit!`).
+And into two different points in the worker's, dispatcher's and scheduler's life:
+- `(worker|dispatcher|scheduler)_start`: after the worker/dispatcher/scheduler has finished booting and right before it starts the polling loop or loading the recurring schedule.
+- `(worker|dispatcher|scheduler)_stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown (which is just `exit!`).
 
 You can use the following methods with a block to do this:
 ```ruby
@@ -386,6 +386,12 @@ SolidQueue.on_stop
 
 SolidQueue.on_worker_start
 SolidQueue.on_worker_stop
+
+SolidQueue.on_dispatcher_start
+SolidQueue.on_dispatcher_stop
+
+SolidQueue.on_scheduler_start
+SolidQueue.on_scheduler_stop
 ```
 
 For example:
