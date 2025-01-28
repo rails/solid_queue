@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# frozen_string_literal: true
-
 module SolidQueue::Processes
   # The original implementation of Interruptible that works
   # with Ruby 3.1 and earlier
