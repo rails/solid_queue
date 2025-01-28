@@ -37,5 +37,13 @@ module SolidQueue
         include ActiveJob::ConcurrencyControls
       end
     end
+
+    initializer "solid_queue.include_interruptible_concern" do
+      if Gem::Version.new(RUBY_VERSION) >= Gem::Version.new("3.2")
+        SolidQueue::Processes::Base.include SolidQueue::Processes::Interruptible
+      else
+        SolidQueue::Processes::Base.include SolidQueue::Processes::OgInterruptible
+      end
+    end
   end
 end

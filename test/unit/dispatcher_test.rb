@@ -96,6 +96,7 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
     dispatcher.expects(:interruptible_sleep).with(0.seconds).at_least(3)
     dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+    dispatcher.expects(:handle_thread_error).never
 
     3.times { AddToBufferJob.set(wait: 0.1).perform_later("I'm scheduled") }
     assert_equal 3, SolidQueue::ScheduledExecution.count
@@ -112,8 +113,10 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
     dispatcher.expects(:interruptible_sleep).with(0.seconds).never
     dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+    dispatcher.expects(:handle_thread_error).never
+
     dispatcher.start
-    sleep 0.1
+    wait_while_with_timeout(1.second) { !SolidQueue::ScheduledExecution.exists? }
   end
 
   private
