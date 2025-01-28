@@ -4,13 +4,14 @@ require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
   setup do
-    SolidQueue.on_thread_error = silent_on_thread_error_for([ ExpectedTestError, RaisingJob::DefaultError ])
+    @_on_thread_error = SolidQueue.on_thread_error
+    SolidQueue.on_thread_error = silent_on_thread_error_for([ ExpectedTestError, RaisingJob::DefaultError ], @_on_thread_error)
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
     @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
   end
 
   teardown do
-    SolidQueue.on_thread_error = @on_thread_error
+    SolidQueue.on_thread_error = @_on_thread_error
     @worker.stop
     @dispatcher.stop
 
