@@ -24,6 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version:
+        - 3.1.6
         - 3.2.0
         - 3.2.4
         - 3.3.0
@@ -59,45 +60,6 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
-      - name: Setup test database
-        run: |
-          bin/rails db:setup
-      - name: Run tests
-        run: bin/rails test
-
-  tests-ruby-3-1-6:
-    name: Tests Ruby 3.1.6
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        database: [ mysql, postgres, sqlite ]
-    services:
-      mysql:
-        image: mysql:8.0.31
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-        ports:
-          - 33060:3306
-        options: --health-cmd "mysql -h localhost -e \"select now()\"" --health-interval 1s --health-timeout 5s --health-retries 30
-      postgres:
-        image: postgres:15.1
-        env:
-          POSTGRES_HOST_AUTH_METHOD: "trust"
-        ports:
-          - 55432:5432
-    env:
-      TARGET_DB: ${{ matrix.database }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup Ruby and install specific gems for 3.1.6
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.1.6
-      - name: Install dependencies with specific Gemfile.lock
-        run: |
-          cp Gemfile.lock.ruby_3_1_6 Gemfile.lock
-          bundle install
       - name: Setup test database
         run: |
           bin/rails db:setup

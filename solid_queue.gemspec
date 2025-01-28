@@ -22,8 +22,9 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md", "UPGRADING.md"]
   end
 
-  rails_version = ">= 7.1"
   spec.required_ruby_version = '>= 3.1'
+
+  rails_version = ">= 7.1"
   spec.add_dependency "activerecord", rails_version
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
@@ -40,8 +41,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rubocop-rails-omakase"
   spec.add_development_dependency "rdoc"
   spec.add_development_dependency "logger"
-
-  if Gem::Version.new(RUBY_VERSION) < Gem::Version.new("3.2")
-    spec.add_development_dependency "zeitwerk", "2.6.0"
-  end
+  spec.add_development_dependency "zeitwerk", "2.6.0"
 end

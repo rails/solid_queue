@@ -60,7 +60,7 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
     worker = SolidQueue::Worker.new(queues: "*", threads: 3, polling_interval: 0.2)
     hostname = "Basecamp’s-Computer"
 
-    Socket.stub :gethostname, hostname.force_encoding("ASCII-8BIT") do
+    Socket.stub :gethostname, hostname.dup.force_encoding("ASCII-8BIT") do
       worker.start
       wait_for_registered_processes(1, timeout: 1.second)
 
