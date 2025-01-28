@@ -23,6 +23,7 @@ Gem::Specification.new do |spec|
   end
 
   rails_version = ">= 7.1"
+  spec.required_ruby_version = '>= 3.1'
   spec.add_dependency "activerecord", rails_version
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
