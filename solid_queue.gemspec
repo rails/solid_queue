@@ -41,8 +41,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rubocop-rails-omakase"
   spec.add_development_dependency "rdoc"
   spec.add_development_dependency "logger"
-
-  if Gem::Version.new(RUBY_VERSION) < Gem::Version.new("3.2")
-    spec.add_development_dependency "zeitwerk", "2.6.0"
-  end
+  spec.add_development_dependency "zeitwerk", "2.6.0"
 end
