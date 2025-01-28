@@ -66,6 +66,8 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 1.second)
 
+    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
+
     signal_process(@pid, :QUIT, wait: 0.4.second)
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
 
@@ -121,7 +123,9 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
-    signal_process(@pid, :TERM, wait: 0.5.second)
+    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
+
+    signal_process(@pid, :TERM, wait: 0.5)
 
     sleep(SolidQueue.shutdown_timeout + 0.5.second)
 
@@ -204,6 +208,7 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
 
     worker = find_processes_registered_as("Worker").first
 
+    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
     signal_process(worker.pid, :TERM, wait: 0.1.second)
 
     # Worker is gone
