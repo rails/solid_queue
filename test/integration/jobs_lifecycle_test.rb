@@ -31,6 +31,22 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal 2, SolidQueue::Job.finished.count
   end
 
+  test "enqueue and run jobs from different shards" do
+    AddToBufferJob.perform_later "hey"
+    ShardTwoJob.perform_later "ho"
+
+    change_active_shard_to(:queue_shard_two) do
+      @dispatcher.start
+      @worker.start
+
+      wait_for_jobs_to_finish_for(2.seconds)
+    end
+
+    assert_equal [ "ho" ], JobBuffer.values.sort
+    assert_equal 1, SolidQueue::ReadyExecution.count
+    assert_equal 1, ActiveRecord::Base.connected_to(shard: :queue_shard_two) { SolidQueue::Job.finished.count }
+  end
+
   test "enqueue and run jobs that fail without retries" do
     RaisingJob.perform_later(ExpectedTestError, "A")
     RaisingJob.perform_later(ExpectedTestError, "B")

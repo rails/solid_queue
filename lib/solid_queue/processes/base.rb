@@ -6,6 +6,23 @@ module SolidQueue
       include Callbacks # Defines callbacks needed by other concerns
       include AppExecutor, Registrable, Procline
 
+      after_boot -> do
+        if SolidQueue.connects_to.key?(:shards)
+          # Record the name of the primary shard, which should be used for
+          # adapter less jobs
+          if SolidQueue.primary_shard.nil?
+            SolidQueue.primary_shard = SolidQueue.connects_to[:shards].keys.first
+          end
+
+          # Move active_shard to first position in connects_to[:shards] Hash to
+          # make it the default
+          if SolidQueue.active_shard.present? &&
+               SolidQueue.connects_to[:shards].key?(SolidQueue.active_shard)
+            SolidQueue::Record.default_shard = SolidQueue.active_shard
+          end
+        end
+      end
+
       attr_reader :name
 
       def initialize(*)

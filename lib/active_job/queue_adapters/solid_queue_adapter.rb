@@ -33,8 +33,10 @@ module ActiveJob
       private
 
       def select_shard
-        if @db_shard
-          ActiveRecord::Base.connected_to(shard: @db_shard) { yield }
+        shard = @db_shard || SolidQueue.primary_shard
+
+        if shard
+          ActiveRecord::Base.connected_to(shard: shard) { yield }
         else
           yield
         end
