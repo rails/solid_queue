@@ -5,6 +5,8 @@ module SolidQueue
     include LifecycleHooks
     include Maintenance, Signals, Pidfiled
 
+    after_shutdown :run_exit_hooks
+
     class << self
       def start(**options)
         SolidQueue.supervisor = true

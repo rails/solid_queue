@@ -8,15 +8,19 @@ class LifecycleHooksTest < ActiveSupport::TestCase
   test "run lifecycle hooks" do
     SolidQueue.on_start { JobResult.create!(status: :hook_called, value: :start) }
     SolidQueue.on_stop { JobResult.create!(status: :hook_called, value: :stop) }
+    SolidQueue.on_exit { JobResult.create!(status: :hook_called, value: :exit) }
 
     SolidQueue.on_worker_start { JobResult.create!(status: :hook_called, value: :worker_start) }
     SolidQueue.on_worker_stop { JobResult.create!(status: :hook_called, value: :worker_stop) }
+    SolidQueue.on_worker_exit { JobResult.create!(status: :hook_called, value: :worker_exit) }
 
     SolidQueue.on_dispatcher_start { JobResult.create!(status: :hook_called, value: :dispatcher_start) }
     SolidQueue.on_dispatcher_stop { JobResult.create!(status: :hook_called, value: :dispatcher_stop) }
+    SolidQueue.on_dispatcher_exit { JobResult.create!(status: :hook_called, value: :dispatcher_exit) }
 
     SolidQueue.on_scheduler_start { JobResult.create!(status: :hook_called, value: :scheduler_start) }
     SolidQueue.on_scheduler_stop { JobResult.create!(status: :hook_called, value: :scheduler_stop) }
+    SolidQueue.on_scheduler_stop { JobResult.create!(status: :hook_called, value: :scheduler_exit) }
 
     pid = run_supervisor_as_fork(workers: [ { queues: "*" } ], dispatchers: [ { batch_size: 100 } ], skip_recurring: false)
     wait_for_registered_processes(4)
@@ -24,13 +28,20 @@ class LifecycleHooksTest < ActiveSupport::TestCase
     terminate_process(pid)
     wait_for_registered_processes(0)
 
+
     results = skip_active_record_query_cache do
-      assert_equal 8, JobResult.count
-      JobResult.last(8)
+      job_results = JobResult.where(status: :hook_called)
+      assert_equal 12, job_results.count
+      job_results
     end
 
-    assert_equal({ "hook_called" => 8 }, results.map(&:status).tally)
-    assert_equal %w[start stop worker_start worker_stop dispatcher_start dispatcher_stop scheduler_start scheduler_stop].sort, results.map(&:value).sort
+    assert_equal({ "hook_called" => 12 }, results.map(&:status).tally)
+    assert_equal %w[
+      start stop exit
+      worker_start worker_stop worker_exit
+      dispatcher_start dispatcher_stop dispatcher_exit
+      scheduler_start scheduler_stop scheduler_exit
+    ].sort, results.map(&:value).sort
   ensure
     SolidQueue::Supervisor.clear_hooks
     SolidQueue::Worker.clear_hooks

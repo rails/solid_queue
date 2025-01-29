@@ -8,7 +8,8 @@ module SolidQueue
     after_boot :run_start_hooks
     after_boot :start_concurrency_maintenance
     before_shutdown :stop_concurrency_maintenance
-    after_shutdown :run_stop_hooks
+    before_shutdown :run_stop_hooks
+    after_shutdown :run_exit_hooks
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::DISPATCHER_DEFAULTS)

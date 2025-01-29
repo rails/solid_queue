@@ -6,7 +6,7 @@ module SolidQueue
 
     after_boot :run_start_hooks
     before_shutdown :run_stop_hooks
-
+    after_shutdown :run_exit_hooks
 
     attr_accessor :queues, :pool
 

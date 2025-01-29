@@ -5,7 +5,7 @@ module SolidQueue
     extend ActiveSupport::Concern
 
     included do
-      mattr_reader :lifecycle_hooks, default: { start: [], stop: [] }
+      mattr_reader :lifecycle_hooks, default: { start: [], stop: [], exit: [] }
     end
 
     class_methods do
@@ -17,7 +17,12 @@ module SolidQueue
         self.lifecycle_hooks[:stop] << block
       end
 
+      def on_exit(&block)
+        self.lifecycle_hooks[:exit] << block
+      end
+
       def clear_hooks
+        self.lifecycle_hooks[:exit] = []
         self.lifecycle_hooks[:start] = []
         self.lifecycle_hooks[:stop] = []
       end
@@ -30,6 +35,10 @@ module SolidQueue
 
       def run_stop_hooks
         run_hooks_for :stop
+      end
+
+      def run_exit_hooks
+        run_hooks_for :exit
       end
 
       def run_hooks_for(event)
