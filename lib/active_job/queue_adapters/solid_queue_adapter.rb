@@ -32,13 +32,13 @@ module ActiveJob
 
       private
 
-      def select_shard
+      def select_shard(&block)
         shard = @db_shard || SolidQueue.primary_shard
 
         if shard
-          ActiveRecord::Base.connected_to(shard: shard) { yield }
+          ActiveRecord::Base.connected_to(shard: shard) { block.call }
         else
-          yield
+          block.call
         end
       end
     end

@@ -34,13 +34,4 @@ module JobsTestHelper
       assert_equal count, SolidQueue::ClaimedExecution.count
     end
   end
-
-  def change_active_shard_to(new_shard_name, &block)
-    old_shard_name = SolidQueue.active_shard
-    SolidQueue.active_shard = new_shard_name
-    block.call
-  ensure
-    SolidQueue.active_shard = old_shard_name
-    SolidQueue::Record.connects_to(**SolidQueue.connects_to) if SolidQueue.connects_to
-  end
 end
