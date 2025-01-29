@@ -41,30 +41,20 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
-  delegate :on_start, :on_stop, to: Supervisor
+  delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
-  def on_worker_start(...)
-    Worker.on_start(...)
-  end
+  [ Dispatcher, Scheduler, Worker ].each do |process|
+    define_singleton_method(:"on_#{process.name.demodulize.downcase}_start") do |&block|
+      process.on_start { block.call }
+    end
 
-  def on_worker_stop(...)
-    Worker.on_stop(...)
-  end
+    define_singleton_method(:"on_#{process.name.demodulize.downcase}_stop") do |&block|
+      process.on_stop { block.call }
+    end
 
-  def on_dispatcher_start(...)
-    Dispatcher.on_start(...)
-  end
-
-  def on_dispatcher_stop(...)
-    Dispatcher.on_stop(...)
-  end
-
-  def on_scheduler_start(...)
-    Scheduler.on_start(...)
-  end
-
-  def on_scheduler_stop(...)
-    Scheduler.on_stop(...)
+    define_singleton_method(:"on_#{process.name.demodulize.downcase}_exit") do |&block|
+      process.on_exit { block.call }
+    end
   end
 
   def supervisor?

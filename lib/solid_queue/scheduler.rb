@@ -11,6 +11,7 @@ module SolidQueue
     after_boot :schedule_recurring_tasks
     before_shutdown :unschedule_recurring_tasks
     before_shutdown :run_stop_hooks
+    after_shutdown :run_exit_hooks
 
     def initialize(recurring_tasks:, **options)
       @recurring_schedule = RecurringSchedule.new(recurring_tasks)
