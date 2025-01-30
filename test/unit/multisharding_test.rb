@@ -16,6 +16,16 @@ class MultishardingTest < ActiveSupport::TestCase
     end
   end
 
+  test "shard_selection_lambda can override which shard is used to enqueue individual jobs" do
+    shard_selection_lambda = ->(active_job:, active_jobs:) { :queue_shard_two if active_job.arguments.first == "hey!" }
+
+    with_shard_selection_lambda(shard_selection_lambda) do
+      assert_difference -> { connected_to_shard_two { SolidQueue::Job.count } }, 1 do
+        AddToBufferJob.perform_later "hey!"
+      end
+    end
+  end
+
   test "jobs are enqueued for later in the right shard" do
     assert_difference -> { SolidQueue::ScheduledExecution.count }, 1 do
       assert_difference -> { connected_to_shard_two { SolidQueue::ScheduledExecution.count } }, 1 do
@@ -38,5 +48,32 @@ class MultishardingTest < ActiveSupport::TestCase
         ActiveJob.perform_all_later(active_jobs)
       end
     end
+  end
+
+  test "shard_selection_lambda can override which shard is used to enqueue jobs in bulk" do
+    active_jobs = [
+      AddToBufferJob.new(2),
+      ShardTwoJob.new(6),
+      AddToBufferJob.new(3),
+      ShardTwoJob.new(7)
+    ]
+    shard_selection_lambda = ->(active_job:, active_jobs:) { :queue_shard_two if active_jobs.size == 2 }
+
+    with_shard_selection_lambda(shard_selection_lambda) do
+      assert_difference -> { SolidQueue::Job.count }, 0 do
+        assert_difference -> { connected_to_shard_two { SolidQueue::Job.count } }, 4 do
+          ActiveJob.perform_all_later(active_jobs)
+        end
+      end
+    end
+  end
+
+  private
+
+  def with_shard_selection_lambda(lambda, &block)
+    SolidQueue.shard_selection_lambda = lambda
+    block.call
+  ensure
+    SolidQueue.shard_selection_lambda = nil
   end
 end

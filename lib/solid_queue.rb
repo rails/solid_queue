@@ -41,7 +41,7 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
-  mattr_accessor :primary_shard, :active_shard
+  mattr_accessor :primary_shard, :active_shard, :shard_selection_lambda
 
   delegate :on_start, :on_stop, to: Supervisor
 

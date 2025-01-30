@@ -17,23 +17,26 @@ module ActiveJob
       end
 
       def enqueue(active_job) # :nodoc:
-        select_shard { SolidQueue::Job.enqueue(active_job) }
+        select_shard(active_job:) { SolidQueue::Job.enqueue(active_job) }
       end
 
       def enqueue_at(active_job, timestamp) # :nodoc:
-        select_shard do
+        select_shard(active_job:) do
           SolidQueue::Job.enqueue(active_job, scheduled_at: Time.at(timestamp))
         end
       end
 
       def enqueue_all(active_jobs) # :nodoc:
-        select_shard { SolidQueue::Job.enqueue_all(active_jobs) }
+        select_shard(active_jobs:) { SolidQueue::Job.enqueue_all(active_jobs) }
       end
 
       private
 
-      def select_shard(&block)
-        shard = @db_shard || SolidQueue.primary_shard
+      def select_shard(active_job: nil, active_jobs: nil, &block)
+        shard =
+          SolidQueue.shard_selection_lambda&.call(active_job:, active_jobs:) ||
+            @db_shard ||
+              SolidQueue.primary_shard
 
         if shard
           ActiveRecord::Base.connected_to(shard: shard) { block.call }
