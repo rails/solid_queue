@@ -45,5 +45,15 @@ module SolidQueue
         SolidQueue::Processes::Base.include SolidQueue::Processes::OgInterruptible
       end
     end
+
+    initializer "solid_queue.shard_configuration" do
+      ActiveSupport.on_load(:solid_queue) do
+        # Record the name of the primary shard, which should be used for
+        # adapter less jobs
+        if SolidQueue.connects_to.key?(:shards) && SolidQueue.primary_shard.nil?
+          SolidQueue.primary_shard = SolidQueue.connects_to[:shards].keys.first
+        end
+      end
+    end
   end
 end

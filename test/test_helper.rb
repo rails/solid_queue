@@ -28,7 +28,7 @@ class ExpectedTestError < RuntimeError; end
 
 
 class ActiveSupport::TestCase
-  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper
+  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper, MultishardingTestHelper
 
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
