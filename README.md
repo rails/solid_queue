@@ -618,6 +618,73 @@ my_periodic_resque_job:
 
 and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
 
+## Multisharding
+
+If your application reaches a point where the pressure on the database used for jobs is such that you need to spread the load over multiple databases, then this section is for you.
+
+You can extend the Solid Queue database configuration to use different shards:
+
+  ```ruby
+  config.solid_queue.connects_to = {
+    shards: {
+      queue_shard_one: { writing: :queue_shard_one },
+      queue_shard_two: { writing: :queue_shard_two }
+    }
+  }
+  ```
+
+Queue database shards will need to have been defined in `config/database.yml` as shown in the installation section. Both shards need to share the same schema, and down the line share the same migration configuration:
+
+  ```yaml
+  production:
+  primary:
+    <<: *default
+    database: storage/production.sqlite3
+  queue_shard_one:
+    <<: *default
+    database: storage/production_queue_shard_one.sqlite3
+    migrations_paths: db/queue_migrate
+  queue_shard_two:
+    <<: *default
+    database: storage/production_queue_shard_two.sqlite3
+    migrations_paths: db/queue_migrate
+  ```
+
+Simply converting a simpler database configuration such as `config.solid_queue.connects_to = { database: { writing: :queue } }` to `config.solid_queue.connects_to = { shards: { queue: { writing: :queue } } }` will not have any effects on the behavior of Solid Queue.
+
+### Configuration
+
+In `config/environments/production.rb` or for the environment you want to enable Solid Queue in, you can define the following options:
+
+  ```ruby
+  config.solid_queue.primary_shard = :queue_shard_one # optional
+  config.solid_queue.active_shard = ENV["SOLID_QUEUE_ACTIVE_SHARD"]&.to_sym
+  config.solid_queue.shard_selection_lambda = ->(active_job:, active_jobs:) { nil }
+  ```
+
+- `config.solid_queue.primary_shard` is the shard that will be used to enqueue or schedule jobs without any specific adapter configuration. It defaults to the first shard found in `config.solid_queue.connects_to` (ActiveRecord default)
+- `config.solid_queue.active_shard` is the shard that will be used by workers, dispatchers and schedulers to manage and process jobs. It defaults to the `primary_shard`.
+  With a basic Solid Queue configuration and the option described above you can start a worker and dispatcher working on the `queue_shard_two` shard by running `SOLID_QUEUE_ACTIVE_SHARD=queue_shard_two bin/jobs start`
+- `config.solid_queue.shard_selection_lambda` helps you define a custom strategy to determine in which shard a job should be enqueued. It accepts keyword parameters `active_job` when a single job is enqueued or scheduled and `active_jobs` when jobs are bulk enqueued. If the lambda is defined but returns `nil`, Solid Queue will use the adapter defined for the job.
+
+### Enqueueing jobs in different shards
+
+Individual jobs can be assigned to shards by leveraging their `queue_adapter` property:
+
+  ```ruby
+  class SomeJob < ApplicationJob
+    self.queue_adapter = ActiveJob::QueueAdapters::SolidQueueAdapter.new(db_shard: :queue_shard_two)
+  ```
+
+This job will be enqueued in the shard named `queue_shard_two`.
+
+Alternatively you can define a lambda to implement a custom strategy for defining which shard a job will be enqueued to:
+
+  ```ruby
+  config.solid_queue.shard_selection_lambda = ->(active_job:, active_jobs:) { SolidQueue.connects_to[:shards].keys.sample } # pick a shard randomly
+  ```
+
+
 ## Inspiration
 
 Solid Queue has been inspired by [resque](https://github.com/resque/resque) and [GoodJob](https://github.com/bensheldon/good_job). We recommend checking out these projects as they're great examples from which we've learnt a lot.
