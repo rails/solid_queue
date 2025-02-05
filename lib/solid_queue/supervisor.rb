@@ -80,9 +80,7 @@ module SolidQueue
           instance.mode = :fork
         end
 
-        Record.clear_all_connections!
-
-        pid = fork do
+        pid = SolidQueue.safe_fork do
           process_instance.start
         end
 

@@ -73,5 +73,10 @@ module SolidQueue
     ActiveSupport::Notifications.instrument("#{channel}.solid_queue", **options, &block)
   end
 
+  def safe_fork(&block)
+    Record.clear_all_connections!
+    fork { block.call }
+  end
+
   ActiveSupport.run_load_hooks(:solid_queue, self)
 end

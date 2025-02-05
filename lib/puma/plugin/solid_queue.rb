@@ -12,7 +12,7 @@ Puma::Plugin.create do
     end
 
     launcher.events.on_booted do
-      @solid_queue_pid = fork do
+      @solid_queue_pid = SolidQueue.safe_fork do
         Thread.new { monitor_puma }
         SolidQueue::Supervisor.start
       end

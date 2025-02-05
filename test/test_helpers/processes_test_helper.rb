@@ -2,7 +2,7 @@ module ProcessesTestHelper
   private
 
   def run_supervisor_as_fork(**options)
-    fork do
+    SolidQueue.safe_fork do
       SolidQueue::Supervisor.start(**options.with_defaults(skip_recurring: true))
     end
   end
