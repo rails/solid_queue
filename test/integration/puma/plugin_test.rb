@@ -15,7 +15,7 @@ class PluginTest < ActiveSupport::TestCase
           -s
           config.ru
       ]
-      @pid = SolidQueue.safe_fork do
+      @pid = fork do
         exec(*cmd)
       end
     end

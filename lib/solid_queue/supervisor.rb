@@ -80,7 +80,7 @@ module SolidQueue
           instance.mode = :fork
         end
 
-        pid = SolidQueue.safe_fork do
+        pid = fork do
           process_instance.start
         end
 

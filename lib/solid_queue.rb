@@ -20,6 +20,8 @@ loader.setup
 module SolidQueue
   extend self
 
+  ForkSafety # add fork safety hooks
+
   DEFAULT_LOGGER = ActiveSupport::Logger.new($stdout)
 
   mattr_accessor :logger, default: DEFAULT_LOGGER
@@ -71,11 +73,6 @@ module SolidQueue
 
   def instrument(channel, **options, &block)
     ActiveSupport::Notifications.instrument("#{channel}.solid_queue", **options, &block)
-  end
-
-  def safe_fork(&block)
-    Record.clear_all_connections!
-    fork { block.call }
   end
 
   ActiveSupport.run_load_hooks(:solid_queue, self)
