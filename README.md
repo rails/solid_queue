@@ -313,7 +313,7 @@ and then remove the paused ones. Pausing in general should be something rare, us
 Do this:
 
 ```yml
-queues: background, backend
+queues: [ background, backend ]
 ```
 
 instead of this:
