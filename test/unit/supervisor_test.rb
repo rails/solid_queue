@@ -155,6 +155,24 @@ class SupervisorTest < ActiveSupport::TestCase
     end
   end
 
+  test "attempt to restart supervisor if it fails unexpectedly" do
+    SolidQueue.max_restart_attempts = 2
+    SolidQueue::Supervisor.any_instance.expects(:start).raises(StandardError).times(SolidQueue.max_restart_attempts + 1)
+    SolidQueue::LogSubscriber.any_instance.expects(:supervisor_restart).times(SolidQueue.max_restart_attempts)
+    assert_raises StandardError do
+      SolidQueue::Supervisor.start
+    end
+  end
+
+  test "skip restart attempt if configured not to" do
+    SolidQueue.max_restart_attempts = 0
+    SolidQueue::Supervisor.any_instance.expects(:start).raises(StandardError).times(1)
+    SolidQueue::LogSubscriber.any_instance.expects(:supervisor_restart).times(0)
+    assert_raises StandardError do
+      SolidQueue::Supervisor.start
+    end
+  end
+
   private
     def assert_registered_workers(supervisor_pid: nil, count: 1)
       assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)

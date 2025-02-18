@@ -336,6 +336,8 @@ If processes have no chance of cleaning up before exiting (e.g. if someone pulls
 
 In a similar way, if a worker is terminated in any other way not initiated by the above signals (e.g. a worker is sent a `KILL` signal), jobs in progress will be marked as failed so that they can be inspected, with a `SolidQueue::Processes::Process::ProcessExitError`. Sometimes a job in particular is responsible for this, for example, if it has a memory leak and you have a mechanism to kill processes over a certain memory threshold, so this will help identifying this kind of situation.
 
+In the unlikely event that the supervisor fails (e.g. the database goes offline), Solid Queue can attempt to recover itself. It uses an exponential backoff delay that maxes out at 60 seconds, and the user can set the number of restart attempts that should be tried. See `max_restart_attempts` below.
+
 
 ### Database configuration
 
@@ -362,6 +364,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
 - `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
 - `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
+- `max_restart_attempts`: the number of restart attempts Solid Queue should make if the supervisor fails. Set to any number, or `nil` if you want Solid Queue to keep trying forever. The default is 0, which means Solid Queue won't try to recover.
 - `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to `true`.
 - `supervisor_pidfile`: path to a pidfile that the supervisor will create when booting to prevent running more than one supervisor in the same host, or in case you want to use it for a health check. It's `nil` by default.
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.

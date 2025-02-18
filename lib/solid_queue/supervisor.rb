@@ -13,7 +13,7 @@ module SolidQueue
         configuration = Configuration.new(**options)
 
         if configuration.valid?
-          new(configuration).tap(&:start)
+          SolidQueue::Supervisor::Launcher.new(configuration).tap(&:start)
         else
           abort configuration.errors.full_messages.join("\n") + "\nExiting..."
         end
