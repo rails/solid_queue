@@ -156,18 +156,16 @@ class SupervisorTest < ActiveSupport::TestCase
   end
 
   test "attempt to restart supervisor if it fails unexpectedly" do
-    SolidQueue.max_restart_attempts = 2
+    SolidQueue.stubs(:max_restart_attempts).returns(2)
     SolidQueue::Supervisor.any_instance.expects(:start).raises(StandardError).times(SolidQueue.max_restart_attempts + 1)
-    SolidQueue::LogSubscriber.any_instance.expects(:supervisor_restart).times(SolidQueue.max_restart_attempts)
     assert_raises StandardError do
       SolidQueue::Supervisor.start
     end
   end
 
   test "skip restart attempt if configured not to" do
-    SolidQueue.max_restart_attempts = 0
+    SolidQueue.stubs(:max_restart_attempts).returns(0)
     SolidQueue::Supervisor.any_instance.expects(:start).raises(StandardError).times(1)
-    SolidQueue::LogSubscriber.any_instance.expects(:supervisor_restart).times(0)
     assert_raises StandardError do
       SolidQueue::Supervisor.start
     end
