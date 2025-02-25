@@ -66,6 +66,8 @@ module SolidQueue
 
       def dispatch
         if acquire_concurrency_lock then ready
+        elsif discard_concurrent?
+          discard
         else
           block
         end
