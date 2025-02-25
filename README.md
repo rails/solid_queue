@@ -428,11 +428,11 @@ In the case of recurring tasks, if such error is raised when enqueuing the job c
 
 ## Concurrency controls
 
-Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs are never discarded or lost, only blocked.
+Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs can can be configured to either be discarded or blocked.
 
 ```ruby
 class MyJob < ApplicationJob
-  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, **) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group
+  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, **) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: conflict_behaviour
 
   # ...
 ```
@@ -440,6 +440,9 @@ class MyJob < ApplicationJob
 - `to` is `1` by default.
 - `duration` is set to `SolidQueue.default_concurrency_control_period` by default, which itself defaults to `3 minutes`, but that you can configure as well.
 - `group` is used to control the concurrency of different job classes together. It defaults to the job class name.
+- `on_conflict` controls behaviour when enqueuing a job which is above the max concurrent executions for your configuration. 
+  - (default) `:block`; the job is blocked and is dispatched until another job completes and unblocks it
+  - `:discard`; the job is discarded
 
 When a job includes these controls, we'll ensure that, at most, the number of jobs (indicated as `to`) that yield the same `key` will be performed concurrently, and this guarantee will last for `duration` for each job enqueued. Note that there's no guarantee about _the order of execution_, only about jobs being performed at the same time (overlapping).
 
@@ -482,6 +485,31 @@ Jobs are unblocked in order of priority but queue order is not taken into accoun
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for getting an open semaphore, and whenever they get it, they'll be run. It doesn't matter if they had already gotten an open semaphore in the past.
 
+### Discarding conflicting jobs
+
+When configuring `on_conflict` with `:discard`, jobs enqueued above the concurrent execution limit are discarded and failed to be enqueued.
+
+```ruby
+class ConcurrentJob < ApplicationJob
+  limits_concurrency key: ->(record) { record }, on_conflict: :discard
+
+  def perform(user); end
+end
+
+enqueued_job = ConcurrentJob.perform_later(record)
+# => instance of ConcurrentJob
+enqueued_job.successfully_enqueued?
+# => true
+
+second_enqueued_job = ConcurrentJob.perform_later(record) do |job|
+  job.successfully_enqueued?
+  # => false
+end
+
+second_enqueued_job
+# => false
+```
+
 ### Performance considerations
 
 Concurrency controls introduce significant overhead (blocked executions need to be created and promoted to ready, semaphores need to be created and updated) so you should consider carefully whether you need them. For throttling purposes, where you plan to have `limit` significantly larger than 1, I'd encourage relying on a limited number of workers per queue instead. For example:
@@ -504,6 +532,10 @@ production:
 ```
 
 Or something similar to that depending on your setup. You can also assign a different queue to a job on the moment of enqueuing so you can decide whether to enqueue a job in the throttled queue or another queue depending on the arguments, or pass a block to `queue_as` as explained [here](https://guides.rubyonrails.org/active_job_basics.html#queues).
+
+### Discarding concurrent jobs
+
+
 
 ## Failed jobs and retries
 
