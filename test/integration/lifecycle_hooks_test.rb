@@ -6,24 +6,76 @@ class LifecycleHooksTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   test "run lifecycle hooks" do
-    SolidQueue.on_start { JobResult.create!(status: :hook_called, value: :start) }
-    SolidQueue.on_stop { JobResult.create!(status: :hook_called, value: :stop) }
-    SolidQueue.on_exit { JobResult.create!(status: :hook_called, value: :exit) }
+    SolidQueue.on_start do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_start")
+    end
 
-    SolidQueue.on_worker_start { JobResult.create!(status: :hook_called, value: :worker_start) }
-    SolidQueue.on_worker_stop { JobResult.create!(status: :hook_called, value: :worker_stop) }
-    SolidQueue.on_worker_exit { JobResult.create!(status: :hook_called, value: :worker_exit) }
+    SolidQueue.on_stop do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_stop")
+    end
 
-    SolidQueue.on_dispatcher_start { JobResult.create!(status: :hook_called, value: :dispatcher_start) }
-    SolidQueue.on_dispatcher_stop { JobResult.create!(status: :hook_called, value: :dispatcher_stop) }
-    SolidQueue.on_dispatcher_exit { JobResult.create!(status: :hook_called, value: :dispatcher_exit) }
+    SolidQueue.on_exit do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_exit")
+    end
 
-    SolidQueue.on_scheduler_start { JobResult.create!(status: :hook_called, value: :scheduler_start) }
-    SolidQueue.on_scheduler_stop { JobResult.create!(status: :hook_called, value: :scheduler_stop) }
-    SolidQueue.on_scheduler_stop { JobResult.create!(status: :hook_called, value: :scheduler_exit) }
+    SolidQueue.on_worker_start do |w|
+      name = w.class.name.demodulize.downcase
+      queues = w.queues.join("_")
+      JobResult.create!(status: :hook_called, value: "#{name}_#{queues}_start")
+    end
 
-    pid = run_supervisor_as_fork(workers: [ { queues: "*" } ], dispatchers: [ { batch_size: 100 } ], skip_recurring: false)
-    wait_for_registered_processes(4)
+    SolidQueue.on_worker_stop do |w|
+      name = w.class.name.demodulize.downcase
+      queues = w.queues.join("_")
+      JobResult.create!(status: :hook_called, value: "#{name}_#{queues}_stop")
+    end
+
+    SolidQueue.on_worker_exit do |w|
+      name = w.class.name.demodulize.downcase
+      queues = w.queues.join("_")
+      JobResult.create!(status: :hook_called, value: "#{name}_#{queues}_exit")
+    end
+
+    SolidQueue.on_dispatcher_start do |d|
+      name = d.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_#{d.batch_size}_start")
+    end
+
+    SolidQueue.on_dispatcher_stop do |d|
+      name = d.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_#{d.batch_size}_stop")
+    end
+
+    SolidQueue.on_dispatcher_exit do |d|
+      name = d.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_#{d.batch_size}_exit")
+    end
+
+    SolidQueue.on_scheduler_start do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_start")
+    end
+
+    SolidQueue.on_scheduler_stop do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_stop")
+    end
+
+    SolidQueue.on_scheduler_exit do |s|
+      name = s.class.name.demodulize.downcase
+      JobResult.create!(status: :hook_called, value: "#{name}_exit")
+    end
+
+    pid = run_supervisor_as_fork(
+      workers: [ { queues: "first_queue" }, { queues: "second_queue", processes: 1 } ],
+      dispatchers: [ { batch_size: 100 } ],
+      skip_recurring: false
+    )
+
+    wait_for_registered_processes(5)
 
     terminate_process(pid)
     wait_for_registered_processes(0)
@@ -31,15 +83,16 @@ class LifecycleHooksTest < ActiveSupport::TestCase
 
     results = skip_active_record_query_cache do
       job_results = JobResult.where(status: :hook_called)
-      assert_equal 12, job_results.count
+      assert_equal 15, job_results.count
       job_results
     end
 
-    assert_equal({ "hook_called" => 12 }, results.map(&:status).tally)
+    assert_equal({ "hook_called" => 15 }, results.map(&:status).tally)
     assert_equal %w[
-      start stop exit
-      worker_start worker_stop worker_exit
-      dispatcher_start dispatcher_stop dispatcher_exit
+      supervisor_start supervisor_stop supervisor_exit
+      worker_first_queue_start worker_first_queue_stop worker_first_queue_exit
+      worker_second_queue_start worker_second_queue_stop worker_second_queue_exit
+      dispatcher_100_start dispatcher_100_stop dispatcher_100_exit
       scheduler_start scheduler_stop scheduler_exit
     ].sort, results.map(&:value).sort
   ensure

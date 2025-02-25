@@ -379,6 +379,8 @@ And into two different points in the worker's, dispatcher's and scheduler's life
 - `(worker|dispatcher|scheduler)_start`: after the worker/dispatcher/scheduler has finished booting and right before it starts the polling loop or loading the recurring schedule.
 - `(worker|dispatcher|scheduler)_stop`: after receiving a signal (`TERM`, `INT` or `QUIT`) and right before starting graceful or immediate shutdown (which is just `exit!`).
 
+Each of these hooks has an instance of the supervisor/worker/dispatcher/scheduler yielded to the block so that you may read its configuration for logging or metrics reporting purposes.
+
 You can use the following methods with a block to do this:
 ```ruby
 SolidQueue.on_start
@@ -396,8 +398,20 @@ SolidQueue.on_scheduler_stop
 
 For example:
 ```ruby
-SolidQueue.on_start { start_metrics_server }
-SolidQueue.on_stop { stop_metrics_server }
+SolidQueue.on_start do |supervisor|
+  MyMetricsReporter.process_name = supervisor.name
+
+  start_metrics_server
+end
+
+SolidQueue.on_stop do |_supervisor|
+  stop_metrics_server
+end
+
+SolidQueue.on_worker_start do |worker|
+  MyMetricsReporter.process_name = worker.name
+  MyMetricsReporter.queues = worker.queues.join(',')
+end
 ```
 
 These can be called several times to add multiple hooks, but it needs to happen before Solid Queue is started. An initializer would be a good place to do this.
