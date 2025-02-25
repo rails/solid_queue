@@ -10,6 +10,10 @@ module SolidQueue
         Proxy.new(job).wait
       end
 
+      def at_limit?(job)
+        Proxy.new(job).at_limit?
+      end
+
       def signal(job)
         Proxy.new(job).signal
       end
@@ -37,6 +41,14 @@ module SolidQueue
 
       def initialize(job)
         @job = job
+      end
+
+      def at_limit?
+        if semaphore = Semaphore.find_by(key: key)
+          semaphore.value.zero?
+        else
+          false
+        end
       end
 
       def wait

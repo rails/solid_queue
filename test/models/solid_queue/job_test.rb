@@ -10,6 +10,14 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  class DiscardedNonOverlappingJob < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, on_duplicate: :discard
+  end
+
+  class DiscardedOverlappingJob < NonOverlappingJob
+    limits_concurrency to: 2, key: ->(job_result, **) { job_result }, on_duplicate: :discard
+  end
+
   class NonOverlappingGroupedJob1 < NonOverlappingJob
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
@@ -96,6 +104,40 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     job = SolidQueue::Job.last
     assert_equal active_job.concurrency_limit, job.concurrency_limit
     assert_equal active_job.concurrency_key, job.concurrency_key
+  end
+
+  test "enqueue jobs with discarding concurrency controls" do
+    assert_ready do
+      active_job = DiscardedNonOverlappingJob.perform_later(@result, name: "A")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "SolidQueue::JobTest::DiscardedNonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+
+    assert_discarded do
+      active_job = DiscardedNonOverlappingJob.perform_later(@result, name: "A")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "SolidQueue::JobTest::DiscardedNonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+  end
+
+  test "enqueue jobs with discarding concurrency controls when below limit" do
+    assert_ready do
+      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
+      assert_equal 2, active_job.concurrency_limit
+      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+
+    assert_ready do
+      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
+      assert_equal 2, active_job.concurrency_limit
+      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+
+    assert_discarded do
+      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
+      assert_equal 2, active_job.concurrency_limit
+      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+    end
   end
 
   test "enqueue jobs with concurrency controls in the same concurrency group" do
@@ -289,8 +331,12 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       assert SolidQueue::Job.last.blocked?
     end
 
-    def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, &block)
-      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked) do
+    def assert_discarded(&block)
+      assert_job_counts(discarded: 1, &block)
+    end
+
+    def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, discarded: 0, &block)
+      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked + discarded) do
         assert_difference -> { SolidQueue::ReadyExecution.count }, +ready do
           assert_difference -> { SolidQueue::ScheduledExecution.count }, +scheduled do
             assert_difference -> { SolidQueue::BlockedExecution.count }, +blocked, &block
