@@ -11,11 +11,11 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   class DiscardedNonOverlappingJob < NonOverlappingJob
-    limits_concurrency key: ->(job_result, **) { job_result }, on_duplicate: :discard
+    limits_concurrency key: ->(job_result, **) { job_result }, at_limit: :discard
   end
 
   class DiscardedOverlappingJob < NonOverlappingJob
-    limits_concurrency to: 2, key: ->(job_result, **) { job_result }, on_duplicate: :discard
+    limits_concurrency to: 2, key: ->(job_result, **) { job_result }, at_limit: :discard
   end
 
   class NonOverlappingGroupedJob1 < NonOverlappingJob
