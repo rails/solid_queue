@@ -5,7 +5,7 @@ module SolidQueue
     include Processes::Runnable
     include LifecycleHooks
 
-    attr_accessor :recurring_schedule
+    attr_reader :recurring_schedule
 
     after_boot :run_start_hooks
     after_boot :schedule_recurring_tasks
