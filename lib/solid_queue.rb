@@ -45,15 +45,15 @@ module SolidQueue
 
   [ Dispatcher, Scheduler, Worker ].each do |process|
     define_singleton_method(:"on_#{process.name.demodulize.downcase}_start") do |&block|
-      process.on_start { block.call }
+      process.on_start(&block)
     end
 
     define_singleton_method(:"on_#{process.name.demodulize.downcase}_stop") do |&block|
-      process.on_stop { block.call }
+      process.on_stop(&block)
     end
 
     define_singleton_method(:"on_#{process.name.demodulize.downcase}_exit") do |&block|
-      process.on_exit { block.call }
+      process.on_exit(&block)
     end
   end
 

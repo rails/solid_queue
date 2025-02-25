@@ -8,12 +8,14 @@ module SolidQueue
     before_shutdown :run_stop_hooks
     after_shutdown :run_exit_hooks
 
-    attr_accessor :queues, :pool
+    attr_reader :queues, :pool
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
-      @queues = Array(options[:queues])
+      # Ensure that the queues array is deep frozen to prevent accidental modification
+      @queues = Array(options[:queues]).map(&:freeze).freeze
+
       @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
 
       super(**options)
