@@ -40,7 +40,6 @@ module SolidQueue
 
         def acquire_concurrency_lock
           return true unless concurrency_limited?
-          return false if Semaphore.at_limit?(self) && discard_concurrent?
 
           Semaphore.wait(self)
         end
