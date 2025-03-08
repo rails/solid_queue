@@ -122,12 +122,15 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
   test "enqueuing multiple jobs with enqueue_all and concurrency controls" do
     jobs = [
-      DiscardedNonOverlappingJob.new(@result, name: "A"),
-      DiscardedNonOverlappingJob.new(@result, name: "A")
+      job_1 = DiscardedNonOverlappingJob.new(@result, name: "A"),
+      job_2 = DiscardedNonOverlappingJob.new(@result, name: "B")
     ]
 
     enqueued_jobs_count = SolidQueue::Job.enqueue_all(jobs)
     assert_equal enqueued_jobs_count, 1
+
+    assert job_1.successfully_enqueued?
+    assert_not job_2.successfully_enqueued?
   end
 
   test "enqueue jobs with discarding concurrency controls when below limit" do
