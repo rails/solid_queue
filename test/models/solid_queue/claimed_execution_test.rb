@@ -73,6 +73,14 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.failed?
   end
 
+  test "provider_job_id is available within job execution" do
+    job = ProviderJobIdJob.perform_later
+    claimed_execution = prepare_and_claim_job job
+    claimed_execution.perform
+
+    assert_equal "provider_job_id: #{job.provider_job_id}", JobBuffer.last_value
+  end
+
   private
     def prepare_and_claim_job(active_job, process: @process)
       job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)

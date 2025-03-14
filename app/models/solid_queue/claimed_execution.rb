@@ -92,7 +92,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   private
     def execute
-      ActiveJob::Base.execute(job.arguments)
+      ActiveJob::Base.execute(job.arguments.merge("provider_job_id" => job.id))
       Result.new(true, nil)
     rescue Exception => e
       Result.new(false, e)
