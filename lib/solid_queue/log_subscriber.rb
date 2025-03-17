@@ -144,6 +144,14 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     error formatted_event(event, action: "Received unhandled signal", **event.payload.slice(:signal))
   end
 
+  def supervisor_restart(event)
+    info formatted_event(event, action: "Supervisor terminated unexpectedly: attempting restart in #{event.payload[:delay]}s", **event.payload.slice(:attempt))
+  end
+
+  def supervisor_restart_failure(event)
+    error formatted_event(event, action: "Supervisor restart attempts failed - exiting", error: formatted_error(event.payload[:error]))
+  end
+
   def replace_fork(event)
     supervisor_pid = event.payload[:supervisor_pid]
     status = event.payload[:status]

@@ -36,6 +36,7 @@ module SolidQueue
 
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
+  mattr_accessor :max_restart_attempts, default: 0
 
   mattr_accessor :preserve_finished_jobs, default: true
   mattr_accessor :clear_finished_jobs_after, default: 1.day
