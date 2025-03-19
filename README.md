@@ -25,12 +25,12 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 - [Concurrency controls](#concurrency-controls)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
+- [Monitoring](#monitoring)
 - [Puma plugin](#puma-plugin)
 - [Jobs and transactional integrity](#jobs-and-transactional-integrity)
 - [Recurring tasks](#recurring-tasks)
 - [Inspiration](#inspiration)
 - [License](#license)
-
 
 ## Installation
 
@@ -114,6 +114,7 @@ plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"] || Rails.env.development?
 ```
 
 You can also just use `bin/jobs`, but in this case you might want to [set a different logger for Solid Queue](#other-configuration-settings) because the default logger will log to `log/development.log` and you won't see anything when you run `bin/jobs`. For example:
+
 ```ruby
 config.solid_queue.logger = ActiveSupport::Logger.new(STDOUT)
 ```
@@ -204,7 +205,7 @@ production:
     - queues: "*"
       threads: 3
       polling_interval: 2
-    - queues: [ real_time, background ]
+    - queues: [real_time, background]
       threads: 5
       polling_interval: 0.1
       processes: 3
@@ -492,6 +493,8 @@ failed_execution.discard # This will delete the job from the system
 
 However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
+For applications that need a lightweight solution, especially Rails API-only applications, [solid_queue_monitor](https://github.com/vishaltps/solid_queue_monitor) is an excellent alternative. It provides a zero-dependency web interface for monitoring Solid Queue background jobs with all the essential features for managing jobs, including examining and retrying/discarding failed jobs. Its minimal footprint makes it perfect for API-only Rails applications where you want to avoid adding additional dependencies.
+
 ### Error reporting on jobs
 
 Some error tracking services that integrate with Rails, such as Sentry or Rollbar, hook into [Active Job](https://guides.rubyonrails.org/active_job_basics.html#exceptions) and automatically report not handled errors that happen during job execution. However, if your error tracking system doesn't, or if you need some custom reporting, you can hook into Active Job yourself. A possible way of doing this would be:
@@ -519,22 +522,55 @@ class ApplicationMailer < ActionMailer::Base
 end
 ```
 
+## Monitoring
+
+Solid Queue provides various ways to monitor your background jobs. You can use these tools to view job statistics, track job status, manage failed jobs, and more.
+
+### Solid Queue Monitor
+
+For applications that need a lightweight solution, especially Rails API-only applications, [solid_queue_monitor](https://github.com/vishaltps/solid_queue_monitor) is an excellent option. Key features include:
+
+- Zero dependencies - works out of the box for Rails API applications
+- Dashboard overview of job queues
+- Job filtering by class, queue name, and status
+- Failed job inspection and management
+- Recurring job monitoring
+- Responsive design that works on mobile devices
+
+Its minimal footprint makes it perfect for API-only Rails applications or projects where you want to avoid additional dependencies.
+
+### Mission Control Jobs
+
+[mission_control-jobs](https://github.com/rails/mission_control-jobs) is the officially supported dashboard for Solid Queue. It provides a comprehensive interface for monitoring and managing your background jobs with features like:
+
+- Statistics and analytics for job processing
+- Job filtering and searching
+- Detailed error information for failed jobs
+- Ability to retry and discard failed jobs
+- Support for recurring jobs management
+
+As a full-featured Rails engine, it comes with more dependencies but offers a rich user experience.
+
 ## Puma plugin
 
 We provide a Puma plugin if you want to run the Solid Queue's supervisor together with Puma and have Puma monitor and manage it. You just need to add
+
 ```ruby
 plugin :solid_queue
 ```
+
 to your `puma.rb` configuration.
 
 If you're using Puma in development but you don't want to use Solid Queue in development, make sure you avoid the plugin being used, for example using an environment variable like this:
+
 ```ruby
 plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 ```
+
 that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Puma would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
 
-
 ## Jobs and transactional integrity
+
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and vice versa, and ensuring that your job won't be enqueued until the transaction within which you're enqueuing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you. Because this can be quite tricky and many people shouldn't need to worry about it, by default Solid Queue is configured in a different database as the main app.
 
 Starting from Rails 8, an option which doesn't rely on this transactional integrity and which Active Job provides is to defer the enqueueing of a job inside an Active Record transaction until that transaction successfully commits. This option can be set via the [`enqueue_after_transaction_commit`](https://edgeapi.rubyonrails.org/classes/ActiveJob/Enqueuing.html#method-c-enqueue_after_transaction_commit) class method on the job level and is by default disabled. Either it can be enabled for individual jobs or for all jobs through `ApplicationJob`:
