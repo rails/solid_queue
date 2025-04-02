@@ -10,6 +10,13 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  class NonOverlappingDefaultJob < ApplicationJob
+    limits_concurrency
+
+    def perform(job_result)
+    end
+  end
+
   class NonOverlappingGroupedJob1 < NonOverlappingJob
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
@@ -92,6 +99,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     active_job = NonOverlappingJob.perform_later(@result, name: "A")
     assert_equal 1, active_job.concurrency_limit
     assert_equal "SolidQueue::JobTest::NonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+
+    job = SolidQueue::Job.last
+    assert_equal active_job.concurrency_limit, job.concurrency_limit
+    assert_equal active_job.concurrency_key, job.concurrency_key
+  end
+
+  test "enqueue jobs with concurrency controls default options" do
+    active_job = NonOverlappingDefaultJob.perform_later(@result, name: "A")
+    assert_equal 1, active_job.concurrency_limit
+    assert_equal "SolidQueue::JobTest::NonOverlappingDefaultJob", active_job.concurrency_key
 
     job = SolidQueue::Job.last
     assert_equal active_job.concurrency_limit, job.concurrency_limit

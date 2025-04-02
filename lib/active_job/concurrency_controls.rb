@@ -5,6 +5,7 @@ module ActiveJob
     extend ActiveSupport::Concern
 
     DEFAULT_CONCURRENCY_GROUP = ->(*) { self.class.name }
+    DEFAULT_CONCURRENCY_KEY = ->(*) { nil }
 
     included do
       class_attribute :concurrency_key, instance_accessor: false
@@ -15,7 +16,7 @@ module ActiveJob
     end
 
     class_methods do
-      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period)
+      def limits_concurrency(key: DEFAULT_CONCURRENCY_KEY, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period)
         self.concurrency_key = key
         self.concurrency_limit = to
         self.concurrency_group = group
