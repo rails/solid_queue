@@ -39,7 +39,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     def fail_all_with(error)
       SolidQueue.instrument(:fail_many_claimed) do |payload|
         includes(:job).tap do |executions|
-          executions.each { |execution| execution.failed_with(error) }
+          executions.each do |execution|
+            execution.failed_with(error)
+            execution.unblock_next_job
+          end
 
           payload[:process_ids] = executions.map(&:process_id).uniq
           payload[:job_ids] = executions.map(&:job_id).uniq
@@ -67,7 +70,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       raise result.error
     end
   ensure
-    job.unblock_next_blocked_job
+    unblock_next_job
   end
 
   def release
@@ -88,6 +91,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       job.failed_with(error)
       destroy!
     end
+  end
+
+  def unblock_next_job
+    job.unblock_next_blocked_job
   end
 
   private

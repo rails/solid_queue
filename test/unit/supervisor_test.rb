@@ -133,6 +133,36 @@ class SupervisorTest < ActiveSupport::TestCase
     end
   end
 
+  test "fail orphaned executions by releasing their concurrency locks" do
+    result = JobResult.create!(queue_name: "default", status: "seq: ")
+    4.times { |i| ThrottledUpdateResultJob.set(queue: :new_queue).perform_later(result) }
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
+
+    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+
+    assert_equal 3, SolidQueue::ClaimedExecution.count
+    assert_equal 0, SolidQueue::ReadyExecution.count
+    assert_equal 1, SolidQueue::BlockedExecution.count
+
+    assert_equal [ process.id ], SolidQueue::ClaimedExecution.last(3).pluck(:process_id).uniq
+
+    # Simnulate orphaned executions by just wiping the claiming process
+    process.delete
+
+    pid = run_supervisor_as_fork(workers: [ { queues: "background", polling_interval: 10, processes: 2 } ])
+    wait_for_registered_processes(3)
+    assert_registered_supervisor(pid)
+
+    terminate_process(pid)
+
+    skip_active_record_query_cache do
+      assert_equal 0, SolidQueue::ClaimedExecution.count
+      assert_equal 3, SolidQueue::FailedExecution.count
+      assert_equal 0, SolidQueue::BlockedExecution.count
+      assert_equal 1, SolidQueue::ReadyExecution.count
+    end
+  end
+
   test "prune processes with expired heartbeats" do
     pruned = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-42")
 
