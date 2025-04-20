@@ -2,36 +2,36 @@
 
 module SolidQueue::Processes
   module Interruptible
-    include SolidQueue::AppExecutor
-
     def wake_up
       interrupt
     end
 
     private
+      SELF_PIPE_BLOCK_SIZE = 11
 
       def interrupt
-        queue << true
+        self_pipe[:writer].write_nonblock(".")
+      rescue Errno::EAGAIN, Errno::EINTR
+        # Ignore writes that would block and retry
+        # if another signal arrived while writing
+        retry
       end
 
-      # Sleeps for 'time'.  Can be interrupted asynchronously and return early via wake_up.
-      # @param time [Numeric, Duration] the time to sleep. 0 returns immediately.
       def interruptible_sleep(time)
-        # Invoking this from the main thread may result in significant slowdown.
-        # Utilizing asynchronous execution (Futures) addresses this performance issue.
-        Concurrent::Promises.future(time) do |timeout|
-          queue.clear unless queue.pop(timeout:).nil?
-        end.on_rejection! do |e|
-          wrapped_exception = RuntimeError.new("Interruptible#interruptible_sleep - #{e.class}: #{e.message}")
-          wrapped_exception.set_backtrace(e.backtrace)
-          handle_thread_error(wrapped_exception)
-        end.value
-
-        nil
+        if time > 0 && self_pipe[:reader].wait_readable(time)
+          loop { self_pipe[:reader].read_nonblock(SELF_PIPE_BLOCK_SIZE) }
+        end
+      rescue Errno::EAGAIN, Errno::EINTR
       end
 
-      def queue
-        @queue ||= Queue.new
+      # Self-pipe for signal-handling (http://cr.yp.to/docs/selfpipe.html)
+      def self_pipe
+        @self_pipe ||= create_self_pipe
+      end
+
+      def create_self_pipe
+        reader, writer = IO.pipe
+        { reader: reader, writer: writer }
       end
   end
 end
