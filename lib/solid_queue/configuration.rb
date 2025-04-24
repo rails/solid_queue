@@ -103,7 +103,7 @@ module SolidQueue
       end
 
       def invalid_tasks
-        recurring_tasks.select(&:invalid?)
+        static_recurring_tasks.select(&:invalid?)
       end
 
       def only_work?
@@ -137,8 +137,8 @@ module SolidQueue
       end
 
       def schedulers
-        if !skip_recurring_tasks? && recurring_tasks.any?
-          [ Process.new(:scheduler, recurring_tasks: recurring_tasks) ]
+        if !skip_recurring_tasks?
+          [ Process.new(:scheduler, recurring_tasks: static_recurring_tasks) ]
         else
           []
         end
@@ -154,8 +154,8 @@ module SolidQueue
           .map { |options| options.dup.symbolize_keys }
       end
 
-      def recurring_tasks
-        @recurring_tasks ||= recurring_tasks_config.map do |id, options|
+      def static_recurring_tasks
+        @static_recurring_tasks ||= recurring_tasks_config.map do |id, options|
           RecurringTask.from_configuration(id, **options) if options&.has_key?(:schedule)
         end.compact
       end

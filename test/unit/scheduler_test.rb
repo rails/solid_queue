@@ -3,7 +3,7 @@ require "test_helper"
 class SchedulerTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
-  test "recurring schedule" do
+  test "recurring schedule (only static)" do
     recurring_tasks = { example_task: { class: "AddToBufferJob", schedule: "every hour", args: 42 } }
     scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_tasks).tap(&:start)
 
@@ -13,6 +13,41 @@ class SchedulerTest < ActiveSupport::TestCase
     assert_equal "Scheduler", process.kind
 
     assert_metadata process, recurring_schedule: [ "example_task" ]
+  ensure
+    scheduler.stop
+  end
+
+  test "recurring schedule (only dynamic)" do
+    SolidQueue::RecurringTask.create(
+      key: "dynamic_task", static: false, class_name: "AddToBufferJob", schedule: "every second", arguments: [ 42 ]
+    )
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks:  {}).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Scheduler", process.kind
+
+    assert_metadata process, recurring_schedule: [ "dynamic_task" ]
+  ensure
+    scheduler.stop
+  end
+
+  test "recurring schedule (static + dynamic)" do
+    SolidQueue::RecurringTask.create(
+      key: "dynamic_task", static: false, class_name: "AddToBufferJob", schedule: "every second", arguments: [ 42 ]
+    )
+
+    recurring_tasks = { static_task: { class: "AddToBufferJob", schedule: "every hour", args: 42 } }
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_tasks).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Scheduler", process.kind
+
+    assert_metadata process, recurring_schedule: [ "static_task", "dynamic_task" ]
   ensure
     scheduler.stop
   end
@@ -36,5 +71,68 @@ class SchedulerTest < ActiveSupport::TestCase
         assert_in_delta 1, time_diff, 0.001, "Expected run_at times to be 1 second apart, got #{time_diff}. All run_at times: #{run_at_times.inspect}"
       end
     end
+  end
+
+  test "updates metadata after adding dynamic task post-start" do
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}).tap do |s|
+      s.define_singleton_method(:interruptible_sleep) { |interval| sleep 0.1 }
+      s.start
+    end
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    # initially there are no recurring_schedule keys
+    assert process.metadata, {}
+
+    # now create a dynamic task after the scheduler has booted
+    SolidQueue::RecurringTask.create(
+      key:       "new_dynamic_task",
+      static:    false,
+      class_name: "AddToBufferJob",
+      schedule:  "every second",
+      arguments: [ 42 ]
+    )
+
+    sleep 1
+
+    process.reload
+
+    # metadata should now include the new key
+    assert_metadata process, recurring_schedule: [ "new_dynamic_task" ]
+  ensure
+    scheduler&.stop
+  end
+
+  test "updates metadata after removing dynamic task post-start" do
+    old_dynamic_task = SolidQueue::RecurringTask.create(
+      key:       "old_dynamic_task",
+      static:    false,
+      class_name: "AddToBufferJob",
+      schedule:  "every second",
+      arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}).tap do |s|
+      s.define_singleton_method(:interruptible_sleep) { |interval| sleep 0.1 }
+      s.start
+    end
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    # initially there is one recurring_schedule key
+    assert_metadata process, recurring_schedule: [ "old_dynamic_task" ]
+
+    old_dynamic_task.destroy
+
+    sleep 1
+
+    process.reload
+
+    # The task is unschedule after it's being removed, and it's reflected in the metadata
+    assert process.metadata, {}
+  ensure
+    scheduler&.stop
   end
 end
