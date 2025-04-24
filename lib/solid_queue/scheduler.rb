@@ -30,6 +30,12 @@ module SolidQueue
         loop do
           break if shutting_down?
 
+          recurring_schedule.update_scheduled_tasks.tap do |updated_tasks|
+            if updated_tasks.any?
+              process.update_columns(metadata: metadata.compact)
+            end
+          end
+
           interruptible_sleep(SLEEP_INTERVAL)
         end
       ensure
