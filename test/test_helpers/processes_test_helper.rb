@@ -62,14 +62,19 @@ module ProcessesTestHelper
 
   def terminate_process(pid, timeout: 10, signal: :TERM)
     signal_process(pid, signal)
-    wait_for_process_termination_with_timeout(pid, timeout: timeout)
+    wait_for_process_termination_with_timeout(pid, timeout: timeout, signaled: signal)
   end
 
-  def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0)
+  def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0, signaled: nil)
     Timeout.timeout(timeout) do
       if process_exists?(pid)
-        Process.waitpid(pid)
-        assert exitstatus, $?.exitstatus
+        begin
+          status = Process.waitpid2(pid).last
+          assert_equal exitstatus, status.exitstatus, "Expected pid #{pid} to exit with status #{exitstatus}" if status.exitstatus
+          assert_equal signaled, Signal.list.key(status.termsig).to_sym, "Expected pid #{pid} to be terminated with signal #{signaled}" if status.termsig
+        rescue Errno::ECHILD
+          # Child pid already reaped
+        end
       end
     end
   rescue Timeout::Error
