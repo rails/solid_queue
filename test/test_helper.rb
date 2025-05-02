@@ -98,4 +98,16 @@ class ActiveSupport::TestCase
         end
       end
     end
+
+    # Waits until the given block returns truthy or the timeout is reached.
+    # Similar to other helper methods in this file but waits *for* a condition
+    # instead of *while* it is true.
+    def wait_for(timeout: 1.second, interval: 0.05)
+      Timeout.timeout(timeout) do
+        loop do
+          break if skip_active_record_query_cache { yield }
+          sleep interval
+        end
+      end
+    end
 end

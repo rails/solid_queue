@@ -172,8 +172,11 @@ module SolidQueue
         end
       end
 
+      # When a supervised fork crashes or exits we need to mark all the
+      # executions it had claimed as failed so that they can be retried
+      # by some other worker.
       def handle_claimed_jobs_by(terminated_fork, status)
-        if registered_process = process.supervisees.find_by(name: terminated_fork.name)
+        if registered_process = SolidQueue::Process.find_by(name: terminated_fork.name)
           error = Processes::ProcessExitError.new(status)
           registered_process.fail_all_claimed_executions_with(error)
         end
