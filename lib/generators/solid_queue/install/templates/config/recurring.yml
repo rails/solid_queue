@@ -10,6 +10,6 @@
 #     schedule: at 5am every day
 production:
   automatically_cleanup_finished_jobs:
-    class: "SolidQueue::Job.clear_finished_in_batches"
+    command: "SolidQueue::Job.clear_finished_in_batches"
     queue: default
     schedule: at 1am every day
