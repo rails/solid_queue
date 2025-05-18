@@ -8,3 +8,10 @@
 #     command: "SoftDeletedRecord.due.delete_all"
 #     priority: 2
 #     schedule: at 5am every day
+#
+#   Right now, there's no automatic cleanup of finished jobs.
+#   This reccuring job will clean up jobs older than the
+#   `clear_finished_jobs_after` period which defaults to 1 day.
+#   finished_job_cleanup:
+#     command: "SolidQueue::Job.clear_finished_in_batches"
+#     schedule: at 2am every day
