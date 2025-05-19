@@ -2,6 +2,13 @@
 
 module SolidQueue::Processes
   module Interruptible
+    attr_reader :self_pipe
+
+    def initialize(...)
+      super
+      @self_pipe = create_self_pipe
+    end
+
     def wake_up
       interrupt
     end
@@ -25,10 +32,6 @@ module SolidQueue::Processes
       end
 
       # Self-pipe for signal-handling (http://cr.yp.to/docs/selfpipe.html)
-      def self_pipe
-        @self_pipe ||= create_self_pipe
-      end
-
       def create_self_pipe
         reader, writer = IO.pipe
         { reader: reader, writer: writer }
