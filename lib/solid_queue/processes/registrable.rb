@@ -7,8 +7,7 @@ module SolidQueue::Processes
     included do
       after_boot :register, :launch_heartbeat
 
-      before_shutdown :stop_heartbeat
-      after_shutdown :deregister
+      after_shutdown :stop_heartbeat, :deregister
     end
 
     def process_id
