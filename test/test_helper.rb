@@ -33,6 +33,7 @@ class ActiveSupport::TestCase
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for(ExpectedTestError, @_on_thread_error)
+    ActiveJob::QueueAdapters::SolidQueueAdapter.stopping = false
   end
 
   teardown do

@@ -24,18 +24,17 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version:
-        - 3.1.6
-        - 3.2.0
-        - 3.2.4
-        - 3.3.0
-        - 3.3.1
-        - 3.3.2
-        - 3.3.4
-        - 3.3.5
-        - 3.3.6
-        - 3.4.0
-        - 3.4.1
+        - 3.1
+        - 3.2
+        - 3.3
+        - 3.4
         database: [ mysql, postgres, sqlite ]
+        gemfile: [ rails_7_1, rails_7_2, rails_8_0, rails_main ]
+        exclude:
+          - ruby-version: "3.1"
+            gemfile: rails_8_0
+          - ruby-version: "3.1"
+            gemfile: rails_main
     services:
       mysql:
         image: mysql:8.0.31
@@ -52,6 +51,7 @@ jobs:
           - 55432:5432
     env:
       TARGET_DB: ${{ matrix.database }}
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/${{ matrix.gemfile }}.gemfile
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -60,6 +60,9 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
+      - name: Update to latest Rails
+        run: |
+          bundle update railties
       - name: Setup test database
         run: |
           bin/rails db:setup

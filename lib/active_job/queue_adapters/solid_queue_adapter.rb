@@ -7,7 +7,10 @@ module ActiveJob
     # To use it set the queue_adapter config to +:solid_queue+.
     #
     #   Rails.application.config.active_job.queue_adapter = :solid_queue
-    class SolidQueueAdapter
+    class SolidQueueAdapter < (Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 1 ? Object : AbstractAdapter)
+      class_attribute :stopping, default: false, instance_writer: false
+      SolidQueue.on_worker_stop { self.stopping = true }
+
       def enqueue_after_transaction_commit?
         true
       end
