@@ -180,6 +180,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "verify transactions remain valid after Job creation conflicts via limits_concurrency" do
+    # Doesn't work with enqueue_after_transaction_commit? true on SolidQueueAdapter, but only Rails 7.2 uses this
+    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 2
+
     ActiveRecord::Base.transaction do
       SequentialUpdateResultJob.perform_later(@result, name: "A", pause: 0.2.seconds)
       SequentialUpdateResultJob.perform_later(@result, name: "B")
