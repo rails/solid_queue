@@ -192,6 +192,8 @@ By default, Solid Queue will try to find your configuration under `config/queue.
 bin/jobs -c config/calendar.yml
 ```
 
+You can also skip all recurring tasks by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true`. This is useful for environments like staging, review apps, or development where you don't want any recurring jobs to run. This is equivalent to using the `--skip-recurring` option with `bin/jobs`.
+
 This is what this configuration looks like:
 
 ```yml
@@ -570,6 +572,8 @@ Solid Queue supports defining recurring tasks that run at specific times in the 
 ```
 bin/jobs --recurring_schedule_file=config/schedule.yml
 ```
+
+You can completely disable recurring tasks by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true` or by using the `--skip-recurring` option with `bin/jobs`.
 
 The configuration itself looks like this:
 
