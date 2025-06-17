@@ -23,6 +23,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 - [Lifecycle hooks](#lifecycle-hooks)
 - [Errors when enqueuing](#errors-when-enqueuing)
 - [Concurrency controls](#concurrency-controls)
+  - [Performance considerations](#performance-considerations)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
 - [Puma plugin](#puma-plugin)
@@ -478,6 +479,29 @@ Note that the `duration` setting depends indirectly on the value for `concurrenc
 Jobs are unblocked in order of priority but queue order is not taken into account for unblocking jobs. That means that if you have a group of jobs that share a concurrency group but are in different queues, or jobs of the same class that you enqueue in different queues, the queue order you set for a worker is not taken into account when unblocking blocked ones. The reason is that a job that runs unblocks the next one, and the job itself doesn't know about a particular worker's queue order (you could even have different workers with different queue orders), it can only know about priority. Once blocked jobs are unblocked and available for polling, they'll be picked up by a worker following its queue order.
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for getting an open semaphore, and whenever they get it, they'll be run. It doesn't matter if they had already gotten an open semaphore in the past.
+
+### Performance considerations
+
+Concurrency controls introduce significant overhead (blocked executions need to be created and promoted to ready, semaphores need to be created and updated) so you should consider carefully whether you need them. For throttling purposes, where you plan to have `limit` significantly larger than 1, I'd encourage relying on a limited number of workers per queue instead. For example:
+
+```ruby
+class ThrottledJob < ApplicationJob
+  queue_as :throttled
+```
+
+```yml
+production:
+  workers:
+    - queues: throttled
+      threads: 1
+      polling_interval: 1
+    - queues: default
+      threads: 5
+      polling_interval: 0.1
+      processes: 3
+```
+
+Or something similar to that depending on your setup. You can also assign a different queue to a job on the moment of enqueuing so you can decide whether to enqueue a job in the throttled queue or another queue depending on the arguments, or pass a block to `queue_as` as explained [here](https://guides.rubyonrails.org/active_job_basics.html#queues).
 
 ## Failed jobs and retries
 
