@@ -643,6 +643,32 @@ Rails.application.config.after_initialize do # or to_prepare
 end
 ```
 
+It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
+
+**Note**: a single recurring schedule is supported, so you can have multiple schedulers using the same schedule, but not multiple schedulers using different configurations.
+
+Finally, it's possible to configure jobs that aren't handled by Solid Queue. That is, you can have a job like this in your app:
+```ruby
+class MyResqueJob < ApplicationJob
+  self.queue_adapter = :resque
+
+  def perform(arg)
+    # ..
+  end
+end
+```
+
+You can still configure this in Solid Queue:
+```yml
+my_periodic_resque_job:
+  class: MyResqueJob
+  args: 22
+  schedule: "*/5 * * * *"
+```
+
+and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
+
+
 ### Creating and Deleting Recurring Tasks Dynamically
 
 You can create and delete recurring tasks at runtime, without editing the configuration file. Use the following methods:
@@ -682,31 +708,6 @@ recurring_task = SolidQueue.schedule_recurring_task(
 # Delete the task later by ID
 SolidQueue.delete_recurring_task(recurring_task.id)
 ```
-
-It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
-
-**Note**: a single recurring schedule is supported, so you can have multiple schedulers using the same schedule, but not multiple schedulers using different configurations.
-
-Finally, it's possible to configure jobs that aren't handled by Solid Queue. That is, you can have a job like this in your app:
-```ruby
-class MyResqueJob < ApplicationJob
-  self.queue_adapter = :resque
-
-  def perform(arg)
-    # ..
-  end
-end
-```
-
-You can still configure this in Solid Queue:
-```yml
-my_periodic_resque_job:
-  class: MyResqueJob
-  args: 22
-  schedule: "*/5 * * * *"
-```
-
-and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
 
 ## Inspiration
 
