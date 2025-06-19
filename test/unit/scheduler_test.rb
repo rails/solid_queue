@@ -74,10 +74,7 @@ class SchedulerTest < ActiveSupport::TestCase
   end
 
   test "updates metadata after adding dynamic task post-start" do
-    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}).tap do |s|
-      s.define_singleton_method(:interruptible_sleep) { |interval| sleep 0.1 }
-      s.start
-    end
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
 
     wait_for_registered_processes(1, timeout: 1.second)
 
@@ -113,10 +110,7 @@ class SchedulerTest < ActiveSupport::TestCase
       arguments: [ 42 ]
     )
 
-    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}).tap do |s|
-      s.define_singleton_method(:interruptible_sleep) { |interval| sleep 0.1 }
-      s.start
-    end
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
 
     wait_for_registered_processes(1, timeout: 1.second)
 
