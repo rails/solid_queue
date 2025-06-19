@@ -4,12 +4,13 @@ module SolidQueue
   class Scheduler::RecurringSchedule
     include AppExecutor
 
-    attr_reader :static_tasks, :configured_tasks, :scheduled_tasks
+    attr_reader :static_tasks, :configured_tasks, :scheduled_tasks, :changes
 
     def initialize(tasks)
       @static_tasks = Array(tasks).map { |task| SolidQueue::RecurringTask.wrap(task) }.select(&:valid?)
       @configured_tasks = @static_tasks + dynamic_tasks
       @scheduled_tasks = Concurrent::Hash.new
+      @changes = Concurrent::Hash.new
     end
 
     def empty?
@@ -44,10 +45,6 @@ module SolidQueue
       end
     end
 
-    def update_scheduled_tasks
-      schedule_new_dynamic_tasks + unschedule_old_dynamic_tasks
-    end
-
     def schedule_task(task)
       scheduled_tasks[task.key] = schedule(task)
     end
@@ -63,6 +60,21 @@ module SolidQueue
 
     def task_keys
       static_task_keys + dynamic_tasks.map(&:key)
+    end
+
+    def reload!
+      { added_tasks: schedule_new_dynamic_tasks,
+        removed_tasks: unschedule_old_dynamic_tasks }.each do |key, values|
+        if values.any?
+          changes[key] = values
+        else
+          changes.delete(key)
+        end
+      end
+    end
+
+    def changed?
+      @changes.any?
     end
 
     private
