@@ -140,6 +140,12 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     info formatted_event(event, action: "Supervisor terminated immediately", **event.payload.slice(:process_id, :supervisor_pid, :supervised_processes))
   end
 
+  def supervisor_initialisation(event)
+    if event.payload.slice(:exception).any?
+      error formatted_event(event, action: "Supervisor failed to initialise", **event.payload.slice(:exception))
+    end
+  end
+
   def unhandled_signal_error(event)
     error formatted_event(event, action: "Received unhandled signal", **event.payload.slice(:signal))
   end
