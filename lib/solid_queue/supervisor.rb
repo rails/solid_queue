@@ -12,10 +12,12 @@ module SolidQueue
         SolidQueue.supervisor = true
         configuration = Configuration.new(**options)
 
-        if configuration.valid?
-          new(configuration).tap(&:start)
-        else
-          abort configuration.errors.full_messages.join("\n") + "\nExiting..."
+        SolidQueue.instrument(:supervisor_initialisation, process: self) do
+          if configuration.valid?
+            new(configuration).tap(&:start)
+          else
+            abort configuration.errors.full_messages.join("\n") + "\nExiting..."
+          end
         end
       end
     end
