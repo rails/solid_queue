@@ -88,7 +88,7 @@ module SolidQueue
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),
           only_work: false,
           only_dispatch: false,
-          skip_recurring: false
+          skip_recurring: ActiveModel::Type::Boolean.new.cast(ENV["SOLID_QUEUE_SKIP_RECURRING"])
         }
       end
 

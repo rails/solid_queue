@@ -85,6 +85,30 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1, recurring_tasks: nil
   end
 
+  test "skip recurring tasks when SOLID_QUEUE_SKIP_RECURRING environment variable is set" do
+    with_env("SOLID_QUEUE_SKIP_RECURRING" => "true") do
+      configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ])
+      assert_processes configuration, :dispatcher, 1, polling_interval: 0.1
+      assert_processes configuration, :scheduler, 0
+    end
+  end
+
+  test "include recurring tasks when SOLID_QUEUE_SKIP_RECURRING environment variable is false" do
+    with_env("SOLID_QUEUE_SKIP_RECURRING" => "false") do
+      configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ])
+      assert_processes configuration, :dispatcher, 1, polling_interval: 0.1
+      assert_processes configuration, :scheduler, 1
+    end
+  end
+
+  test "include recurring tasks when SOLID_QUEUE_SKIP_RECURRING environment variable is not set" do
+    with_env("SOLID_QUEUE_SKIP_RECURRING" => nil) do
+      configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ])
+      assert_processes configuration, :dispatcher, 1, polling_interval: 0.1
+      assert_processes configuration, :scheduler, 1
+    end
+  end
+
   test "validate configuration" do
     # Valid and invalid recurring tasks
     configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))
