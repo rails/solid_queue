@@ -26,6 +26,14 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
 
+  class DiscardedNonOverlappingGroupedJob1 < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "DiscardingGroup", on_conflict: :discard
+  end
+
+  class DiscardedNonOverlappingGroupedJob2 < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "DiscardingGroup", on_conflict: :discard
+  end
+
   setup do
     @result = JobResult.create!(queue_name: "default")
     @discarded_concurrent_error = SolidQueue::Job::EnqueueError.new(
@@ -158,17 +166,32 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   test "enqueue jobs with concurrency controls in the same concurrency group" do
+    assert_ready do
+      active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+
+    assert_blocked do
+      active_job = NonOverlappingGroupedJob2.perform_later(@result, name: "B")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+  end
+
+  test "enqueue jobs with discarding concurrency controls in the same concurrency group" do
     assert_job_counts(ready: 1) do
       assert_ready do
-        active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
+        active_job = DiscardedNonOverlappingGroupedJob1.perform_later(@result, name: "A")
+        assert active_job.successfully_enqueued?
         assert_equal 1, active_job.concurrency_limit
-        assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+        assert_equal "DiscardingGroup/JobResult/#{@result.id}", active_job.concurrency_key
       end
 
-      assert_not NonOverlappingGroupedJob2.perform_later(@result, name: "B") do |blocked_active_job|
+      assert_not DiscardedNonOverlappingGroupedJob2.perform_later(@result, name: "B") do |blocked_active_job|
         assert_not blocked_active_job.successfully_enqueued?
         assert_equal 1, blocked_active_job.concurrency_limit
-        assert_equal "MyGroup/JobResult/#{@result.id}", blocked_active_job.concurrency_key
+        assert_equal "DiscardingGroup/JobResult/#{@result.id}", blocked_active_job.concurrency_key
       end
     end
   end
