@@ -129,6 +129,30 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  test "enqueue scheduled job with discarding concurrency controls" do
+    assert_ready do
+      active_job = DiscardedNonOverlappingJob.perform_later(@result, name: "A")
+      assert active_job.successfully_enqueued?
+    end
+
+    scheduled_job_id = nil
+
+    assert_scheduled do
+      scheduled_active_job = DiscardedNonOverlappingJob.set(wait: 0.5.seconds).perform_later(@result, name: "B")
+      assert scheduled_active_job.successfully_enqueued?
+      assert_nil scheduled_active_job.enqueue_error
+
+      scheduled_job_id = scheduled_active_job.provider_job_id
+    end
+
+    scheduled_job = SolidQueue::Job.find(scheduled_job_id)
+    wait_for { scheduled_job.due? }
+
+    dispatched = SolidQueue::ScheduledExecution.dispatch_next_batch(10)
+    assert_equal 0, dispatched
+    assert_raises(ActiveRecord::RecordNotFound) { scheduled_job.reload }
+  end
+
   test "enqueues jobs in bulk with discarding concurrency controls" do
     jobs = [
       job_1 = DiscardedNonOverlappingJob.new(@result, name: "A"),
