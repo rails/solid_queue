@@ -428,7 +428,7 @@ In the case of recurring tasks, if such error is raised when enqueuing the job c
 
 ## Concurrency controls
 
-Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs can can be configured to either be discarded or blocked.
+Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Jobs can be configured to either be discarded or blocked.
 
 ```ruby
 class MyJob < ApplicationJob
