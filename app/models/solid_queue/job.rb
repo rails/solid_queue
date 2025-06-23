@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Job < Record
-    class EnqueueError < StandardError; end
+    class EnqueueError < ActiveJob::EnqueueError; end
 
     include Executable, Clearable, Recurrable
 
@@ -14,15 +14,17 @@ module SolidQueue
 
         transaction do
           jobs = create_all_from_active_jobs(active_jobs)
-          enqueued_jobs_by_active_job_id = prepare_all_for_execution(jobs).index_by(&:active_job_id)
+          prepare_all_for_execution(jobs)
+          jobs_by_active_job_id = jobs.index_by(&:active_job_id)
 
           active_jobs.each do |active_job|
-            job = enqueued_jobs_by_active_job_id[active_job.job_id]
-            active_job.provider_job_id = job&.id
-            active_job.successfully_enqueued = job.present?
-          end
+            job = jobs_by_active_job_id[active_job.job_id]
 
-          enqueued_jobs_count = enqueued_jobs_by_active_job_id.count
+            active_job.provider_job_id = job&.id
+            active_job.enqueue_error = job&.enqueue_error
+            active_job.successfully_enqueued = job.present? && job.enqueue_error.nil?
+            enqueued_jobs_count += 1 if active_job.successfully_enqueued?
+          end
         end
 
         enqueued_jobs_count

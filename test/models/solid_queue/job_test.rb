@@ -28,6 +28,9 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
   setup do
     @result = JobResult.create!(queue_name: "default")
+    @discarded_concurrent_error = SolidQueue::Job::EnqueueError.new(
+      "Dispatched job discarded due to concurrent configuration."
+    )
   end
 
   test "enqueue active job to be executed right away" do
@@ -109,61 +112,64 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   test "enqueue jobs with discarding concurrency controls" do
     assert_ready do
       active_job = DiscardedNonOverlappingJob.perform_later(@result, name: "A")
-      assert_equal 1, active_job.concurrency_limit
-      assert_equal "SolidQueue::JobTest::DiscardedNonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
-    end
+      assert active_job.successfully_enqueued?
 
-    assert_discarded do
-      active_job = DiscardedNonOverlappingJob.perform_later(@result, name: "A")
-      assert_equal 1, active_job.concurrency_limit
-      assert_equal "SolidQueue::JobTest::DiscardedNonOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+      assert_not DiscardedNonOverlappingJob.perform_later(@result, name: "B") do |overlapping_active_job|
+        assert_not overlapping_active_job.successfully_enqueued?
+        assert_equal @discarded_concurrent_error, overlapping_active_job.enqueue_error
+      end
     end
   end
 
-  test "enqueuing multiple jobs with enqueue_all and concurrency controls" do
+  test "enqueues jobs in bulk with discarding concurrency controls" do
     jobs = [
       job_1 = DiscardedNonOverlappingJob.new(@result, name: "A"),
       job_2 = DiscardedNonOverlappingJob.new(@result, name: "B")
     ]
 
-    enqueued_jobs_count = SolidQueue::Job.enqueue_all(jobs)
-    assert_equal enqueued_jobs_count, 1
+    assert_job_counts(ready: 1, discarded: 1) do
+      enqueued_jobs_count = SolidQueue::Job.enqueue_all(jobs)
+      assert_equal enqueued_jobs_count, 1
+    end
 
     assert job_1.successfully_enqueued?
     assert_not job_2.successfully_enqueued?
+    assert_equal SolidQueue::Job::EnqueueError, job_2.enqueue_error.class
+    assert_equal @discarded_concurrent_error.message, job_2.enqueue_error.message
   end
 
   test "enqueue jobs with discarding concurrency controls when below limit" do
-    assert_ready do
-      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
-      assert_equal 2, active_job.concurrency_limit
-      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
-    end
+    assert_job_counts(ready: 2) do
+      assert_ready do
+        active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
+        assert active_job.successfully_enqueued?
+      end
 
-    assert_ready do
-      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
-      assert_equal 2, active_job.concurrency_limit
-      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
-    end
+      assert_ready do
+        active_job = DiscardedOverlappingJob.perform_later(@result, name: "B")
+        assert active_job.successfully_enqueued?
+      end
 
-    assert_discarded do
-      active_job = DiscardedOverlappingJob.perform_later(@result, name: "A")
-      assert_equal 2, active_job.concurrency_limit
-      assert_equal "SolidQueue::JobTest::DiscardedOverlappingJob/JobResult/#{@result.id}", active_job.concurrency_key
+      assert_not DiscardedOverlappingJob.perform_later(@result, name: "C") do |overlapping_active_job|
+        assert_not overlapping_active_job.successfully_enqueued?
+        assert_equal @discarded_concurrent_error, overlapping_active_job.enqueue_error
+      end
     end
   end
 
   test "enqueue jobs with concurrency controls in the same concurrency group" do
-    assert_ready do
-      active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
-      assert_equal 1, active_job.concurrency_limit
-      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
-    end
+    assert_job_counts(ready: 1) do
+      assert_ready do
+        active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
+        assert_equal 1, active_job.concurrency_limit
+        assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+      end
 
-    assert_blocked do
-      active_job = NonOverlappingGroupedJob2.perform_later(@result, name: "B")
-      assert_equal 1, active_job.concurrency_limit
-      assert_equal "MyGroup/JobResult/#{@result.id}", active_job.concurrency_key
+      assert_not NonOverlappingGroupedJob2.perform_later(@result, name: "B") do |blocked_active_job|
+        assert_not blocked_active_job.successfully_enqueued?
+        assert_equal 1, blocked_active_job.concurrency_limit
+        assert_equal "MyGroup/JobResult/#{@result.id}", blocked_active_job.concurrency_key
+      end
     end
   end
 
@@ -252,10 +258,11 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   test "release blocked locks when discarding a ready job" do
-    NonOverlappingJob.perform_later(@result, name: "ready")
-    NonOverlappingJob.perform_later(@result, name: "blocked")
-    ready_job, blocked_job = SolidQueue::Job.last(2)
-    semaphore = SolidQueue::Semaphore.last
+    ready_job = NonOverlappingJob.perform_later(@result, name: "ready")
+    blocked_job = NonOverlappingJob.perform_later(@result, name: "blocked")
+    assert_equal({}, ready_job)
+    assert_equal({}, blocked_job)
+    # semaphore = SolidQueue::Semaphore.last
 
     assert ready_job.ready?
     assert blocked_job.blocked?

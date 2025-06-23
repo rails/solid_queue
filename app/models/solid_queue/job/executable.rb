@@ -13,6 +13,8 @@ module SolidQueue
 
         after_create :prepare_for_execution
 
+        attr_accessor :enqueue_error
+
         scope :finished, -> { where.not(finished_at: nil) }
       end
 
@@ -37,7 +39,13 @@ module SolidQueue
           end
 
           def dispatch_all_one_by_one(jobs)
-            jobs.each(&:dispatch)
+            jobs.each do |job|
+              begin
+                job.dispatch
+              rescue EnqueueError => e
+                job.enqueue_error = e
+              end
+            end
           end
 
           def successfully_dispatched(jobs)
@@ -66,7 +74,9 @@ module SolidQueue
 
       def dispatch
         if acquire_concurrency_lock then ready
-        elsif discard_concurrent? then discard
+        elsif discard_concurrent?
+          discard
+          raise EnqueueError.new("Dispatched job discarded due to concurrent configuration.")
         else
           block
         end
