@@ -3,7 +3,7 @@
 module SolidQueue
   class Dispatcher < Processes::Poller
     include LifecycleHooks
-    attr_accessor :batch_size, :concurrency_maintenance
+    attr_reader :batch_size
 
     after_boot :run_start_hooks
     after_boot :start_concurrency_maintenance
@@ -26,6 +26,8 @@ module SolidQueue
     end
 
     private
+      attr_reader :concurrency_maintenance
+
       def poll
         batch = dispatch_next_batch
 

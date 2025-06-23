@@ -322,6 +322,8 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   test "enqueue successfully inside a rolled-back transaction in the app DB" do
+    # Doesn't work with enqueue_after_transaction_commit? true on SolidQueueAdapter, but only Rails 7.2 uses this
+    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 2
     assert_difference -> { SolidQueue::Job.count } do
       assert_no_difference -> { JobResult.count } do
         JobResult.transaction do

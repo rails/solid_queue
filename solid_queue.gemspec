@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "fugit", "~> 1.11.0"
   spec.add_dependency "thor", "~> 1.3.1"
 
+  spec.add_development_dependency "appraisal"
   spec.add_development_dependency "debug", "~> 1.9"
   spec.add_development_dependency "mocha"
   spec.add_development_dependency "puma"

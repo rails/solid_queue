@@ -43,7 +43,7 @@ module SolidQueue
 
       def run_hooks_for(event)
         self.class.lifecycle_hooks.fetch(event, []).each do |block|
-          block.call
+            block.call(self)
         rescue Exception => exception
           handle_thread_error(exception)
         end

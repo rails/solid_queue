@@ -33,6 +33,7 @@ class ActiveSupport::TestCase
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for(ExpectedTestError, @_on_thread_error)
+    ActiveJob::QueueAdapters::SolidQueueAdapter.stopping = false
   end
 
   teardown do
@@ -94,6 +95,18 @@ class ActiveSupport::TestCase
       ->(exception) do
         unless Array(exceptions).any? { |e| exception.instance_of?(e) }
           on_thread_error.call(exception)
+        end
+      end
+    end
+
+    # Waits until the given block returns truthy or the timeout is reached.
+    # Similar to other helper methods in this file but waits *for* a condition
+    # instead of *while* it is true.
+    def wait_for(timeout: 1.second, interval: 0.05)
+      Timeout.timeout(timeout) do
+        loop do
+          break if skip_active_record_query_cache { yield }
+          sleep interval
         end
       end
     end

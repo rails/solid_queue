@@ -12,7 +12,7 @@ module SolidQueue
     class << self
       def unblock(limit)
         SolidQueue.instrument(:release_many_blocked, limit: limit) do |payload|
-          expired.distinct.limit(limit).pluck(:concurrency_key).then do |concurrency_keys|
+          expired.order(:concurrency_key).distinct.limit(limit).pluck(:concurrency_key).then do |concurrency_keys|
             payload[:size] = release_many releasable(concurrency_keys)
           end
         end
