@@ -16,7 +16,7 @@ module ActiveJob
     end
 
     class_methods do
-      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period, on_conflict: :discard)
+      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period, on_conflict: :block)
         self.concurrency_key = key
         self.concurrency_limit = to
         self.concurrency_group = group

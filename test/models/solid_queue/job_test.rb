@@ -258,11 +258,10 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   end
 
   test "release blocked locks when discarding a ready job" do
-    ready_job = NonOverlappingJob.perform_later(@result, name: "ready")
-    blocked_job = NonOverlappingJob.perform_later(@result, name: "blocked")
-    assert_equal({}, ready_job)
-    assert_equal({}, blocked_job)
-    # semaphore = SolidQueue::Semaphore.last
+    NonOverlappingJob.perform_later(@result, name: "ready")
+    NonOverlappingJob.perform_later(@result, name: "blocked")
+    ready_job, blocked_job = SolidQueue::Job.last(2)
+    semaphore = SolidQueue::Semaphore.last
 
     assert ready_job.ready?
     assert blocked_job.blocked?
