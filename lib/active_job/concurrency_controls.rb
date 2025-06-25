@@ -13,6 +13,7 @@ module ActiveJob
       class_attribute :concurrency_limit
       class_attribute :concurrency_on_conflict
       class_attribute :concurrency_duration, default: SolidQueue.default_concurrency_control_period
+      class_attribute :concurrency_on_conflict, default: :block
     end
 
     class_methods do

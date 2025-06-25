@@ -78,7 +78,12 @@ module SolidQueue
           discard
           raise EnqueueError.new("Dispatched job discarded due to concurrent configuration.")
         else
-          block
+          case job_class.concurrency_on_conflict
+          when :discard
+            discard_on_conflict
+          else
+            block
+          end
         end
       end
 
@@ -113,6 +118,10 @@ module SolidQueue
       private
         def ready
           ReadyExecution.create_or_find_by!(job_id: id)
+        end
+
+        def discard_on_conflict
+          finished!
         end
 
         def execution
