@@ -18,6 +18,13 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
 
+  class NonOverlappingDiscardJob < ApplicationJob
+    limits_concurrency key: ->(job_result, **) { job_result }, on_conflict: :discard
+
+    def perform(job_result)
+    end
+  end
+
   setup do
     @result = JobResult.create!(queue_name: "default")
   end
@@ -43,6 +50,82 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job, execution.job
     assert_equal "test", execution.queue_name
     assert_equal 8, execution.priority
+  end
+
+  test "enqueue jobs with on_conflict discard" do
+    # First job should be ready
+    active_job1 = NonOverlappingDiscardJob.new(@result)
+    assert_ready do
+      SolidQueue::Job.enqueue(active_job1)
+    end
+    job1 = SolidQueue::Job.find_by(active_job_id: active_job1.job_id)
+    assert job1.ready?
+
+    # Second job should be discarded (finished without execution)
+    active_job2 = NonOverlappingDiscardJob.new(@result)
+    assert_no_difference -> { SolidQueue::ReadyExecution.count } do
+      assert_no_difference -> { SolidQueue::BlockedExecution.count } do
+        SolidQueue::Job.enqueue(active_job2)
+      end
+    end
+    job2 = SolidQueue::Job.find_by(active_job_id: active_job2.job_id)
+
+    assert job2.finished?
+    assert_nil job2.ready_execution
+    assert_nil job2.blocked_execution
+    assert_nil job2.claimed_execution
+    assert_nil job2.failed_execution
+
+    # Third job with same key should also be discarded
+    active_job3 = NonOverlappingDiscardJob.new(@result)
+    assert_no_difference -> { SolidQueue::ReadyExecution.count } do
+      SolidQueue::Job.enqueue(active_job3)
+    end
+    job3 = SolidQueue::Job.find_by(active_job_id: active_job3.job_id)
+
+    assert job3.finished?
+  end
+
+  test "compare blocking vs discard behavior" do
+    # Test default blocking behavior
+    blocking_job1 = NonOverlappingJob.new(@result)
+    assert_ready do
+      SolidQueue::Job.enqueue(blocking_job1)
+    end
+    job1 = SolidQueue::Job.find_by(active_job_id: blocking_job1.job_id)
+    assert job1.ready?
+
+    # Second job should be blocked (not discarded)
+    blocking_job2 = NonOverlappingJob.new(@result)
+    assert_difference -> { SolidQueue::BlockedExecution.count }, +1 do
+      SolidQueue::Job.enqueue(blocking_job2)
+    end
+    job2 = SolidQueue::Job.find_by(active_job_id: blocking_job2.job_id)
+    assert job2.blocked?
+    assert job2.blocked_execution.present?
+    assert_not job2.finished?
+
+    # Clean up for discard test
+    SolidQueue::Job.destroy_all
+    SolidQueue::Semaphore.destroy_all
+
+    # Test discard behavior
+    discard_job1 = NonOverlappingDiscardJob.new(@result)
+    assert_ready do
+      SolidQueue::Job.enqueue(discard_job1)
+    end
+    job3 = SolidQueue::Job.find_by(active_job_id: discard_job1.job_id)
+    assert job3.ready?
+
+    # Second job should be discarded (not blocked)
+    discard_job2 = NonOverlappingDiscardJob.new(@result)
+    assert_no_difference -> { SolidQueue::BlockedExecution.count } do
+      SolidQueue::Job.enqueue(discard_job2)
+    end
+    job4 = SolidQueue::Job.find_by(active_job_id: discard_job2.job_id)
+    assert job4.finished?
+    assert_nil job4.blocked_execution
+    assert_nil job4.ready_execution
   end
 
   test "enqueue active job to be scheduled in the future" do
