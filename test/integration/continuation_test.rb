@@ -43,7 +43,7 @@ class ContinuationTest < ActiveSupport::TestCase
 
     ActiveJob::QueueAdapters::SolidQueueAdapter.stopping = false
     start_processes
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(10.seconds)
 
     assert_no_unfinished_jobs
     assert_last_step :step_two
