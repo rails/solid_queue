@@ -2,7 +2,7 @@
 
 Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, recurring jobs, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
+Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, batch processing, recurring jobs, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
 
 Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails's multi-threading.
 
@@ -504,6 +504,74 @@ production:
 ```
 
 Or something similar to that depending on your setup. You can also assign a different queue to a job on the moment of enqueuing so you can decide whether to enqueue a job in the throttled queue or another queue depending on the arguments, or pass a block to `queue_as` as explained [here](https://guides.rubyonrails.org/active_job_basics.html#queues).
+
+## Batch processing
+
+Solid Queue supports grouping jobs into batches, allowing you to track their collective progress, run callbacks when all jobs complete, and manage complex workflows. This is useful for processing large datasets in parallel, importing files, or any scenario where you need to coordinate multiple jobs.
+
+To create a batch, use `perform_batch_later`:
+
+```ruby
+# Simple batch
+batch = MyJob.perform_batch_later([
+  { user_id: 1, action: "update" },
+  { user_id: 2, action: "update" },
+  { user_id: 3, action: "update" }
+])
+
+puts batch.batch_id # => "550e8400-e29b-41d4-a716..."
+puts batch.total_jobs # => 3
+```
+
+You can specify callbacks to run when the batch completes:
+
+```ruby
+batch = DataImportJob.perform_batch_later(
+  import_rows,
+  on_success: { job: ImportSuccessJob, args: { email: "admin@example.com" } },
+  on_failure: { job: ImportFailureJob, args: { email: "admin@example.com" } },
+  on_complete: { job: ImportCompleteJob },
+  metadata: { source: "api", imported_by: current_user.id }
+)
+```
+
+- `on_success`: Runs when all jobs complete successfully
+- `on_failure`: Runs if any job fails
+- `on_complete`: Always runs when the batch finishes
+
+Jobs can check if they're part of a batch:
+
+```ruby
+class DataImportJob < ApplicationJob
+  def perform(row_data)
+    if in_batch?
+      Rails.logger.info "Processing row as part of batch #{batch_id}"
+      Rails.logger.info "Batch progress: #{batch_progress}%"
+    end
+
+    # Process the row...
+  end
+end
+```
+
+You can query and monitor batches:
+
+```ruby
+# Find a batch
+batch = SolidQueue::Batch.find_by(batch_id: batch_id)
+
+# Check progress
+batch.pending_jobs    # => 10
+batch.completed_jobs  # => 85
+batch.failed_jobs     # => 5
+batch.progress_percentage # => 90.0
+batch.finished?       # => false
+
+# Query batches by status
+SolidQueue::Batch.pending
+SolidQueue::Batch.completed
+SolidQueue::Batch.failed
+```
 
 ## Failed jobs and retries
 
