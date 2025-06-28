@@ -8,7 +8,7 @@ module SolidQueue
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, :concurrency_duration, to: :job_class
+        delegate :concurrency_limit, :concurrency_on_conflict, :concurrency_duration, to: :job_class
 
         before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
@@ -34,6 +34,10 @@ module SolidQueue
       end
 
       private
+        def discard_concurrent?
+          concurrency_on_conflict == :discard
+        end
+
         def acquire_concurrency_lock
           return true unless concurrency_limited?
 
