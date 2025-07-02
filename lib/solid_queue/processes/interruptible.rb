@@ -21,7 +21,7 @@ module SolidQueue::Processes
         if time > 0 && self_pipe[:reader].wait_readable(time)
           loop { self_pipe[:reader].read_nonblock(SELF_PIPE_BLOCK_SIZE) }
         end
-      rescue Errno::EAGAIN, Errno::EINTR
+      rescue Errno::EAGAIN, Errno::EINTR, IO::EWOULDBLOCKWaitReadable
       end
 
       # Self-pipe for signal-handling (http://cr.yp.to/docs/selfpipe.html)
