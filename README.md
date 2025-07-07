@@ -442,7 +442,7 @@ class MyJob < ApplicationJob
 - `group` is used to control the concurrency of different job classes together. It defaults to the job class name.
 - `on_conflict` controls behaviour when enqueuing a job that conflicts with the concurrency limits configured. It can be set to one of the following:
   - (default) `:block`: the job is blocked and is dispatched when another job completes and unblocks it, or when the duration expires.
-  - `:discard`: the job is discarded (silently finishes). When you choose this option, bear in mind that if a job runs and fails to remove the concurrency lock (or _semaphore_, read below to know more about this), all jobs conflicting with it will be discarded up to the interval defined by `duration` has elapsed.
+  - `:discard`: the job is discarded (silently finishes). When you choose this option, bear in mind that if a job runs and fails to remove the concurrency lock (or _semaphore_, read below to know more about this), all jobs conflicting with it will be discarded up to the interval defined by `duration` has elapsed. Additionally, Active Jobs that are discarded will have `successfully_enqueued` set to `false`.
 
 When a job includes these controls, we'll ensure that, at most, the number of jobs (indicated as `to`) that yield the same `key` will be performed concurrently, and this guarantee will last for `duration` for each job enqueued. Note that there's no guarantee about _the order of execution_, only about jobs being performed at the same time (overlapping).
 
