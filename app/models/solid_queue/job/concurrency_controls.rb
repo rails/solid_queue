@@ -8,7 +8,7 @@ module SolidQueue
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, :concurrency_duration, :concurrency_on_conflict, to: :job_class
+        delegate :concurrency_limit, :concurrency_duration, to: :job_class
 
         before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
@@ -34,8 +34,8 @@ module SolidQueue
       end
 
       private
-        def discard_concurrent?
-          concurrency_on_conflict == :discard
+        def concurrency_on_conflict
+          job_class.concurrency_on_conflict.to_s.inquiry
         end
 
         def acquire_concurrency_lock
@@ -48,6 +48,14 @@ module SolidQueue
           return false unless concurrency_limited?
 
           Semaphore.signal(self)
+        end
+
+        def handle_concurrency_conflict
+          if concurrency_on_conflict.discard?
+            finished!
+          else
+            block
+          end
         end
 
         def block

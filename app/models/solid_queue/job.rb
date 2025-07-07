@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Job < Record
-    class EnqueueError < ActiveJob::EnqueueError; end
+    class EnqueueError < StandardError; end
 
     include Executable, Clearable, Recurrable
 
