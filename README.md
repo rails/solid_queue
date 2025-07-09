@@ -11,6 +11,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 - [Installation](#installation)
   - [Usage in development and other non-production environments](#usage-in-development-and-other-non-production-environments)
   - [Single database configuration](#single-database-configuration)
+  - [Dashboard UI Setup](#dashboard-ui-setup)
   - [Incremental adoption](#incremental-adoption)
   - [High performance requirements](#high-performance-requirements)
 - [Configuration](#configuration)
@@ -156,6 +157,10 @@ Running Solid Queue in a separate database is recommended, but it's also possibl
 3. Migrate your database. You are ready to run `bin/jobs`
 
 You won't have multiple databases, so `database.yml` doesn't need to have primary and queue database.
+
+### Dashboard ui setup
+
+For viewing information about your jobs via a UI, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
 ### Incremental adoption
 
@@ -515,8 +520,6 @@ failed_execution.error # inspect the error
 failed_execution.retry # This will re-enqueue the job as if it was enqueued for the first time
 failed_execution.discard # This will delete the job from the system
 ```
-
-However, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
 ### Error reporting on jobs
 
