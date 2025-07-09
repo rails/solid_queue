@@ -176,11 +176,10 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     travel_to 10.minutes.from_now
 
-    count = SolidQueue::ScheduledExecution.dispatch_next_batch(10)
-
-    assert_not scheduled_job.reload.scheduled?
-    assert_not scheduled_job.ready?
-    assert scheduled_job.finished?
+    # The scheduled job is not enqueued because it conflicts with
+    # the first one and is discarded
+    assert_equal 0, SolidQueue::ScheduledExecution.dispatch_next_batch(10)
+    assert_nil SolidQueue::Job.find_by(id: scheduled_job.id)
   end
 
   test "enqueue jobs in bulk" do
@@ -212,16 +211,20 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       NonOverlappingJob.new(@result),
       AddToBufferJob.new(6).set(wait: 2.minutes),
       NonOverlappingJob.new(@result),
-      DiscardableNonOverlappingJob.new(@result)
+      DiscardableNonOverlappingJob.new(@result) # this one won't be enqueued
     ]
+    not_enqueued = active_jobs.last
 
-    assert_job_counts(ready: 3, scheduled: 1, blocked: 1, discarded: 1) do
+    assert_job_counts(ready: 3, scheduled: 1, blocked: 1) do
       ActiveJob.perform_all_later(active_jobs)
     end
 
-    jobs = SolidQueue::Job.last(6)
-    assert_equal active_jobs.map(&:provider_job_id).sort, jobs.pluck(:id).sort
-    assert active_jobs.all?(&:successfully_enqueued?)
+    jobs = SolidQueue::Job.last(5)
+    assert_equal active_jobs.without(not_enqueued).map(&:provider_job_id).sort, jobs.pluck(:id).sort
+    assert active_jobs.without(not_enqueued).all?(&:successfully_enqueued?)
+
+    assert_nil not_enqueued.provider_job_id
+    assert_not not_enqueued.successfully_enqueued?
   end
 
   test "discard ready job" do
@@ -334,13 +337,6 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_raises SolidQueue::Job::EnqueueError do
       AddToBufferJob.perform_later(1)
     end
-
-    # #perform_later with a block doesn't raise ActiveJob::EnqueueError,
-    # and instead set's successfully_enqueued? to false
-    assert_not AddToBufferJob.perform_later(1) do |active_job|
-      assert_not active_job.successfully_enqueued?
-      assert_equal SolidQueue::Job::EnqueueError, active_job.enqueue_error.class
-    end
   end
 
   test "enqueue successfully inside a rolled-back transaction in the app DB" do
@@ -376,13 +372,8 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       assert SolidQueue::Job.last.blocked?
     end
 
-    def assert_discarded(&block)
-      assert_job_counts(discarded: 1, &block)
-      assert SolidQueue::Job.last.finished?
-    end
-
-    def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, discarded: 0, &block)
-      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked + discarded) do
+    def assert_job_counts(ready: 0, scheduled: 0, blocked: 0, &block)
+      assert_difference -> { SolidQueue::Job.count }, +(ready + scheduled + blocked) do
         assert_difference -> { SolidQueue::ReadyExecution.count }, +ready do
           assert_difference -> { SolidQueue::ScheduledExecution.count }, +scheduled do
             assert_difference -> { SolidQueue::BlockedExecution.count }, +blocked, &block

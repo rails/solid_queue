@@ -13,8 +13,6 @@ module SolidQueue
 
         after_create :prepare_for_execution
 
-        attr_accessor :enqueue_error
-
         scope :finished, -> { where.not(finished_at: nil) }
       end
 
@@ -39,13 +37,7 @@ module SolidQueue
           end
 
           def dispatch_all_one_by_one(jobs)
-            jobs.each do |job|
-              begin
-                job.dispatch
-              rescue EnqueueError => e
-                job.enqueue_error = e
-              end
-            end
+            jobs.each(&:dispatch)
           end
 
           def successfully_dispatched(jobs)

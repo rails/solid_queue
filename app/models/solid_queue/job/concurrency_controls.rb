@@ -52,7 +52,7 @@ module SolidQueue
 
         def handle_concurrency_conflict
           if concurrency_on_conflict.discard?
-            finished!
+            destroy
           else
             block
           end
