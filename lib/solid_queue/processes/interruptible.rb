@@ -2,8 +2,6 @@
 
 module SolidQueue::Processes
   module Interruptible
-    attr_reader :self_pipe
-
     def initialize(...)
       super
       @self_pipe = create_self_pipe
@@ -15,6 +13,8 @@ module SolidQueue::Processes
 
     private
       SELF_PIPE_BLOCK_SIZE = 11
+
+      attr_reader :self_pipe
 
       def interrupt
         self_pipe[:writer].write_nonblock(".")
