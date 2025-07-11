@@ -37,5 +37,9 @@ module SolidQueue
         include ActiveJob::ConcurrencyControls
       end
     end
+
+    initializer "solid_queue.deprecator" do |app|
+      app.deprecators[:solid_queue] = SolidQueue.deprecator
+    end
   end
 end
