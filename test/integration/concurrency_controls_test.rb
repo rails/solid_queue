@@ -196,6 +196,59 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     end
   end
 
+  test "discard jobs when concurrency limit is reached with on_conflict: :discard" do
+    job1 = DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 3)
+    # should be discarded due to concurrency limit
+    job2 = DiscardableUpdateResultJob.perform_later(@result, name: "2")
+    # should also be discarded
+    job3 = DiscardableUpdateResultJob.perform_later(@result, name: "3")
+
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
+
+    # Only the first job did something
+    assert_stored_sequence(@result, [ "1" ])
+
+    # All jobs have finished and have no blocked executions
+    jobs = SolidQueue::Job.where(active_job_id: [ job1, job2, job3 ].map(&:job_id))
+    assert_equal 1, jobs.count
+
+    assert_equal job1.provider_job_id, jobs.first.id
+    assert_nil job2.provider_job_id
+    assert_nil job3.provider_job_id
+  end
+
+  test "discard on conflict across different concurrency keys" do
+    another_result = JobResult.create!(queue_name: "default", status: "seq: ")
+    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 0.2)
+    DiscardableUpdateResultJob.perform_later(another_result, name: "2", pause: 0.2)
+    DiscardableUpdateResultJob.perform_later(@result, name: "3") # Should be discarded
+    DiscardableUpdateResultJob.perform_later(another_result, name: "4") # Should be discarded
+
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
+
+    # Only the first 2 jobs did something
+    assert_stored_sequence(@result, [ "1" ])
+    assert_stored_sequence(another_result, [ "2" ])
+  end
+
+  test "discard on conflict and release semaphore" do
+    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 0.1)
+    # will be discarded
+    DiscardableUpdateResultJob.perform_later(@result, name: "2")
+
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
+
+    # Enqueue another job that shouldn't be discarded or blocked
+    DiscardableUpdateResultJob.perform_later(@result, name: "3")
+    wait_for_jobs_to_finish_for(5.seconds)
+    assert_no_unfinished_jobs
+
+    assert_stored_sequence(@result, [ "1", "3" ])
+  end
+
   private
     def assert_stored_sequence(result, *sequences)
       expected = sequences.map { |sequence| "seq: " + sequence.map { |name| "s#{name}c#{name}" }.join }

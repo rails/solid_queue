@@ -10,6 +10,14 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  class DiscardableNonOverlappingJob < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, on_conflict: :discard
+  end
+
+  class DiscardableThrottledJob < NonOverlappingJob
+    limits_concurrency to: 2, key: ->(job_result, **) { job_result }, on_conflict: :discard
+  end
+
   class NonOverlappingGroupedJob1 < NonOverlappingJob
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
@@ -18,8 +26,19 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     limits_concurrency key: ->(job_result, **) { job_result }, group: "MyGroup"
   end
 
+  class DiscardableNonOverlappingGroupedJob1 < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "DiscardingGroup", on_conflict: :discard
+  end
+
+  class DiscardableNonOverlappingGroupedJob2 < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, group: "DiscardingGroup", on_conflict: :discard
+  end
+
   setup do
     @result = JobResult.create!(queue_name: "default")
+    @discarded_concurrent_error = SolidQueue::Job::EnqueueError.new(
+      "Dispatched job discarded due to concurrent configuration."
+    )
   end
 
   test "enqueue active job to be executed right away" do
@@ -98,7 +117,27 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal active_job.concurrency_key, job.concurrency_key
   end
 
-  test "enqueue jobs with concurrency controls in the same concurrency group" do
+  test "block jobs when concurrency limits are reached" do
+    assert_ready do
+      NonOverlappingJob.perform_later(@result, name: "A")
+    end
+
+    assert_blocked do
+      NonOverlappingJob.perform_later(@result, name: "B")
+    end
+
+    blocked_execution = SolidQueue::BlockedExecution.last
+    assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
+  end
+
+  test "skips jobs with on_conflict set to discard when concurrency limits are reached" do
+    assert_job_counts(ready: 1) do
+      DiscardableNonOverlappingJob.perform_later(@result, name: "A")
+      DiscardableNonOverlappingJob.perform_later(@result, name: "B")
+    end
+  end
+
+  test "block jobs in the same concurrency group when concurrency limits are reached" do
     assert_ready do
       active_job = NonOverlappingGroupedJob1.perform_later(@result, name: "A")
       assert_equal 1, active_job.concurrency_limit
@@ -112,7 +151,38 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
-  test "enqueue multiple jobs" do
+  test "skips jobs with on_conflict set to discard in the same concurrency group when concurrency limits are reached" do
+    assert_job_counts(ready: 1) do
+      active_job = DiscardableNonOverlappingGroupedJob1.perform_later(@result, name: "A")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "DiscardingGroup/JobResult/#{@result.id}", active_job.concurrency_key
+
+      active_job = DiscardableNonOverlappingGroupedJob2.perform_later(@result, name: "B")
+      assert_equal 1, active_job.concurrency_limit
+      assert_equal "DiscardingGroup/JobResult/#{@result.id}", active_job.concurrency_key
+    end
+  end
+
+  test "enqueue scheduled job with concurrency controls and on_conflict set to discard" do
+    assert_ready do
+      DiscardableNonOverlappingJob.perform_later(@result, name: "A")
+    end
+
+    assert_scheduled do
+      DiscardableNonOverlappingJob.set(wait: 5.minutes).perform_later(@result, name: "B")
+    end
+
+    scheduled_job = SolidQueue::Job.last
+
+    travel_to 10.minutes.from_now
+
+    # The scheduled job is not enqueued because it conflicts with
+    # the first one and is discarded
+    assert_equal 0, SolidQueue::ScheduledExecution.dispatch_next_batch(10)
+    assert_nil SolidQueue::Job.find_by(id: scheduled_job.id)
+  end
+
+  test "enqueue jobs in bulk" do
     active_jobs = [
       AddToBufferJob.new(2),
       AddToBufferJob.new(6).set(wait: 2.minutes),
@@ -134,17 +204,27 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert active_jobs.all?(&:successfully_enqueued?)
   end
 
-  test "block jobs when concurrency limits are reached" do
-    assert_ready do
-      NonOverlappingJob.perform_later(@result, name: "A")
+  test "enqueues jobs in bulk with concurrency controls and some set to discard" do
+    active_jobs = [
+      AddToBufferJob.new(2),
+      DiscardableNonOverlappingJob.new(@result),
+      NonOverlappingJob.new(@result),
+      AddToBufferJob.new(6).set(wait: 2.minutes),
+      NonOverlappingJob.new(@result),
+      DiscardableNonOverlappingJob.new(@result) # this one won't be enqueued
+    ]
+    not_enqueued = active_jobs.last
+
+    assert_job_counts(ready: 3, scheduled: 1, blocked: 1) do
+      ActiveJob.perform_all_later(active_jobs)
     end
 
-    assert_blocked do
-      NonOverlappingJob.perform_later(@result, name: "B")
-    end
+    jobs = SolidQueue::Job.last(5)
+    assert_equal active_jobs.without(not_enqueued).map(&:provider_job_id).sort, jobs.pluck(:id).sort
+    assert active_jobs.without(not_enqueued).all?(&:successfully_enqueued?)
 
-    blocked_execution = SolidQueue::BlockedExecution.last
-    assert blocked_execution.expires_at <= SolidQueue.default_concurrency_control_period.from_now
+    assert_nil not_enqueued.provider_job_id
+    assert_not not_enqueued.successfully_enqueued?
   end
 
   test "discard ready job" do
@@ -249,8 +329,8 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
   test "raise EnqueueError when there's an ActiveRecordError" do
     SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
 
-    active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
     assert_raises SolidQueue::Job::EnqueueError do
+      active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
       SolidQueue::Job.enqueue(active_job)
     end
 
@@ -284,6 +364,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
     def assert_scheduled(&block)
       assert_job_counts(scheduled: 1, &block)
+      assert SolidQueue::Job.last.scheduled?
     end
 
     def assert_blocked(&block)

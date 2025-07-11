@@ -5,6 +5,7 @@ module ActiveJob
     extend ActiveSupport::Concern
 
     DEFAULT_CONCURRENCY_GROUP = ->(*) { self.class.name }
+    CONCURRENCY_ON_CONFLICT_BEHAVIOUR = %i[ block discard ]
 
     included do
       class_attribute :concurrency_key, instance_accessor: false
@@ -12,14 +13,16 @@ module ActiveJob
 
       class_attribute :concurrency_limit
       class_attribute :concurrency_duration, default: SolidQueue.default_concurrency_control_period
+      class_attribute :concurrency_on_conflict, default: :block
     end
 
     class_methods do
-      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period)
+      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period, on_conflict: :block)
         self.concurrency_key = key
         self.concurrency_limit = to
         self.concurrency_group = group
         self.concurrency_duration = duration
+        self.concurrency_on_conflict = on_conflict.presence_in(CONCURRENCY_ON_CONFLICT_BEHAVIOUR) || :block
       end
     end
 

@@ -29,7 +29,7 @@ module SolidQueue
         active_job.scheduled_at = scheduled_at
 
         create_from_active_job(active_job).tap do |enqueued_job|
-          active_job.provider_job_id = enqueued_job.id
+          active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
         end
       end
 
@@ -49,7 +49,7 @@ module SolidQueue
         def create_all_from_active_jobs(active_jobs)
           job_rows = active_jobs.map { |job| attributes_from_active_job(job) }
           insert_all(job_rows)
-          where(active_job_id: active_jobs.map(&:job_id))
+          where(active_job_id: active_jobs.map(&:job_id)).order(id: :asc)
         end
 
         def attributes_from_active_job(active_job)

@@ -34,6 +34,10 @@ module SolidQueue
       end
 
       private
+        def concurrency_on_conflict
+          job_class.concurrency_on_conflict.to_s.inquiry
+        end
+
         def acquire_concurrency_lock
           return true unless concurrency_limited?
 
@@ -44,6 +48,14 @@ module SolidQueue
           return false unless concurrency_limited?
 
           Semaphore.signal(self)
+        end
+
+        def handle_concurrency_conflict
+          if concurrency_on_conflict.discard?
+            destroy
+          else
+            block
+          end
         end
 
         def block
