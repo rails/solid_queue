@@ -271,6 +271,17 @@ It is recommended to set this value less than or equal to the queue database's c
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 
 
+### Scheduler polling interval
+
+The scheduler process checks for due recurring tasks and reloads dynamic tasks at a configurable interval. You can set this interval using the `polling_interval` key under the `scheduler` section in your `config/queue.yml`:
+
+```yaml
+scheduler:
+  polling_interval: 5 # seconds
+```
+
+This controls how frequently the scheduler wakes up to enqueue due recurring jobs and reload dynamic tasks.
+
 ### Queue order and priorities
 
 As mentioned above, if you specify a list of queues for a worker, these will be polled in the order given, such as for the list `real_time,background`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`.
@@ -707,8 +718,6 @@ Rails.application.config.after_initialize do # or to_prepare
 end
 ```
 
-You can also dynamically add or remove recurring tasks by creating or deleting SolidQueue::RecurringTask records. It works the same way as with static tasks, except you must set the static field to false. Changes won’t be picked up immediately — they take effect after about a one-minute delay.
-
 It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
 
 **Note**: a single recurring schedule is supported, so you can have multiple schedulers using the same schedule, but not multiple schedulers using different configurations.
@@ -733,6 +742,47 @@ my_periodic_resque_job:
 ```
 
 and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
+
+
+### Creating and Deleting Recurring Tasks Dynamically
+
+You can create and delete recurring tasks at runtime, without editing the configuration file. Use the following methods:
+
+#### Creating a recurring task
+
+```ruby
+SolidQueue.schedule_recurring_task(
+  "my_dynamic_task",
+  command: "puts 'Hello from a dynamic task!'",
+  schedule: "every 10 minutes"
+)
+```
+
+This will create a dynamic recurring task with the given key, command, and schedule. You can also use the `class` and `args` options as in the configuration file.
+
+#### Deleting a recurring task
+
+```ruby
+SolidQueue.delete_recurring_task(task_id)
+```
+
+This will delete a dynamically scheduled recurring task by its ID. If you attempt to delete a static (configuration-defined) recurring task, an error will be raised.
+
+> **Note:** Static recurring tasks (those defined in `config/recurring.yml`) cannot be deleted at runtime. Attempting to do so will raise an error.
+
+#### Example: Creating and deleting a recurring task
+
+```ruby
+# Create a new dynamic recurring task
+recurring_task = SolidQueue.schedule_recurring_task(
+  "cleanup_temp_files",
+  command: "TempFileCleaner.clean!",
+  schedule: "every day at 2am"
+)
+
+# Delete the task later by ID
+SolidQueue.delete_recurring_task(recurring_task.id)
+```
 
 ## Inspiration
 
