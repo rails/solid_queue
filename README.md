@@ -433,7 +433,9 @@ In the case of recurring tasks, if such error is raised when enqueuing the job c
 
 ## Concurrency controls
 
-Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, by default, jobs will be blocked from running, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses. Alternatively, jobs can be configured to be discarded instead of blocked. This means that if a job with certain arguments has already been enqueued, other jobs with the same characteristics (in the same concurrency _class_) won't be enqueued.
+Solid Queue extends Active Job with concurrency controls, that allows you to limit how many jobs of a certain type or with certain arguments can run at the same time. When limited in this way, **by default, jobs will be blocked from running**, and they'll stay blocked until another job finishes and unblocks them, or after the set expiry time (concurrency limit's _duration_) elapses.
+
+**Alternatively, jobs can be configured to be discarded instead of blocked**. This means that if a job with certain arguments has already been enqueued, other jobs with the same characteristics (in the same concurrency _class_) won't be enqueued.
 
 ```ruby
 class MyJob < ApplicationJob
@@ -495,6 +497,29 @@ Note that the `duration` setting depends indirectly on the value for `concurrenc
 Jobs are unblocked in order of priority but **queue order is not taken into account for unblocking jobs**. That means that if you have a group of jobs that share a concurrency group but are in different queues, or jobs of the same class that you enqueue in different queues, the queue order you set for a worker is not taken into account when unblocking blocked ones. The reason is that a job that runs unblocks the next one, and the job itself doesn't know about a particular worker's queue order (you could even have different workers with different queue orders), it can only know about priority. Once blocked jobs are unblocked and available for polling, they'll be picked up by a worker following its queue order.
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for getting an open semaphore, and whenever they get it, they'll be run. It doesn't matter if they had already gotten an open semaphore in the past.
+
+### Scheduled jobs
+
+Jobs set to run in the future (via Active Job's `wait` or `wait_until` options) have concurrency limits enforced when they're due, not when they're scheduled. For example, consider this job:
+```ruby
+class DeliverAnnouncementToContactJob < ApplicationJob
+  limits_concurrency to: 1, key: ->(contact) { contact.account }, duration: 5.minutes
+
+  def perform(contact)
+    # ...
+```
+
+If several jobs are enqueued like this:
+
+```ruby
+DeliverAnnouncementToContactJob.set(wait: 10.minutes).perform_later(contact)
+DeliverAnnouncementToContactJob.set(wait: 10.minutes).perform_later(contact)
+DeliverAnnouncementToContactJob.set(wait: 30.minutes).perform_later(contact)
+```
+
+The 3 jobs will go into the scheduled queue and will wait there until they're due. Then, 10 minutes after, the first two jobs will be enqueued and the second one most likely will be blocked because the first one will be running first. Then, assuming the jobs are fast and finish in a few seconds, when the third job is due, it'll be enqueued normally.
+
+Normally scheduled jobs are enqueued in batches, but with concurrency controls, jobs need to be enqueued one by one. This has an impact on performance, similarly to the impact of concurrency controls in bulk enqueuing. Read below for more details. I'd generally advise against mixing concurrency controls with waiting/scheduling in the future.
 
 ### Performance considerations
 
