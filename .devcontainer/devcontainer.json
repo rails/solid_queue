@@ -3,12 +3,18 @@
 {
 	"name": "solid_queue",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "ghcr.io/rails/devcontainer/images/ruby:3.3.5",
+	"build": {
+		"dockerfile": "Dockerfile"
+	},
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/github-cli:1": {
 			"version": "latest"
-		}
+		},
+		"ghcr.io/rails/devcontainer/features/postgres-client": {
+			"version": "15"
+		},
+		"ghcr.io/rails/devcontainer/features/mysql-client": {}
 	}
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
