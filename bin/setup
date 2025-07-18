@@ -15,6 +15,4 @@ bundle
 
 echo "Creating databases..."
 
-rails db:reset TARGET_DB=sqlite
-rails db:reset TARGET_DB=mysql
-rails db:reset TARGET_DB=postgres
+rails db:reset
