@@ -111,7 +111,7 @@ class SupervisorTest < ActiveSupport::TestCase
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
 
-    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+    SolidQueue::ReadyExecution.claim("*", 5, process)
 
     assert_equal 3, SolidQueue::ClaimedExecution.count
     assert_equal 0, SolidQueue::ReadyExecution.count
@@ -138,7 +138,7 @@ class SupervisorTest < ActiveSupport::TestCase
     4.times { |i| ThrottledUpdateResultJob.set(queue: :new_queue).perform_later(result) }
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
 
-    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+    SolidQueue::ReadyExecution.claim("*", 5, process)
 
     assert_equal 3, SolidQueue::ClaimedExecution.count
     assert_equal 0, SolidQueue::ReadyExecution.count
@@ -193,7 +193,7 @@ class SupervisorTest < ActiveSupport::TestCase
     worker_process = SolidQueue::Process.register(kind: "Worker", pid: 999_999, name: worker_name)
 
     job = StoreResultJob.perform_later(42)
-    claimed_execution = SolidQueue::ReadyExecution.claim("*", 1, worker_process.id).first
+    claimed_execution = SolidQueue::ReadyExecution.claim("*", 1, worker_process).first
 
     terminated_fork = Struct.new(:name).new(worker_name)
 

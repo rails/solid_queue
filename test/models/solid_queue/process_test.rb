@@ -20,7 +20,7 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     jobs = SolidQueue::Job.last(3)
 
-    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+    SolidQueue::ReadyExecution.claim("*", 5, process)
 
     travel_to 10.minutes.from_now
 
@@ -40,7 +40,7 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     jobs = SolidQueue::Job.last(3)
 
-    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+    SolidQueue::ReadyExecution.claim("*", 5, process)
 
     travel_to 10.minutes.from_now
 

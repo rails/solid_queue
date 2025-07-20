@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_many :claimed_executions
+        has_many :claimed_executions, primary_key: :name, foreign_key: :process_name
 
         after_destroy :release_all_claimed_executions
       end

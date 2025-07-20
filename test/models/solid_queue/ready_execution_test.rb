@@ -6,12 +6,13 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       AddToBufferJob.set(queue: "backend", priority: 5 - i).perform_later(i)
     end
 
+    @process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123", metadata: { queue: "background" })
     @jobs = SolidQueue::Job.where(queue_name: "backend").order(:priority)
   end
 
   test "claim all jobs for existing queue" do
     assert_claimed_jobs(@jobs.count) do
-      SolidQueue::ReadyExecution.claim("backend", @jobs.count + 1, 42)
+      SolidQueue::ReadyExecution.claim("backend", @jobs.count + 1, @process)
     end
 
     @jobs.each(&:reload)
@@ -21,13 +22,13 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
 
   test "claim jobs for queue without jobs at the moment" do
     assert_no_difference [ -> { SolidQueue::ReadyExecution.count }, -> { SolidQueue::ClaimedExecution.count } ] do
-      SolidQueue::ReadyExecution.claim("some_non_existing_queue", 10, 42)
+      SolidQueue::ReadyExecution.claim("some_non_existing_queue", 10, @process)
     end
   end
 
   test "claim some jobs for existing queue" do
     assert_claimed_jobs(2) do
-      SolidQueue::ReadyExecution.claim("backend", 2, 42)
+      SolidQueue::ReadyExecution.claim("backend", 2, @process)
     end
 
     @jobs.first(2).each do |job|
@@ -45,7 +46,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(6) do
-      SolidQueue::ReadyExecution.claim(%w[ backend background ], SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ backend background ], SolidQueue::Job.count + 1, @process)
     end
   end
 
@@ -53,7 +54,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(6) do
-      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, @process)
     end
   end
 
@@ -61,7 +62,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(1) do
-      SolidQueue::ReadyExecution.claim("backgr*", SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim("backgr*", SolidQueue::Job.count + 1, @process)
     end
 
     assert @jobs.none?(&:claimed?)
@@ -73,7 +74,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     SolidQueue::Queue.find_by_name("backend").pause
 
     assert_claimed_jobs(1) do
-      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim("*", SolidQueue::Job.count + 1, @process)
     end
 
     @jobs.each(&:reload)
@@ -84,7 +85,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(6) do
-      SolidQueue::ReadyExecution.claim(%w[ backe* background ], SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ backe* background ], SolidQueue::Job.count + 1, @process)
     end
   end
 
@@ -92,7 +93,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     AddToBufferJob.perform_later("hey")
 
     assert_claimed_jobs(0) do
-      SolidQueue::ReadyExecution.claim(%w[ none* ], SolidQueue::Job.count + 1, 42)
+      SolidQueue::ReadyExecution.claim(%w[ none* ], SolidQueue::Job.count + 1, @process)
     end
   end
 
@@ -101,7 +102,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     job = SolidQueue::Job.last
 
     assert_claimed_jobs(3) do
-      SolidQueue::ReadyExecution.claim("*", 3, 42)
+      SolidQueue::ReadyExecution.claim("*", 3, @process)
     end
 
     assert job.reload.claimed?
@@ -117,7 +118,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     assert_equal "background", job.queue_name
 
     assert_claimed_jobs(3) do
-      SolidQueue::ReadyExecution.claim(%w[ background backend ], 3, 42)
+      SolidQueue::ReadyExecution.claim(%w[ background backend ], 3, @process)
     end
 
     assert job.reload.claimed?
@@ -136,7 +137,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     claimed_jobs = []
     4.times do
       assert_claimed_jobs(2) do
-        SolidQueue::ReadyExecution.claim(%w[ queue_b* queue_a* ], 2, 42)
+        SolidQueue::ReadyExecution.claim(%w[ queue_b* queue_a* ], 2, @process)
       end
 
       claimed_jobs += SolidQueue::ClaimedExecution.order(:id).last(2).map(&:job)
@@ -157,7 +158,7 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     claimed_jobs = []
     5.times do
       assert_claimed_jobs(2) do
-        SolidQueue::ReadyExecution.claim(%w[ queue_a2 queue_c1 queue_b* queue_c2 queue_a* ], 2, 42)
+        SolidQueue::ReadyExecution.claim(%w[ queue_a2 queue_c1 queue_b* queue_c2 queue_a* ], 2, @process)
       end
 
       claimed_jobs += SolidQueue::ClaimedExecution.order(:id).last(2).map(&:job)

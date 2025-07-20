@@ -150,7 +150,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     jobs = SolidQueue::Job.last(3)
 
-    SolidQueue::ReadyExecution.claim("*", 5, process.id)
+    SolidQueue::ReadyExecution.claim("*", 5, process)
 
     events = subscribed(/fail.*_claimed\.solid_queue/) do
       SolidQueue::Process.prune
