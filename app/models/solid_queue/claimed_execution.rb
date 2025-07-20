@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
-  belongs_to :process
+  belongs_to :process, primary_key: :name, foreign_key: :process_name
 
   scope :orphaned, -> { where.missing(:process) }
 
@@ -12,12 +12,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   class << self
-    def claiming(job_ids, process_id, &block)
-      job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
+    def claiming(job_ids, process, &block)
+      process_data = { process_id: process.id, process_name: process.name }
+      job_data = Array(job_ids).collect { |job_id| { job_id: job_id }.merge(process_data) }
 
-      SolidQueue.instrument(:claim, process_id: process_id, job_ids: job_ids) do |payload|
+      SolidQueue.instrument(:claim, job_ids: job_ids, **process_data) do |payload|
         insert_all!(job_data)
-        where(job_id: job_ids, process_id: process_id).load.tap do |claimed|
+        where(job_id: job_ids, process_id: process.id).load.tap do |claimed|
           block.call(claimed)
 
           payload[:size] = claimed.size
@@ -47,6 +48,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
           end
 
           payload[:process_ids] = executions.map(&:process_id).uniq
+          payload[:process_names] = executions.map(&:process_name).uniq
           payload[:job_ids] = executions.map(&:job_id).uniq
           payload[:size] = executions.size
         end
@@ -76,7 +78,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   def release
-    SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id) do
+    SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id, process_name: process_name) do
       transaction do
         job.dispatch_bypassing_concurrency_limits
         destroy!

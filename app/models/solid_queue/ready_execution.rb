@@ -7,9 +7,9 @@ module SolidQueue
     assumes_attributes_from_job
 
     class << self
-      def claim(queue_list, limit, process_id)
+      def claim(queue_list, limit, process)
         QueueSelector.new(queue_list, self).scoped_relations.flat_map do |queue_relation|
-          select_and_lock(queue_relation, process_id, limit).tap do |locked|
+          select_and_lock(queue_relation, process, limit).tap do |locked|
             limit -= locked.size
           end
         end
@@ -20,12 +20,12 @@ module SolidQueue
       end
 
       private
-        def select_and_lock(queue_relation, process_id, limit)
+        def select_and_lock(queue_relation, process, limit)
           return [] if limit <= 0
 
           transaction do
             candidates = select_candidates(queue_relation, limit)
-            lock_candidates(candidates, process_id)
+            lock_candidates(candidates, process)
           end
         end
 
@@ -33,10 +33,10 @@ module SolidQueue
           queue_relation.ordered.limit(limit).non_blocking_lock.select(:id, :job_id)
         end
 
-        def lock_candidates(executions, process_id)
+        def lock_candidates(executions, process)
           return [] if executions.none?
 
-          SolidQueue::ClaimedExecution.claiming(executions.map(&:job_id), process_id) do |claimed|
+          SolidQueue::ClaimedExecution.claiming(executions.map(&:job_id), process) do |claimed|
             ids_to_delete = executions.index_by(&:job_id).values_at(*claimed.map(&:job_id)).map(&:id)
             where(id: ids_to_delete).delete_all
           end
