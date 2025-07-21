@@ -130,7 +130,6 @@ module SolidQueue
             active_job.run_callbacks(:enqueue) do
               Job.enqueue(active_job)
             end
-            active_job.successfully_enqueued = true
           end
         end
       end

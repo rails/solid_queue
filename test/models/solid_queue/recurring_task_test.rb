@@ -41,6 +41,14 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class JobWithConcurrencyControlsAndDiscard < ApplicationJob
+    limits_concurrency key: -> { true }, on_conflict: :discard
+
+    def perform
+      JobBuffer.add "job_with_concurrency_controls"
+    end
+  end
+
   test "job without arguments" do
     task = recurring_task_with(class_name: "JobWithoutArguments")
     enqueue_and_assert_performed_with_result task, "job_without_arguments"
@@ -86,6 +94,20 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_no_difference -> { SolidQueue::Job.count } do
       task.enqueue(at: Time.now)
     end
+  end
+
+  test "error when enqueuing job because of concurrency controls and discard" do
+    JobWithConcurrencyControlsAndDiscard.perform_later
+
+    task = recurring_task_with(class_name: "JobWithConcurrencyControlsAndDiscard")
+    assert_no_difference -> { SolidQueue::Job.count } do
+      task.enqueue(at: Time.now)
+    end
+
+    # Run the enqueued job that was preventing a new one from being enqueued
+    run_all_jobs_inline
+
+    enqueue_and_assert_performed_with_result task, "job_with_concurrency_controls"
   end
 
   test "error when enqueuing job using another adapter that raises ActiveJob::EnqueueError" do
@@ -174,10 +196,7 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       end
 
       assert_difference -> { JobBuffer.size }, +1 do
-        SolidQueue::Worker.new(queues: "*").tap do |worker|
-          worker.mode = :inline
-          worker.start
-        end
+        run_all_jobs_inline
       end
 
       assert_equal result, JobBuffer.last_value
@@ -191,5 +210,12 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
       end
 
       SolidQueue::RecurringTask.from_configuration("task-id", **options)
+    end
+
+    def run_all_jobs_inline
+      SolidQueue::Worker.new(queues: "*").tap do |worker|
+        worker.mode = :inline
+        worker.start
+      end
     end
 end
