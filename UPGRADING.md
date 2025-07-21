@@ -1,4 +1,18 @@
-# Upgrading to version 1.x
+# Upgrading to version 1.3
+There's a new migration in this version that can be installed via
+```bash
+bin/rails solid_queue:update
+```
+which is a new generator to facilitate updates.
+
+Then, the migration needs to be run with
+```bash
+bin/rails db:migrate
+```
+
+The migration affects the tables `solid_queue_claimed_executions` and `solid_queue_processes` tables. It's not mandatory: everything will continue working as before without it, only a deprecation warning will be emitted. The migration will be mandatory in the next major version (2.0).
+
+# Upgrading to version >=1.0, < 1.3
 The value returned for `enqueue_after_transaction_commit?` has changed to `true`, and it's no longer configurable. If you want to change this, you need to use Active Job's configuration options.
 
 # Upgrading to version 0.9.x
