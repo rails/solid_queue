@@ -6,7 +6,13 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        has_many :claimed_executions, primary_key: :name, foreign_key: :process_name
+        if ClaimedExecution.process_name_column_exists?
+          has_many :claimed_executions, primary_key: :name, foreign_key: :process_name
+        else
+          warn_about_pending_migrations
+
+          has_many :claimed_executions
+        end
 
         after_destroy :release_all_claimed_executions
       end

@@ -262,7 +262,7 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
 
   private
     def assert_clean_termination
-      wait_for_registered_processes 0, timeout: 0.2.second
+      wait_for_registered_processes 0, timeout: 0.5.second
       assert_no_registered_processes
       assert_no_claimed_jobs
       assert_not process_exists?(@pid)

@@ -20,6 +20,16 @@ module SolidQueue
           connection.supports_insert_conflict_target?
         end
       end
+
+      def warn_about_pending_migrations
+        SolidQueue.deprecator.warn(<<~DEPRECATION)
+          Solid Queue has pending database migrations. To get the new migration files, run:
+            rails solid_queue:update
+          And then:
+            rails db:migrate
+          These migrations will be required after version 2.0
+        DEPRECATION
+      end
     end
   end
 end

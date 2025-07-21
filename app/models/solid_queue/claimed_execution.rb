@@ -1,7 +1,18 @@
 # frozen_string_literal: true
 
 class SolidQueue::ClaimedExecution < SolidQueue::Execution
-  belongs_to :process, primary_key: :name, foreign_key: :process_name
+  def self.process_name_column_exists?
+    column_names.include?("process_name")
+  end
+
+  if process_name_column_exists?
+    belongs_to :process, primary_key: :name, foreign_key: :process_name
+  else
+    warn_about_pending_migrations
+
+    belongs_to :process
+    attr_accessor :process_name
+  end
 
   scope :orphaned, -> { where.missing(:process) }
 
@@ -13,7 +24,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   class << self
     def claiming(job_ids, process, &block)
-      process_data = { process_id: process.id, process_name: process.name }
+      process_data = { process_id: process.id }.tap do |hsh|
+        hsh[:process_name] = process.name if process_name_column_exists?
+      end
+
       job_data = Array(job_ids).collect { |job_id| { job_id: job_id }.merge(process_data) }
 
       SolidQueue.instrument(:claim, job_ids: job_ids, **process_data) do |payload|
@@ -47,8 +61,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
             execution.unblock_next_job
           end
 
-          payload[:process_ids] = executions.map(&:process_id).uniq
-          payload[:process_names] = executions.map(&:process_name).uniq
+          payload[:process_ids] = executions.map(&:process_id).uniq.presence
+          payload[:process_names] = executions.map(&:process_name).uniq.presence
           payload[:job_ids] = executions.map(&:job_id).uniq
           payload[:size] = executions.size
         end
