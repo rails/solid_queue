@@ -1,11 +1,14 @@
 # Upgrading to version 1.3
-There's a new migration in this version that can be installed via
+There's a new migration in this version that can be installed via:
 ```bash
 bin/rails solid_queue:update
 ```
-which is a new generator to facilitate updates.
+which is a new generator to facilitate updates. This will use the `queue` database by default, but if you're using a different database name for Solid Queue, you can install the new migrations in the right place with:
+```bash
+DATABASE=your-solid-queue-db-name bin/rails solid_queue:update
+```
 
-Then, the migration needs to be run with
+Finally, the migration needs to be run with:
 ```bash
 bin/rails db:migrate
 ```

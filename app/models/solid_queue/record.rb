@@ -25,7 +25,9 @@ module SolidQueue
         SolidQueue.deprecator.warn(<<~DEPRECATION)
           Solid Queue has pending database migrations. To get the new migration files, run:
             rails solid_queue:update
-          And then:
+          which will install the migration under `db/queue_migrate`. To change the database, run
+            DATABASE=your-solid-queue-db rails solid_queue:update
+          Then, apply the migrations with:
             rails db:migrate
           These migrations will be required after version 2.0
         DEPRECATION
