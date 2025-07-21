@@ -30,6 +30,7 @@ module SolidQueue
 
         create_from_active_job(active_job).tap do |enqueued_job|
           active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
+          active_job.successfully_enqueued = enqueued_job.persisted?
         end
       end
 
