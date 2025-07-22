@@ -11,7 +11,11 @@
 default: &default
   adapter: sqlite3
   pool: 50
-  retries: 100
+  <% if Rails::VERSION::MAJOR >= 8 %>
+  timeout: 5000
+  <% else %>
+  retries: 100 # "retries" is deprecated in rails 8 and will be removed in rails 8.1
+  <% end %>
 
 <% elsif ENV["TARGET_DB"] == "postgres" %>
 default: &default
