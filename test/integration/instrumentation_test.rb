@@ -309,7 +309,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       scheduler.start
-      sleep 1.01
+      wait_while_with_timeout(1.1.second) { SolidQueue::RecurringExecution.none? }
       scheduler.stop
     end
 
