@@ -26,9 +26,11 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
     worker_process = SolidQueue::Process.find_by(kind: "Worker")
     assert worker_process
 
-    # Enqueue a job and manually claim it for the worker to avoid timing races
-    job = enqueue_store_result_job(42)
-    claimed_execution = SolidQueue::ReadyExecution.claim("*", 5, worker_process.id).first
+    # Enqueue a job and wait for it to be claimed
+    StoreResultJob.perform_later(42, pause: 10.seconds)
+    wait_while_with_timeout(3.seconds) { SolidQueue::ClaimedExecution.none? }
+
+    claimed_execution = SolidQueue::ClaimedExecution.last
     assert claimed_execution.present?
     assert_equal worker_process.id, claimed_execution.process_id
 
@@ -40,9 +42,8 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
     worker_pid = worker_process.pid
     terminate_process(worker_pid, signal: :KILL)
 
-
     # Wait for the supervisor to reap the worker and fail the job
-    wait_for_failed_executions(1, timeout: 5.seconds)
+    wait_while_with_timeout(3.seconds) { SolidQueue::FailedExecution.none? }
 
     # Assert the execution is failed
     failed_execution = SolidQueue::FailedExecution.last
@@ -53,32 +54,4 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
     wait_for_registered_processes(2, timeout: 5.seconds)
     assert_operator SolidQueue::Process.where(kind: "Worker").count, :>=, 1
   end
-
-  private
-    def assert_registered_workers_for(*queues, supervisor_pid: nil)
-      workers = find_processes_registered_as("Worker")
-      registered_queues = workers.map { |process| process.metadata["queues"] }.compact
-      assert_equal queues.map(&:to_s).sort, registered_queues.sort
-      if supervisor_pid
-        assert_equal [ supervisor_pid ], workers.map { |process| process.supervisor.pid }.uniq
-      end
-    end
-
-    def enqueue_store_result_job(value, queue_name = :default, **options)
-      StoreResultJob.set(queue: queue_name).perform_later(value, **options)
-    end
-
-    def assert_no_claimed_jobs
-      skip_active_record_query_cache do
-        assert_empty SolidQueue::ClaimedExecution.all
-      end
-    end
-
-    def wait_for_claimed_executions(count, timeout: 1.second)
-      wait_for(timeout: timeout) { SolidQueue::ClaimedExecution.count == count }
-    end
-
-    def wait_for_failed_executions(count, timeout: 1.second)
-      wait_for(timeout: timeout) { SolidQueue::FailedExecution.count == count }
-    end
 end
