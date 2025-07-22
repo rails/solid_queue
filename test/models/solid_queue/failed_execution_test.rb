@@ -15,13 +15,12 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
   end
 
   test "run job that fails with a SystemStackError (stack level too deep)" do
-    silence_on_thread_error_for(SystemStackError) do
-      InfiniteRecursionJob.perform_later
-      @worker.start
+    InfiniteRecursionJob.perform_later
+    @worker.start
 
-      assert_equal 1, SolidQueue::FailedExecution.count
-      assert SolidQueue::Job.last.failed?
-    end
+    assert_equal 1, SolidQueue::FailedExecution.count
+    assert SolidQueue::Job.last.failed?
+    assert_equal "stack level too deep", SolidQueue::FailedExecution.last.message
   end
 
   test "retry failed job" do
