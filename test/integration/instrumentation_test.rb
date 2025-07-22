@@ -34,7 +34,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
 
     assert_equal 1, events.size
-    assert_event events.first, "claim", process_id: process.id, job_ids: jobs.map(&:id), claimed_job_ids: jobs.map(&:id), size: 3
+    assert_event events.first, "claim", process_id: process.id, process_name: process.name, job_ids: jobs.map(&:id), claimed_job_ids: jobs.map(&:id), size: 3
   end
 
   test "polling emits events" do
@@ -68,7 +68,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 2, events.size
     release_one_event, release_many_event = events
-    assert_event release_one_event, "release_claimed", job_id: SolidQueue::Job.last.id, process_id: process.id
+    assert_event release_one_event, "release_claimed", job_id: SolidQueue::Job.last.id, process_id: process.id, process_name: process.name
     assert_event release_many_event, "release_many_claimed", size: 1
   end
 
@@ -157,7 +157,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     end
 
     assert_equal 1, events.count
-    assert_event events.first, "fail_many_claimed", process_ids: [ process.id ], job_ids: jobs.map(&:id), size: 3
+    assert_event events.first, "fail_many_claimed", process_ids: [ process.id ], process_names: [ process.name ], job_ids: jobs.map(&:id), size: 3
   end
 
   test "errors when deregistering processes are included in deregister_process events" do
