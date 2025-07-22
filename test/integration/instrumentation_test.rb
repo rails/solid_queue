@@ -234,7 +234,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     5.times { AddToBufferJob.perform_later("A") }
     # 1 ready + 3 blocked
     result = JobResult.create!
-    4.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
+    4.times { NonOverlappingUpdateResultJob.perform_later(result, name: "A") }
 
     events = subscribed("discard_all.solid_queue") do
       SolidQueue::ReadyExecution.discard_all_from_jobs(SolidQueue::Job.all)
@@ -261,7 +261,7 @@ class InstrumentationTest < ActiveSupport::TestCase
   test "unblocking job emits release_blocked event" do
     result = JobResult.create!
     # 1 ready, 2 blocked
-    3.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
+    3.times { NonOverlappingUpdateResultJob.perform_later(result, name: "A") }
 
     # Simulate expiry of the concurrency locks
     travel_to 3.days.from_now
@@ -283,11 +283,11 @@ class InstrumentationTest < ActiveSupport::TestCase
   test "unblocking jobs in bulk emits release_many_blocked event" do
     result = JobResult.create!
     # 1 ready, 3 blocked
-    4.times { SequentialUpdateResultJob.perform_later(result, name: "A") }
+    4.times { NonOverlappingUpdateResultJob.perform_later(result, name: "A") }
 
     # 1 ready, 2 blocked
     result = JobResult.create!
-    3.times { SequentialUpdateResultJob.perform_later(result, name: "B") }
+    3.times { NonOverlappingUpdateResultJob.perform_later(result, name: "B") }
 
     # Simulate expiry of the concurrency locks
     travel_to 3.days.from_now
@@ -309,7 +309,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       scheduler.start
-      sleep 1.01
+      wait_while_with_timeout(1.1.second) { SolidQueue::RecurringExecution.none? }
       scheduler.stop
     end
 
