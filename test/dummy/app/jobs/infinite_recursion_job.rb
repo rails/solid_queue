@@ -3,8 +3,8 @@ class InfiniteRecursionJob < ApplicationJob
 
   def perform
     start
-  rescue SystemStackError
-    raise ExpectedTestError, "stack level too deep"
+  rescue SystemStackError => e
+    raise ExpectedTestError, "stack level too deep", e.backtrace
   end
 
   private
