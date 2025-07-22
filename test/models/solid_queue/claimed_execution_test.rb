@@ -87,7 +87,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
 
       job.prepare_for_execution
       assert_difference -> { SolidQueue::ClaimedExecution.count } => +1 do
-        SolidQueue::ReadyExecution.claim(job.queue_name, 1, process.id)
+        SolidQueue::ReadyExecution.claim(job.queue_name, 1, process)
       end
 
       SolidQueue::ClaimedExecution.last
