@@ -12,7 +12,7 @@ module SolidQueue
       desc: "Path to recurring schedule definition (default: #{Configuration::DEFAULT_RECURRING_SCHEDULE_FILE_PATH}).",
       banner: "SOLID_QUEUE_RECURRING_SCHEDULE"
 
-    class_option :skip_recurring, type: :boolean, default: false,
+    class_option :skip_recurring, type: :boolean,
       desc: "Whether to skip recurring tasks scheduling",
       banner: "SOLID_QUEUE_SKIP_RECURRING"
 
