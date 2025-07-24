@@ -6,6 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
+        # Supervisor Lifecycle - 3.2 - Registers signal handlers to manage process termination.
         before_boot :register_signal_handlers
         after_shutdown :restore_default_signal_handlers
       end
@@ -35,6 +36,7 @@ module SolidQueue
         end
 
         def handle_signal(signal)
+          # Supervisor Lifecycle - 9.1 - Handles signals to gracefully or immediately stop processes.
           case signal
           when :TERM, :INT
             stop

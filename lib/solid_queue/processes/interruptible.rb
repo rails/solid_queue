@@ -25,6 +25,12 @@ module SolidQueue::Processes
       end
 
       def interruptible_sleep(time)
+        # Supervisor Lifecycle - 11.1
+        # Wait for the self-pipe to be readable, which indicates an interrupt
+        # If the time is 0, it will return immediately if the pipe is readable
+        # If the time is greater than 0, it will wait for the specified time
+        # If the pipe is readable, it will read all data from the pipe
+        # to clear it and avoid blocking on future reads.
         if time > 0 && self_pipe[:reader].wait_readable(time)
           loop { self_pipe[:reader].read_nonblock(SELF_PIPE_BLOCK_SIZE) }
         end

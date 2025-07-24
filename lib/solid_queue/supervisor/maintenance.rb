@@ -3,6 +3,7 @@ module SolidQueue
     extend ActiveSupport::Concern
 
     included do
+      # Supervisor Lifecycle - 3.1 - Fails orphaned executions.
       after_boot :fail_orphaned_executions
     end
 

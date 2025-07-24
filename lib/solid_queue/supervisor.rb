@@ -9,6 +9,7 @@ module SolidQueue
 
     class << self
       def start(**options)
+        # Supervisor Lifecycle - 2 - Sets configuration and initializes the supervisor:
         SolidQueue.supervisor = true
         configuration = Configuration.new(**options)
 
@@ -29,12 +30,17 @@ module SolidQueue
     end
 
     def start
+      # Supervisor Lifecycle - 3 - Boots which runns the boot callbacks
       boot
+      # Supervisor Lifecycle - 4 - Runs the start hooks for logging/hooks
       run_start_hooks
 
+      # Supervisor Lifecycle - 5 - Starts the processes to supervise
       start_processes
+      # Supervisor Lifecycle - 6 - Launches the maintenance task to prune dead processes
       launch_maintenance_task
 
+      # Supervisor Lifecycle - 7 - Enters the main loop to supervise processes
       supervise
     end
 
@@ -55,18 +61,28 @@ module SolidQueue
       end
 
       def start_processes
+        # Supervisor Lifecycle - 5.2 - For each configured process, start a process instance.
         configuration.configured_processes.each { |configured_process| start_process(configured_process) }
       end
 
       def supervise
         loop do
+          # Supervisor Lifecycle - 8 - loop untill stopped.
           break if stopped?
 
           set_procline
+          # Supervisor Lifecycle - 9 - Process signal queue to handle signals.
           process_signal_queue
 
           unless stopped?
+            # Supervisor Lifecycle - 10 - Reap terminated forks and replace them.
             reap_and_replace_terminated_forks
+            # Supervisor Lifecycle - 11 - Sleep to avoid busy waiting.  Not using `sleep` directly to allow interruption.
+            # This allows the process to wake up when a signal is received.
+            # This is useful for handling signals like TERM or INT without busy waiting.
+            # It also allows the process to wake up when a fork is terminated.
+            # This is useful for handling the termination of supervised processes.
+            # The sleep time is set to 1 second, but can be adjusted as needed.
             interruptible_sleep(1.second)
           end
         end
@@ -80,6 +96,7 @@ module SolidQueue
           instance.mode = :fork
         end
 
+        # Supervisor Lifecycle - 5.3 - Forks a new process for the configured process.
         pid = fork do
           process_instance.start
         end
