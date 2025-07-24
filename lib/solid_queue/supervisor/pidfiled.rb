@@ -6,6 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
+        # Supervisor Lifecycle - 3.3 - Manages PID file for the supervisor process.
         before_boot :setup_pidfile
         after_shutdown :delete_pidfile
       end

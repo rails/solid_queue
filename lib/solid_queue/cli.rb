@@ -24,6 +24,7 @@ module SolidQueue
     default_command :start
 
     def start
+      # Supervisor Lifecycle - 1 - The CLI starts the SolidQueue::Supervisor with options.
       SolidQueue::Supervisor.start(**options.symbolize_keys)
     end
   end
