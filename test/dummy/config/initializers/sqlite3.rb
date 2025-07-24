@@ -27,4 +27,8 @@ ActiveSupport.on_load :active_record do
     ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SqliteImmediateTransactions
     ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SQLite3Configuration
   end
+
+  # Suppress fork safety warnings in the dummy app (used by test suite)
+  # Warnings are safe: https://github.com/rails/solid_queue/issues/506
+  SQLite3::ForkSafety.suppress_warnings! if defined?(SQLite3::ForkSafety)
 end
