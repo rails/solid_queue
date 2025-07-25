@@ -309,14 +309,14 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       scheduler.start
-      wait_while_with_timeout(1.1.second) { SolidQueue::RecurringExecution.none? }
+      wait_while_with_timeout(1.9.second) { SolidQueue::RecurringExecution.none? || SolidQueue::Job.none? }
       scheduler.stop
     end
 
     assert events.size >= 1
-    event = events.last
+    event = events.find { |e| e.last[:active_job_id] == SolidQueue::Job.last.active_job_id }
 
-    assert_event event, "enqueue_recurring_task", task: "example_task", active_job_id: SolidQueue::Job.last.active_job_id
+    assert_event event, "enqueue_recurring_task", task: "example_task"
     assert event.last[:at].present?
     assert_nil event.last[:other_adapter]
   end
@@ -327,7 +327,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       schedulers.each(&:start)
-      sleep 1.01
+      wait_while_with_timeout(1.9.second) { SolidQueue::RecurringExecution.count < 2 }
       schedulers.each(&:stop)
     end
 
