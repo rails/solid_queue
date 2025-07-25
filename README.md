@@ -1,12 +1,12 @@
 # Solid Queue
 
-Solid Queue is a DB-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
+Solid Queue is a database-based queuing backend for [Active Job](https://edgeguides.rubyonrails.org/active_job_basics.html), designed with simplicity and performance in mind.
 
-Besides regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, recurring jobs, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
+In addition to regular job enqueuing and processing, Solid Queue supports delayed jobs, concurrency controls, recurring jobs, pausing queues, numeric priorities per job, priorities by queue order, and bulk enqueuing (`enqueue_all` for Active Job's `perform_all_later`).
 
-Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, or delays, and it's compatible with Ruby on Rails's multi-threading.
+Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite, and it leverages the `FOR UPDATE SKIP LOCKED` clause, if available, to avoid blocking and waiting on locks when polling jobs. It relies on Active Job for retries, discarding, error handling, serialization, and delays, and it's compatible with Ruby on Rails's multi-threading.
 
-## Table of contents
+## Table of Contents
 
 - [Installation](#installation)
   - [Usage in development and other non-production environments](#usage-in-development-and-other-non-production-environments)
@@ -15,10 +15,10 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
   - [Incremental adoption](#incremental-adoption)
   - [High performance requirements](#high-performance-requirements)
 - [Configuration](#configuration)
-  - [Workers, dispatchers and scheduler](#workers-dispatchers-and-scheduler)
+  - [Workers, dispatchers, and scheduler](#workers-dispatchers-and-scheduler)
   - [Queue order and priorities](#queue-order-and-priorities)
   - [Queues specification and performance](#queues-specification-and-performance)
-  - [Threads, processes and signals](#threads-processes-and-signals)
+  - [Threads, processes, and signals](#threads-processes-and-signals)
   - [Database configuration](#database-configuration)
   - [Other configuration settings](#other-configuration-settings)
 - [Lifecycle hooks](#lifecycle-hooks)
@@ -36,7 +36,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL or SQLite, 
 
 ## Installation
 
-Solid Queue is configured by default in new Rails 8 applications. But if you're running an earlier version, you can add it manually following these steps:
+Solid Queue is configured by default in new Rails 8 applications. If you're running an earlier version, you can add it manually following these steps:
 
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
@@ -45,7 +45,7 @@ Solid Queue is configured by default in new Rails 8 applications. But if you're 
 
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
-Once you've done that, you will then have to add the configuration for the queue database in `config/database.yml`. If you're using SQLite, it'll look like this:
+Once you've done that, you will have to add the configuration for the queue database in `config/database.yml`. If you're using SQLite, it'll look like this:
 
 ```yaml
 production:
@@ -79,7 +79,7 @@ Now you're ready to start processing jobs by running `bin/jobs` on the server th
 
 For small projects, you can run Solid Queue on the same machine as your webserver. When you're ready to scale, Solid Queue supports horizontal scaling out-of-the-box. You can run Solid Queue on a separate server from your webserver, or even run `bin/jobs` on multiple machines at the same time. Depending on the configuration, you can designate some machines to run only dispatchers or only workers. See the [configuration](#configuration) section for more details on this.
 
-**Note**: future changes to the schema will come in the form of regular migrations.
+**Note**: Future changes to the schema will come in the form of regular migrations.
 
 ### Usage in development and other non-production environments
 
@@ -150,7 +150,7 @@ development:
 
 ### Single database configuration
 
-Running Solid Queue in a separate database is recommended, but it's also possible to use one single database for both the app and the queue. Just follow these steps:
+Running Solid Queue in a separate database is recommended, but it's also possible to use one single database for both the app and the queue. Follow these steps:
 
 1. Copy the contents of `db/queue_schema.rb` into a normal migration and delete `db/queue_schema.rb`
 2. Remove `config.solid_queue.connects_to` from `production.rb`
@@ -158,7 +158,7 @@ Running Solid Queue in a separate database is recommended, but it's also possibl
 
 You won't have multiple databases, so `database.yml` doesn't need to have primary and queue database.
 
-### Dashboard ui setup
+### Dashboard UI Setup
 
 For viewing information about your jobs via a UI, we recommend taking a look at [mission_control-jobs](https://github.com/rails/mission_control-jobs), a dashboard where, among other things, you can examine and retry/discard failed jobs.
 
@@ -181,7 +181,7 @@ Solid Queue was designed for the highest throughput when used with MySQL 8+ or P
 
 ## Configuration
 
-### Workers, dispatchers and scheduler
+### Workers, dispatchers, and scheduler
 
 We have several types of actors in Solid Queue:
 
@@ -330,7 +330,7 @@ queues: back*
 ```
 
 
-### Threads, processes and signals
+### Threads, processes, and signals
 
 Workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
 
@@ -366,7 +366,7 @@ There are several settings that control how Solid Queue works that you can set a
 
   **This is not used for errors raised within a job execution**. Errors happening in jobs are handled by Active Job's `retry_on` or `discard_on`, and ultimately will result in [failed jobs](#failed-jobs-and-retries). This is for errors happening within Solid Queue itself.
 
-- `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you'd only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
+- `use_skip_locked`: whether to use `FOR UPDATE SKIP LOCKED` when performing locking reads. This will be automatically detected in the future, and for now, you only need to set this to `false` if your database doesn't support it. For MySQL, that'd be versions < 8, and for PostgreSQL, versions < 9.5. If you use SQLite, this has no effect, as writes are sequential.
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
 - `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
 - `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
