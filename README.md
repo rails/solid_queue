@@ -616,7 +616,7 @@ end
 
 Using this option, you can also use Solid Queue in the same database as your app but not rely on transactional integrity.
 
-If you don't set this option but still want to make sure you're not inadvertently on transactional integrity, you can make sure that:
+If you don't set this option but still want to make sure you're not inadvertently relying on transactional integrity, you can make sure that:
 - Your jobs relying on specific data are always enqueued on [`after_commit` callbacks](https://guides.rubyonrails.org/active_record_callbacks.html#after-commit-and-after-rollback) or otherwise from a place where you're certain that whatever data the job will use has been committed to the database before the job is enqueued.
 - Or, you configure a different database for Solid Queue, even if it's the same as your app, ensuring that a different connection on the thread handling requests or running jobs for your app will be used to enqueue jobs. For example:
 
