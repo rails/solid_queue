@@ -127,10 +127,8 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
 
     signal_process(@pid, :TERM, wait: 0.5)
 
-    sleep(SolidQueue.shutdown_timeout + 0.5.second)
-
+    wait_for_job_status!(no_pause, :finished, timeout: SolidQueue.shutdown_timeout + 1.second)
     assert_completed_job_results("no pause")
-    assert_job_status(no_pause, :finished)
 
     # This job was left claimed as the worker was shutdown without
     # a chance to terminate orderly
@@ -138,6 +136,7 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     assert_job_status(pause, :claimed)
 
     # The process running the long job couldn't deregister, the other did
+    wait_for_registered_processes(1, timeout: SolidQueue.shutdown_timeout)
     assert_registered_workers_for(:background)
 
     # Now wait until the supervisor finishes for real, which will complete the cleanup
@@ -322,5 +321,11 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
         job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
         assert job.public_send("#{status}?")
       end
+    end
+
+    def wait_for_job_status!(active_job, status, timeout: 1.second)
+      wait_while_with_timeout!(timeout) {
+        not SolidQueue::Job.find_by(active_job_id: active_job.job_id).public_send("#{status}?")
+      }
     end
 end
