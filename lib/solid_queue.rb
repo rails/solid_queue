@@ -41,6 +41,8 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  mattr_accessor :recurring_config_file_pattern, default: SolidQueue::Configuration::DEFAULT_RECURRING_SCHEDULE_FILE_PATH
+
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
   [ Dispatcher, Scheduler, Worker ].each do |process|

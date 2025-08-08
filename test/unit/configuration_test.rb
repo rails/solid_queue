@@ -68,6 +68,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :scheduler, 1
 
     scheduler = configuration.configured_processes.second.instantiate
+    assert_equal 1, scheduler.recurring_schedule.configured_tasks.count
     assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
   end
 
@@ -77,6 +78,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :scheduler, 1
 
     scheduler = configuration.configured_processes.first.instantiate
+    assert_equal 1, scheduler.recurring_schedule.configured_tasks.count
     assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
   end
 
@@ -143,6 +145,20 @@ class ConfigurationTest < ActiveSupport::TestCase
       configuration.errors.full_messages.first
   end
 
+  test 'multiple recurring configuration files' do
+    configuration = SolidQueue::Configuration.new(recurring_schedule_config_pattern: 'config/recurring_matching_pattern_*.yml')
+
+    assert configuration.valid?
+    assert_processes configuration, :scheduler, 1
+
+    scheduler = configuration.configured_processes.find { |process| process.kind == :scheduler }.instantiate
+
+    assert_equal 2, scheduler.recurring_schedule.configured_tasks.count
+    assert_has_recurring_task scheduler, key: "periodic_store_result_a", class_name: "StoreResultJob", schedule: "every second"
+    assert_has_recurring_task scheduler, key: "periodic_store_result_b", class_name: "StoreResultJob", schedule: "every second"
+  ensure
+  end
+
   private
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
@@ -159,7 +175,6 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
 
     def assert_has_recurring_task(scheduler, key:, **attributes)
-      assert_equal 1, scheduler.recurring_schedule.configured_tasks.count
       task = scheduler.recurring_schedule.configured_tasks.detect { |t| t.key == key }
 
       attributes.each do |attr, value|
