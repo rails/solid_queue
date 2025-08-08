@@ -145,8 +145,8 @@ class ConfigurationTest < ActiveSupport::TestCase
       configuration.errors.full_messages.first
   end
 
-  test 'multiple recurring configuration files' do
-    configuration = SolidQueue::Configuration.new(recurring_schedule_config_pattern: 'config/recurring_matching_pattern_*.yml')
+  test "multiple recurring configuration files" do
+    configuration = SolidQueue::Configuration.new(recurring_schedule_config_pattern: "config/recurring_matching_pattern_*.yml")
 
     assert configuration.valid?
     assert_processes configuration, :scheduler, 1
