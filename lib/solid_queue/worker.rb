@@ -58,3 +58,7 @@ module SolidQueue
       end
   end
 end
+
+# Include adaptive polling enhancement
+require_relative "adaptive_polling_enhancement"
+SolidQueue::Worker.include SolidQueue::AdaptivePollingEnhancement

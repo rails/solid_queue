@@ -175,3 +175,72 @@ class ConfigurationTest < ActiveSupport::TestCase
       end
     end
 end
+
+class AdaptivePollingConfigurationTest < ActiveSupport::TestCase
+  setup do
+    @original_enabled = SolidQueue.adaptive_polling_enabled
+    @original_min = SolidQueue.adaptive_polling_min_interval
+    @original_max = SolidQueue.adaptive_polling_max_interval
+    @original_backoff = SolidQueue.adaptive_polling_backoff_factor
+    @original_speedup = SolidQueue.adaptive_polling_speedup_factor
+    @original_window = SolidQueue.adaptive_polling_window_size
+  end
+
+  teardown do
+    SolidQueue.adaptive_polling_enabled = @original_enabled
+    SolidQueue.adaptive_polling_min_interval = @original_min
+    SolidQueue.adaptive_polling_max_interval = @original_max
+    SolidQueue.adaptive_polling_backoff_factor = @original_backoff
+    SolidQueue.adaptive_polling_speedup_factor = @original_speedup
+    SolidQueue.adaptive_polling_window_size = @original_window
+  end
+
+  test "adaptive polling has correct default configuration" do
+    assert_equal false, SolidQueue.adaptive_polling_enabled
+    assert_equal 0.05, SolidQueue.adaptive_polling_min_interval
+    assert_equal 5.0, SolidQueue.adaptive_polling_max_interval
+    assert_equal 1.5, SolidQueue.adaptive_polling_backoff_factor
+    assert_equal 0.7, SolidQueue.adaptive_polling_speedup_factor
+    assert_equal 10, SolidQueue.adaptive_polling_window_size
+  end
+
+  test "adaptive polling configuration can be changed" do
+    SolidQueue.adaptive_polling_enabled = true
+    SolidQueue.adaptive_polling_min_interval = 0.03
+    SolidQueue.adaptive_polling_max_interval = 8.0
+    SolidQueue.adaptive_polling_backoff_factor = 1.8
+    SolidQueue.adaptive_polling_speedup_factor = 0.5
+    SolidQueue.adaptive_polling_window_size = 15
+
+    assert_equal true, SolidQueue.adaptive_polling_enabled
+    assert_equal 0.03, SolidQueue.adaptive_polling_min_interval
+    assert_equal 8.0, SolidQueue.adaptive_polling_max_interval
+    assert_equal 1.8, SolidQueue.adaptive_polling_backoff_factor
+    assert_equal 0.5, SolidQueue.adaptive_polling_speedup_factor
+    assert_equal 15, SolidQueue.adaptive_polling_window_size
+  end
+
+  test "adaptive_polling_enabled? method works correctly" do
+    SolidQueue.adaptive_polling_enabled = false
+    assert_not SolidQueue.adaptive_polling_enabled?
+
+    SolidQueue.adaptive_polling_enabled = true
+    assert SolidQueue.adaptive_polling_enabled?
+  end
+
+  test "adaptive polling configurations are accessible via mattr_accessor" do
+    # Test that all configuration options are available as class methods
+    assert_respond_to SolidQueue, :adaptive_polling_enabled
+    assert_respond_to SolidQueue, :adaptive_polling_enabled=
+    assert_respond_to SolidQueue, :adaptive_polling_min_interval
+    assert_respond_to SolidQueue, :adaptive_polling_min_interval=
+    assert_respond_to SolidQueue, :adaptive_polling_max_interval
+    assert_respond_to SolidQueue, :adaptive_polling_max_interval=
+    assert_respond_to SolidQueue, :adaptive_polling_backoff_factor
+    assert_respond_to SolidQueue, :adaptive_polling_backoff_factor=
+    assert_respond_to SolidQueue, :adaptive_polling_speedup_factor
+    assert_respond_to SolidQueue, :adaptive_polling_speedup_factor=
+    assert_respond_to SolidQueue, :adaptive_polling_window_size
+    assert_respond_to SolidQueue, :adaptive_polling_window_size=
+  end
+end
