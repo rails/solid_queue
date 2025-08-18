@@ -86,6 +86,14 @@ module SolidQueue
         end
       rescue RecurringExecution::AlreadyRecorded
         payload[:skipped] = true
+        # The execution for this task and run time was already recorded by another
+        # thread or process. Lookup the existing execution so we can still expose
+        # the Active Job identifier in the instrumentation payload. This allows
+        # consumers (and our test-suite) to reliably correlate the event with the
+        # previously enqueued job even when it is reported as skipped.
+        if (existing_execution = SolidQueue::RecurringExecution.find_by(task_key: key, run_at: at))
+          payload[:active_job_id] = existing_execution.job&.active_job_id
+        end
         false
       rescue Job::EnqueueError => error
         payload[:enqueue_error] = error.message
