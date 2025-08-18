@@ -3,7 +3,16 @@
 require_relative "adaptive_poller"
 
 module SolidQueue
-  # Enhancement to add adaptive polling to existing workers
+  # Enhancement module that adds adaptive polling capabilities to SolidQueue workers.
+  #
+  # This module extends existing Worker instances to include adaptive polling logic
+  # without modifying the core Worker class directly. It provides:
+  # - Dynamic polling interval adjustment based on workload
+  # - Statistical tracking and logging of polling performance
+  # - Graceful fallback to original polling behavior when disabled
+  #
+  # The enhancement is applied through method aliasing and can be safely
+  # enabled/disabled via configuration flags.
   module AdaptivePollingEnhancement
     extend ActiveSupport::Concern
 
@@ -78,9 +87,9 @@ module SolidQueue
       end
 
       def should_log_stats?
-        # Log every 1000 polls or 5 minutes
-        @polling_stats[:total_polls] % 1000 == 0 ||
-        (Time.current - @polling_stats[:last_reset]) > 300
+        # Log every N polls or every N minutes
+        @polling_stats[:total_polls] % AdaptivePoller::STATS_LOG_INTERVAL == 0 ||
+        (Time.current - @polling_stats[:last_reset]) > AdaptivePoller::STATS_RESET_INTERVAL
       end
 
       def log_polling_stats
@@ -99,7 +108,7 @@ module SolidQueue
         )
 
         # Reset stats periodically
-        if elapsed > 300
+        if elapsed > AdaptivePoller::STATS_RESET_INTERVAL
           reset_polling_stats!
         end
       end

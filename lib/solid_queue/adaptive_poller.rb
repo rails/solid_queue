@@ -1,18 +1,41 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  # Adaptive polling that adjusts interval based on workload
-  # Reduces CPU and memory consumption when system is idle
+  # Adaptive polling that dynamically adjusts polling intervals based on system workload.
+  #
+  # This class monitors job queue activity and adjusts polling frequency to:
+  # - Reduce CPU and memory consumption when the system is idle
+  # - Increase responsiveness when the system is busy processing many jobs
+  # - Maintain optimal balance between resource usage and job processing latency
+  #
+  # The algorithm uses statistical analysis of recent polling results to determine
+  # whether the system should poll more or less frequently.
   class AdaptivePoller
-      def initialize(base_interval: 0.1)
-    @base_interval = base_interval
-    @current_interval = base_interval
-    @last_interval = base_interval
-    @stats_window = CircularBuffer.new(SolidQueue.adaptive_polling_window_size)
-    @consecutive_empty_polls = 0
-    @consecutive_busy_polls = 0
-    @last_adjustment = Time.current
-  end
+    # Constants for adaptive polling thresholds
+    MIN_ADJUSTMENT_INTERVAL = 0.01
+    BUSY_WORK_RATE_THRESHOLD = 0.6
+    BUSY_AVG_JOBS_THRESHOLD = 2
+    IDLE_CONSECUTIVE_POLLS = 5
+    RAPID_ACCELERATION_THRESHOLD = 10
+    MAX_BACKOFF_MULTIPLIER = 3.0
+    CONVERGENCE_FACTOR = 0.95
+    REVERSE_CONVERGENCE_FACTOR = 1.05
+    RAPID_ACCELERATION_FACTOR = 0.8
+    INTERVAL_CHANGE_THRESHOLD = 0.01
+    STATS_LOG_INTERVAL = 1000
+    STATS_RESET_INTERVAL = 300
+
+    attr_reader :base_interval, :current_interval
+
+    def initialize(base_interval: 0.1)
+      @base_interval = base_interval
+      @current_interval = base_interval
+      @last_interval = base_interval
+      @stats_window = CircularBuffer.new(SolidQueue.adaptive_polling_window_size)
+      @consecutive_empty_polls = 0
+      @consecutive_busy_polls = 0
+      @last_adjustment = Time.current
+    end
 
     def next_interval(poll_result)
       record_poll_result(poll_result)
@@ -26,13 +49,9 @@ module SolidQueue
       @consecutive_busy_polls = 0
     end
 
-    def current_interval
-      @current_interval
-    end
-
   private
 
-    attr_reader :base_interval, :stats_window
+    attr_reader :stats_window
 
     def record_poll_result(result)
       job_count = extract_job_count(result)
@@ -51,20 +70,22 @@ module SolidQueue
     def extract_job_count(result)
       case result
       when Integer
-        result
+        [ result, 0 ].max
       when Array
         result.size
       when Hash
-        result[:job_count] || result[:size] || 0
+        count = result[:job_count] || result[:size] || 0
+        count.is_a?(Integer) ? [ count, 0 ].max : 0
       else
-        result.respond_to?(:size) ? result.size : 0
+        result.respond_to?(:size) ? [ result.size, 0 ].max : 0
       end
     end
 
     def extract_execution_time(result)
       case result
       when Hash
-        result[:execution_time] || 0.001
+        time = result[:execution_time]
+        time.is_a?(Numeric) && time > 0 ? time : 0.001
       else
         0.001
       end
@@ -101,23 +122,23 @@ module SolidQueue
 
     def should_skip_adjustment?
       # Don't adjust too frequently (but allow more frequent adjustments in tests)
-      Time.current - @last_adjustment < 0.01
+      Time.current - @last_adjustment < MIN_ADJUSTMENT_INTERVAL
     end
 
     def system_is_busy?
       return false if stats_window.size < 3
 
-      recent_work_rate = stats_window.recent(5).count { |stat| stat[:had_work] }.to_f / 5
-      avg_job_count = stats_window.recent(5).sum { |stat| stat[:job_count] }.to_f / 5
+      recent_work_rate = stats_window.recent(IDLE_CONSECUTIVE_POLLS).count { |stat| stat[:had_work] }.to_f / IDLE_CONSECUTIVE_POLLS
+      avg_job_count = stats_window.recent(IDLE_CONSECUTIVE_POLLS).sum { |stat| stat[:job_count] }.to_f / IDLE_CONSECUTIVE_POLLS
 
-      # System is busy if more than 60% of polls found work
-      # OR if average jobs per poll > 2
-      recent_work_rate > 0.6 || avg_job_count > 2
+      # System is busy if more than threshold % of polls found work
+      # OR if average jobs per poll > threshold
+      recent_work_rate > BUSY_WORK_RATE_THRESHOLD || avg_job_count > BUSY_AVG_JOBS_THRESHOLD
     end
 
     def system_is_idle?
-      # System is idle if no work found in last 5 polls
-      @consecutive_empty_polls >= 5
+      # System is idle if no work found in last N polls
+      @consecutive_empty_polls >= IDLE_CONSECUTIVE_POLLS
     end
 
     def accelerate_polling
@@ -125,8 +146,8 @@ module SolidQueue
       new_interval = @current_interval * SolidQueue.adaptive_polling_speedup_factor
 
       # Accelerate more rapidly if system is very busy
-      if @consecutive_busy_polls >= 10
-        new_interval *= 0.8
+      if @consecutive_busy_polls >= RAPID_ACCELERATION_THRESHOLD
+        new_interval *= RAPID_ACCELERATION_FACTOR
       end
 
       new_interval
@@ -134,23 +155,23 @@ module SolidQueue
 
     def decelerate_polling
       # Increase interval when idle (exponential backoff)
-      backoff_multiplier = [ 1 + (@consecutive_empty_polls * 0.1), 3.0 ].min
+      backoff_multiplier = [ 1 + (@consecutive_empty_polls * 0.1), MAX_BACKOFF_MULTIPLIER ].min
       @current_interval * SolidQueue.adaptive_polling_backoff_factor * backoff_multiplier
     end
 
     def maintain_current_interval
       # Gradually converge to base interval
       if @current_interval > base_interval
-        [ @current_interval * 0.95, base_interval ].max
+        [ @current_interval * CONVERGENCE_FACTOR, base_interval ].max
       elsif @current_interval < base_interval
-        [ @current_interval * 1.05, base_interval ].min
+        [ @current_interval * REVERSE_CONVERGENCE_FACTOR, base_interval ].min
       else
         @current_interval
       end
     end
 
     def interval_changed?
-      (@current_interval - @last_interval).abs > 0.01
+      (@current_interval - @last_interval).abs > INTERVAL_CHANGE_THRESHOLD
     end
 
     def log_interval_change
