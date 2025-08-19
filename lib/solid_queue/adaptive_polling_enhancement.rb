@@ -16,6 +16,10 @@ module SolidQueue
   module AdaptivePollingEnhancement
     extend ActiveSupport::Concern
 
+    FALLBACK_INTERVAL = 10.minutes
+
+    PERCENTAGE_CONVERSION_FACTOR = 100
+
     included do
       attr_reader :adaptive_poller
 
@@ -66,7 +70,7 @@ module SolidQueue
 
           next_interval
         else
-          pool.idle? ? polling_interval : 10.minutes
+          pool.idle? ? polling_interval : FALLBACK_INTERVAL
         end
       end
 
@@ -74,8 +78,7 @@ module SolidQueue
 
       def update_polling_stats(jobs_claimed)
         @polling_stats[:total_polls] += 1
-        @polling_stats[:total_jobs_claimed] += jobs_claimed
-        @polling_stats[:empty_polls] += 1 if jobs_claimed == 0
+        jobs_claimed.zero? ? @polling_stats[:empty_polls] += 1 : @polling_stats[:total_jobs_claimed] += jobs_claimed
       end
 
       def should_log_stats?
@@ -93,7 +96,7 @@ module SolidQueue
           "Worker #{process_id} adaptive polling stats: " \
           "polls=#{@polling_stats[:total_polls]} " \
           "avg_jobs_per_poll=#{avg_jobs_per_poll.round(2)} " \
-          "empty_poll_rate=#{(empty_poll_rate * 100).round(1)}% " \
+          "empty_poll_rate=#{(empty_poll_rate * PERCENTAGE_CONVERSION_FACTOR).round(1)}% " \
           "current_interval=#{current_interval.round(3)}s " \
           "elapsed=#{elapsed.round(0)}s"
         )
