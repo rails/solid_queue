@@ -41,7 +41,7 @@ jobs:
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
         ports:
-          - 33060:3306
+          - 33066:3306
         options: --health-cmd "mysql -h localhost -e \"select now()\"" --health-interval 1s --health-timeout 5s --health-retries 30
       postgres:
         image: postgres:15.1
