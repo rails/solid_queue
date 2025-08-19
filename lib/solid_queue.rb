@@ -41,13 +41,12 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
-  # Adaptive Polling configurations
   mattr_accessor :adaptive_polling_enabled, default: false
-  mattr_accessor :adaptive_polling_min_interval, default: 0.05      # 50ms minimum
-  mattr_accessor :adaptive_polling_max_interval, default: 5.0       # 5s maximum
-  mattr_accessor :adaptive_polling_backoff_factor, default: 1.5     # Growth factor
-  mattr_accessor :adaptive_polling_speedup_factor, default: 0.7     # Acceleration factor
-  mattr_accessor :adaptive_polling_window_size, default: 10         # Analysis window
+  mattr_accessor :adaptive_polling_min_interval, default: 0.05
+  mattr_accessor :adaptive_polling_max_interval, default: 5.0
+  mattr_accessor :adaptive_polling_backoff_factor, default: 1.5
+  mattr_accessor :adaptive_polling_speedup_factor, default: 0.7
+  mattr_accessor :adaptive_polling_window_size, default: 10
 
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 

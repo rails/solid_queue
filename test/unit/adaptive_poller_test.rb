@@ -15,25 +15,21 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   test "next_interval accelerates when system is busy" do
     initial_interval = @poller.current_interval
 
-    # Need to provide enough data for system_is_busy to work (needs at least 3 in window)
-    # and ensure we can detect busy state properly
     15.times do
-      @poller.next_interval([ 1, 2, 3 ]) # 3 jobs found consistently
-      sleep(0.01) # Small delay to allow time-based adjustments
+      @poller.next_interval([ 1, 2, 3 ])
+      sleep(0.01)
     end
 
-        new_interval = @poller.current_interval
+    new_interval = @poller.current_interval
     assert new_interval < initial_interval, "Interval should decrease when system is busy (#{initial_interval} -> #{new_interval})"
   end
 
   test "next_interval decelerates when system is idle" do
     initial_interval = @poller.current_interval
 
-    # Simulate idle system with no jobs (need >= 5 empty polls)
-    # Also add small delays to allow time-based adjustments
     8.times do
-      @poller.next_interval([]) # No jobs found
-      sleep(0.01) # Small delay to allow time-based adjustments
+      @poller.next_interval([])
+      sleep(0.01)
     end
 
     new_interval = @poller.current_interval
@@ -43,9 +39,8 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   test "respects minimum interval limits" do
     SolidQueue.adaptive_polling_min_interval = 0.05
 
-    # Force system to be very busy
     10.times do
-      @poller.next_interval([ 1, 2, 3, 4, 5 ]) # Many jobs
+      @poller.next_interval([ 1, 2, 3, 4, 5 ])
     end
 
     current_interval = @poller.current_interval
@@ -58,9 +53,8 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   test "respects maximum interval limits" do
     SolidQueue.adaptive_polling_max_interval = 2.0
 
-    # Force system to be very idle
     20.times do
-      @poller.next_interval([]) # No jobs
+      @poller.next_interval([])
     end
 
     current_interval = @poller.current_interval
@@ -71,16 +65,12 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   end
 
   test "handles different job count scenarios correctly" do
-    # Test with hash input
     interval1 = @poller.next_interval({ job_count: 3, execution_time: 0.1 })
 
-    # Test with array input
     interval2 = @poller.next_interval([ 1, 2 ])
 
-    # Test with integer input
     interval3 = @poller.next_interval(1)
 
-    # All should return valid intervals
     [ interval1, interval2, interval3 ].each do |interval|
       assert interval.is_a?(Numeric), "Should return numeric interval"
       assert interval > 0, "Interval should be positive"
@@ -88,10 +78,8 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   end
 
   test "reset clears statistics and returns to base interval" do
-    # Make system busy first
     5.times { @poller.next_interval([ 1, 2, 3 ]) }
 
-    # Reset should clear counters
     @poller.reset!
 
     assert_equal 0, @poller.instance_variable_get(:@consecutive_empty_polls)
@@ -100,20 +88,16 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   end
 
   test "system_is_busy detection works correctly" do
-    # Not enough data initially
     assert_not @poller.send(:system_is_busy?)
 
-    # Add some data points - high work rate
     5.times { @poller.next_interval([ 1, 2, 3 ]) }
 
     assert @poller.send(:system_is_busy?), "Should detect busy system"
   end
 
   test "system_is_idle detection works correctly" do
-    # Initially not idle
     assert_not @poller.send(:system_is_idle?)
 
-    # Make system idle
     6.times { @poller.next_interval([]) }
 
     assert @poller.send(:system_is_idle?), "Should detect idle system"
@@ -122,7 +106,6 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   test "circular buffer maintains correct size" do
     buffer = SolidQueue::CircularBuffer.new(3)
 
-    # Add more items than buffer size
     5.times { |i| buffer.push({ value: i }) }
 
     assert_equal 3, buffer.size
@@ -133,13 +116,11 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   test "circular buffer recent method works correctly" do
     buffer = SolidQueue::CircularBuffer.new(5)
 
-    # Add items
     (1..3).each { |i| buffer.push({ value: i }) }
 
     recent = buffer.recent(2)
     assert_equal [ { value: 2 }, { value: 3 } ], recent
 
-    # Test when requesting more than available
     all_recent = buffer.recent(10)
     assert_equal 3, all_recent.size
   end
@@ -153,13 +134,11 @@ class AdaptivePollerTest < ActiveSupport::TestCase
 
     initial_interval = @poller.instance_variable_get(:@current_interval)
 
-    # Test speedup
     @poller.instance_variable_set(:@consecutive_busy_polls, 1)
     accelerated = @poller.send(:accelerate_polling)
     expected_accelerated = initial_interval * 0.5
     assert_in_delta expected_accelerated, accelerated, 0.001
 
-    # Test backoff
     @poller.instance_variable_set(:@consecutive_empty_polls, 1)
     decelerated = @poller.send(:decelerate_polling)
     expected_decelerated = initial_interval * 2.0 * 1.1 # backoff_factor * multiplier
@@ -171,22 +150,17 @@ class AdaptivePollerTest < ActiveSupport::TestCase
   end
 
   test "maintains current interval when system is stable" do
-    # Set current interval different from base
     @poller.instance_variable_set(:@current_interval, 0.15)
 
-    # Simulate stable system (not busy, not idle)
-    @poller.instance_variable_set(:@consecutive_empty_polls, 2) # Less than 5
+    @poller.instance_variable_set(:@consecutive_empty_polls, 2)
     @poller.instance_variable_set(:@consecutive_busy_polls, 0)
 
-    # Add some mixed data to stats window
     3.times { @poller.next_interval([ 1 ]) }      # Some work
-    2.times { @poller.next_interval([]) }       # Some empty
+    2.times { @poller.next_interval([]) }
 
-    # Should gradually converge to base interval
     current = @poller.instance_variable_get(:@current_interval)
     expected_convergence = @poller.send(:maintain_current_interval)
 
-    # Should be closer to base (0.1) than before
     assert expected_convergence < 0.15, "Should converge towards base interval"
   end
 end

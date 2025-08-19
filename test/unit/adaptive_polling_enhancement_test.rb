@@ -39,30 +39,25 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Mock claim_executions to return different results
     empty_result = []
     busy_result = [ mock_execution, mock_execution ]
 
-    @worker.expects(:claim_executions).returns(empty_result).times(10) # Need more for idle detection
+    @worker.expects(:claim_executions).returns(empty_result).times(10)
     @worker.pool.expects(:post).never
 
-    # Simulate multiple empty polls - should increase interval
     intervals = []
     10.times do
       intervals << @worker.send(:poll)
-      sleep(0.01) # Small delay to allow time-based adjustments
+      sleep(0.01)
     end
 
-    # With 10 empty polls, should trigger idle state (needs >= 5)
     assert intervals.last > intervals.first, "Interval should increase with empty polls (#{intervals.first} -> #{intervals.last})"
 
-    # Now simulate busy system
-    @worker.expects(:claim_executions).returns(busy_result).times(10) # More polls for busy detection
-    @worker.pool.expects(:post).with(anything).times(20) # 2 executions * 10 polls
+    @worker.expects(:claim_executions).returns(busy_result).times(10)
+    @worker.pool.expects(:post).with(anything).times(20)
 
     10.times { intervals << @worker.send(:poll) }
 
-    # Should decrease after consistent busy polls
     assert intervals.last < intervals[-11], "Interval should decrease with busy polls (#{intervals[-11]} -> #{intervals.last})"
   end
 
@@ -84,9 +79,8 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Mock some polls
-    @worker.expects(:claim_executions).returns([]).times(3)                     # 3 empty polls
-    @worker.expects(:claim_executions).returns([ mock_execution ]).times(2)       # 2 busy polls
+    @worker.expects(:claim_executions).returns([]).times(3)
+    @worker.expects(:claim_executions).returns([ mock_execution ]).times(2)
     @worker.pool.expects(:post).with(anything).times(2)
 
     5.times { @worker.send(:poll) }
@@ -100,22 +94,18 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
   test "statistics logging works periodically" do
     SolidQueue.adaptive_polling_enabled = true
 
-    # Set up a mock logger
     logger_mock = mock("logger")
     SolidQueue.stubs(:logger).returns(logger_mock)
 
-    # Allow initialization logging
     logger_mock.expects(:info).with(regexp_matches(/initialized with adaptive polling enabled/))
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Set up stats to trigger logging
     stats = @worker.instance_variable_get(:@polling_stats)
-    stats[:total_polls] = 1000 # Should trigger logging
+    stats[:total_polls] = 1000
     stats[:total_jobs_claimed] = 500
     stats[:empty_polls] = 500
 
-    # Mock the logging
     logger_mock.expects(:info).with(regexp_matches(/adaptive polling stats/))
 
     assert @worker.send(:should_log_stats?), "Should log stats at 1000 polls"
@@ -128,7 +118,6 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Set some stats
     stats = @worker.instance_variable_get(:@polling_stats)
     stats[:total_polls] = 100
     stats[:total_jobs_claimed] = 50
@@ -155,15 +144,12 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Make some polls to change adaptive poller state
     @worker.expects(:claim_executions).returns([]).times(6)
     6.times { @worker.send(:poll) }
 
-    # Verify adaptive poller has some state
     poller = @worker.adaptive_poller
     assert poller.instance_variable_get(:@consecutive_empty_polls) > 0
 
-    # Reset should clear adaptive poller state too
     @worker.send(:reset_polling_stats!)
 
     assert_equal 0, poller.instance_variable_get(:@consecutive_empty_polls)
@@ -172,7 +158,6 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
   test "worker logs initialization with adaptive polling" do
     SolidQueue.adaptive_polling_enabled = true
 
-    # Set up a mock logger
     logger_mock = mock("logger")
     SolidQueue.stubs(:logger).returns(logger_mock)
 
@@ -186,9 +171,8 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Set last_reset to trigger time-based logging
     stats = @worker.instance_variable_get(:@polling_stats)
-    stats[:last_reset] = Time.current - 301 # More than 5 minutes ago
+    stats[:last_reset] = Time.current - 301
 
     assert @worker.send(:should_log_stats?), "Should log stats after 5 minutes"
   end
@@ -198,11 +182,9 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
 
-    # Mock claim_executions to simulate different execution times
     @worker.expects(:claim_executions).returns([ mock_execution ])
     @worker.pool.expects(:post).once
 
-    # The poll method should track execution time
     interval = @worker.send(:poll)
 
     assert interval.is_a?(Numeric), "Should return numeric interval"

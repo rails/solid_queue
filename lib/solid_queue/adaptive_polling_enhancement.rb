@@ -19,13 +19,11 @@ module SolidQueue
     included do
       attr_reader :adaptive_poller
 
-      # Override initialization to include adaptive poller
       alias_method :original_initialize, :initialize
 
       def initialize(**options)
         original_initialize(**options)
 
-        # Initialize adaptive poller if enabled in SolidQueue settings
         if SolidQueue.adaptive_polling_enabled?
           @adaptive_poller = AdaptivePoller.new(
             base_interval: polling_interval
@@ -41,7 +39,6 @@ module SolidQueue
         end
       end
 
-      # Override poll method to use adaptive polling
       alias_method :original_poll, :poll
 
       def poll
@@ -50,15 +47,12 @@ module SolidQueue
         executions = claim_executions
         execution_time = Time.current - start_time
 
-        # Process executions
         executions.each do |execution|
           pool.post(execution)
         end
 
-        # Update statistics
         update_polling_stats(executions.size) if adaptive_poller
 
-        # Calculate next interval
         if adaptive_poller
           poll_result = {
             job_count: executions.size,
@@ -68,12 +62,10 @@ module SolidQueue
 
           next_interval = adaptive_poller.next_interval(poll_result)
 
-          # Periodic statistics logging
           log_polling_stats if should_log_stats?
 
           next_interval
         else
-          # Fallback to original behavior
           pool.idle? ? polling_interval : 10.minutes
         end
       end
@@ -87,7 +79,6 @@ module SolidQueue
       end
 
       def should_log_stats?
-        # Log every N polls or every N minutes
         @polling_stats[:total_polls] % AdaptivePoller::STATS_LOG_INTERVAL == 0 ||
         (Time.current - @polling_stats[:last_reset]) > AdaptivePoller::STATS_RESET_INTERVAL
       end
@@ -107,7 +98,6 @@ module SolidQueue
           "elapsed=#{elapsed.round(0)}s"
         )
 
-        # Reset stats periodically
         if elapsed > AdaptivePoller::STATS_RESET_INTERVAL
           reset_polling_stats!
         end
@@ -124,7 +114,6 @@ module SolidQueue
       end
     end
 
-    # Class methods for configuration
     module ClassMethods
       def adaptive_polling_enabled?
         SolidQueue.adaptive_polling_enabled?

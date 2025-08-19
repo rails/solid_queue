@@ -11,7 +11,6 @@ module SolidQueue
   # The algorithm uses statistical analysis of recent polling results to determine
   # whether the system should poll more or less frequently.
   class AdaptivePoller
-    # Constants for adaptive polling thresholds
     MIN_ADJUSTMENT_INTERVAL = 0.01
     BUSY_WORK_RATE_THRESHOLD = 0.6
     BUSY_AVG_JOBS_THRESHOLD = 2
@@ -121,7 +120,6 @@ module SolidQueue
     end
 
     def should_skip_adjustment?
-      # Don't adjust too frequently (but allow more frequent adjustments in tests)
       Time.current - @last_adjustment < MIN_ADJUSTMENT_INTERVAL
     end
 
@@ -131,21 +129,16 @@ module SolidQueue
       recent_work_rate = stats_window.recent(IDLE_CONSECUTIVE_POLLS).count { |stat| stat[:had_work] }.to_f / IDLE_CONSECUTIVE_POLLS
       avg_job_count = stats_window.recent(IDLE_CONSECUTIVE_POLLS).sum { |stat| stat[:job_count] }.to_f / IDLE_CONSECUTIVE_POLLS
 
-      # System is busy if more than threshold % of polls found work
-      # OR if average jobs per poll > threshold
       recent_work_rate > BUSY_WORK_RATE_THRESHOLD || avg_job_count > BUSY_AVG_JOBS_THRESHOLD
     end
 
     def system_is_idle?
-      # System is idle if no work found in last N polls
       @consecutive_empty_polls >= IDLE_CONSECUTIVE_POLLS
     end
 
     def accelerate_polling
-      # Reduce interval when system is busy
       new_interval = @current_interval * SolidQueue.adaptive_polling_speedup_factor
 
-      # Accelerate more rapidly if system is very busy
       if @consecutive_busy_polls >= RAPID_ACCELERATION_THRESHOLD
         new_interval *= RAPID_ACCELERATION_FACTOR
       end
@@ -154,13 +147,11 @@ module SolidQueue
     end
 
     def decelerate_polling
-      # Increase interval when idle (exponential backoff)
       backoff_multiplier = [ 1 + (@consecutive_empty_polls * 0.1), MAX_BACKOFF_MULTIPLIER ].min
       @current_interval * SolidQueue.adaptive_polling_backoff_factor * backoff_multiplier
     end
 
     def maintain_current_interval
-      # Gradually converge to base interval
       if @current_interval > base_interval
         [ @current_interval * CONVERGENCE_FACTOR, base_interval ].max
       elsif @current_interval < base_interval
@@ -184,7 +175,6 @@ module SolidQueue
     end
   end
 
-  # Circular buffer for polling statistics
   class CircularBuffer
     def initialize(size)
       @size = size
@@ -207,7 +197,6 @@ module SolidQueue
       if @buffer.size < @size
         @buffer.last(count)
       else
-        # Buffer full, get most recent considering circular index
         recent_items = []
         (0...count).each do |i|
           idx = (@index - 1 - i) % @size

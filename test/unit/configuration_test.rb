@@ -229,7 +229,6 @@ class AdaptivePollingConfigurationTest < ActiveSupport::TestCase
   end
 
   test "adaptive polling configurations are accessible via mattr_accessor" do
-    # Test that all configuration options are available as class methods
     assert_respond_to SolidQueue, :adaptive_polling_enabled
     assert_respond_to SolidQueue, :adaptive_polling_enabled=
     assert_respond_to SolidQueue, :adaptive_polling_min_interval
