@@ -60,12 +60,15 @@ module SolidQueue
       job_count = extract_job_count(result)
       execution_time = extract_execution_time(result)
 
-      stats_window.push({
-        job_count: job_count,
-        execution_time: execution_time,
-        timestamp: Time.current,
-        had_work: job_count > 0
-      })
+      begin
+        stats_window.push({
+          job_count: job_count,
+          execution_time: execution_time,
+          timestamp: Time.current,
+          had_work: job_count > 0
+        })
+      rescue
+      end
 
       update_consecutive_counters(job_count > 0)
     end

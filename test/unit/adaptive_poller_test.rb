@@ -47,7 +47,7 @@ class AdaptivePollerTest < ActiveSupport::TestCase
     assert current_interval >= SolidQueue.adaptive_polling_min_interval,
            "Interval should not go below minimum"
   ensure
-    SolidQueue.adaptive_polling_min_interval = 0.05 # Reset to default
+    SolidQueue.adaptive_polling_min_interval = 0.05
   end
 
   test "respects maximum interval limits" do
@@ -61,7 +61,7 @@ class AdaptivePollerTest < ActiveSupport::TestCase
     assert current_interval <= SolidQueue.adaptive_polling_max_interval,
            "Interval should not exceed maximum"
   ensure
-    SolidQueue.adaptive_polling_max_interval = 5.0 # Reset to default
+    SolidQueue.adaptive_polling_max_interval = 5.0
   end
 
   test "handles different job count scenarios correctly" do
@@ -141,7 +141,7 @@ class AdaptivePollerTest < ActiveSupport::TestCase
 
     @poller.instance_variable_set(:@consecutive_empty_polls, 1)
     decelerated = @poller.send(:decelerate_polling)
-    expected_decelerated = initial_interval * 2.0 * 1.1 # backoff_factor * multiplier
+    expected_decelerated = initial_interval * 2.0 * 1.1
     assert_in_delta expected_decelerated, decelerated, 0.001
 
   ensure
@@ -155,7 +155,7 @@ class AdaptivePollerTest < ActiveSupport::TestCase
     @poller.instance_variable_set(:@consecutive_empty_polls, 2)
     @poller.instance_variable_set(:@consecutive_busy_polls, 0)
 
-    3.times { @poller.next_interval([ 1 ]) }      # Some work
+    3.times { @poller.next_interval([ 1 ]) }
     2.times { @poller.next_interval([]) }
 
     current = @poller.instance_variable_get(:@current_interval)

@@ -176,7 +176,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
 end
 
-class AdaptivePollingConfigurationTest < ActiveSupport::TestCase
+class ConfigurationTest < ActiveSupport::TestCase
   setup do
     @original_enabled = SolidQueue.adaptive_polling_enabled
     @original_min = SolidQueue.adaptive_polling_min_interval

@@ -1,10 +1,19 @@
 require "test_helper"
 
-class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
+class EnhancementTest < ActiveSupport::TestCase
   setup do
     @original_enabled = SolidQueue.adaptive_polling_enabled
     @original_min = SolidQueue.adaptive_polling_min_interval
     @original_max = SolidQueue.adaptive_polling_max_interval
+    @original_backoff = SolidQueue.adaptive_polling_backoff_factor
+    @original_speedup = SolidQueue.adaptive_polling_speedup_factor
+    @original_window = SolidQueue.adaptive_polling_window_size
+
+    SolidQueue.adaptive_polling_min_interval = 0.05
+    SolidQueue.adaptive_polling_max_interval = 5.0
+    SolidQueue.adaptive_polling_backoff_factor = 1.5
+    SolidQueue.adaptive_polling_speedup_factor = 0.7
+    SolidQueue.adaptive_polling_window_size = 10
   end
 
   teardown do
@@ -12,6 +21,9 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
     SolidQueue.adaptive_polling_enabled = @original_enabled
     SolidQueue.adaptive_polling_min_interval = @original_min
     SolidQueue.adaptive_polling_max_interval = @original_max
+    SolidQueue.adaptive_polling_backoff_factor = @original_backoff
+    SolidQueue.adaptive_polling_speedup_factor = @original_speedup
+    SolidQueue.adaptive_polling_window_size = @original_window
     JobBuffer.clear
   end
 
@@ -162,6 +174,56 @@ class AdaptivePollingEnhancementTest < ActiveSupport::TestCase
     SolidQueue.stubs(:logger).returns(logger_mock)
 
     logger_mock.expects(:info).with(regexp_matches(/initialized with adaptive polling enabled/))
+
+    @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
+  end
+
+  test "worker initialization fails with invalid min_interval" do
+    SolidQueue.adaptive_polling_enabled = true
+    SolidQueue.adaptive_polling_min_interval = -0.1
+
+    error = assert_raises SolidQueue::AdaptivePoller::Config::InvalidIntervalError do
+      SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
+    end
+
+    assert_match(/adaptive_polling_min_interval must be a positive number/, error.message)
+  end
+
+  test "worker initialization fails with inconsistent intervals" do
+    SolidQueue.adaptive_polling_enabled = true
+    SolidQueue.adaptive_polling_min_interval = 5.0
+    SolidQueue.adaptive_polling_max_interval = 1.0
+
+    error = assert_raises SolidQueue::AdaptivePoller::Config::InconsistentConfigurationError do
+      SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
+    end
+
+    assert_match(/adaptive_polling_min_interval.*must be less than.*adaptive_polling_max_interval/, error.message)
+  end
+
+  test "worker initialization logs configuration error and re-raises" do
+    SolidQueue.adaptive_polling_enabled = true
+    SolidQueue.adaptive_polling_backoff_factor = 0.5
+
+    logger_mock = mock("logger")
+    SolidQueue.stubs(:logger).returns(logger_mock)
+
+    logger_mock.expects(:error).with(regexp_matches(/Adaptive Polling configuration error/))
+
+    error = assert_raises SolidQueue::AdaptivePoller::Config::InvalidFactorError do
+      SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
+    end
+
+    assert_match(/adaptive_polling_backoff_factor.*must be greater than 1.0/, error.message)
+  end
+
+  test "worker initialization includes configuration summary in log" do
+    SolidQueue.adaptive_polling_enabled = true
+
+    logger_mock = mock("logger")
+    SolidQueue.stubs(:logger).returns(logger_mock)
+
+    logger_mock.expects(:info).with(regexp_matches(/initialized with adaptive polling enabled.*enabled.*true/))
 
     @worker = SolidQueue::Worker.new(queues: "background", threads: 1, polling_interval: 0.1)
   end
