@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require_relative "adaptive_poller"
+require_relative "../adaptive_poller"
+require_relative "config"
 
 module SolidQueue
   # Enhancement module that adds adaptive polling capabilities to SolidQueue workers.
@@ -13,7 +14,7 @@ module SolidQueue
   #
   # The enhancement is applied through method aliasing and can be safely
   # enabled/disabled via configuration flags.
-  module AdaptivePollingEnhancement
+  module AdaptivePoller::Enhancement
     extend ActiveSupport::Concern
 
     FALLBACK_INTERVAL = 10.minutes
@@ -40,12 +41,20 @@ module SolidQueue
         original_initialize(**options)
 
         if SolidQueue.adaptive_polling_enabled?
+          begin
+            SolidQueue::AdaptivePoller::Config.validate!
+          rescue SolidQueue::AdaptivePoller::Config::ConfigurationError => e
+            SolidQueue.logger&.error "Adaptive Polling configuration error: #{e.message}"
+            raise e
+          end
+
           @adaptive_poller = AdaptivePoller.new(
             base_interval: polling_interval
           )
           @polling_stats = create_polling_stats
 
-          SolidQueue.logger&.info "Worker #{process_id rescue 'unknown'} initialized with adaptive polling enabled"
+          config_summary = SolidQueue::AdaptivePoller::Config.configuration_summary
+          SolidQueue.logger&.info "Worker #{process_id rescue 'unknown'} initialized with adaptive polling enabled: #{config_summary.inspect}"
         end
       end
 
@@ -83,8 +92,14 @@ module SolidQueue
       private
 
       def update_polling_stats(jobs_claimed)
-        @polling_stats[:total_polls] += 1
-        jobs_claimed.zero? ? @polling_stats[:empty_polls] += 1 : @polling_stats[:total_jobs_claimed] += jobs_claimed
+        return unless @polling_stats.is_a?(Hash)
+
+        @polling_stats[:total_polls] = (@polling_stats[:total_polls] || 0) + 1
+        if jobs_claimed.zero?
+          @polling_stats[:empty_polls] = (@polling_stats[:empty_polls] || 0) + 1
+        else
+          @polling_stats[:total_jobs_claimed] = (@polling_stats[:total_jobs_claimed] || 0) + jobs_claimed
+        end
       end
 
       def should_log_stats?
