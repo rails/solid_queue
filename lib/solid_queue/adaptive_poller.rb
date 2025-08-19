@@ -23,10 +23,14 @@ module SolidQueue
     INTERVAL_CHANGE_THRESHOLD = 0.01
     STATS_LOG_INTERVAL = 1000
     STATS_RESET_INTERVAL = 300
+    DEFAULT_BASE_INTERVAL = 0.1
+    DEFAULT_EXECUTION_TIME = 0.001
+    BACKOFF_INCREMENT_FACTOR = 0.1
+    MIN_WINDOW_SIZE_FOR_ANALYSIS = 3
 
     attr_reader :base_interval, :current_interval
 
-    def initialize(base_interval: 0.1)
+    def initialize(base_interval: DEFAULT_BASE_INTERVAL)
       @base_interval = base_interval
       @current_interval = base_interval
       @last_interval = base_interval
@@ -84,9 +88,9 @@ module SolidQueue
       case result
       when Hash
         time = result[:execution_time]
-        time.is_a?(Numeric) && time > 0 ? time : 0.001
+        time.is_a?(Numeric) && time > 0 ? time : DEFAULT_EXECUTION_TIME
       else
-        0.001
+        DEFAULT_EXECUTION_TIME
       end
     end
 
@@ -124,7 +128,7 @@ module SolidQueue
     end
 
     def system_is_busy?
-      return false if stats_window.size < 3
+      return false if stats_window.size < MIN_WINDOW_SIZE_FOR_ANALYSIS
 
       recent_work_rate = stats_window.recent(IDLE_CONSECUTIVE_POLLS).count { |stat| stat[:had_work] }.to_f / IDLE_CONSECUTIVE_POLLS
       avg_job_count = stats_window.recent(IDLE_CONSECUTIVE_POLLS).sum { |stat| stat[:job_count] }.to_f / IDLE_CONSECUTIVE_POLLS
@@ -147,7 +151,7 @@ module SolidQueue
     end
 
     def decelerate_polling
-      backoff_multiplier = [ 1 + (@consecutive_empty_polls * 0.1), MAX_BACKOFF_MULTIPLIER ].min
+      backoff_multiplier = [ 1 + (@consecutive_empty_polls * BACKOFF_INCREMENT_FACTOR), MAX_BACKOFF_MULTIPLIER ].min
       @current_interval * SolidQueue.adaptive_polling_backoff_factor * backoff_multiplier
     end
 

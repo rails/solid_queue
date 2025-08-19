@@ -17,8 +17,19 @@ module SolidQueue
     extend ActiveSupport::Concern
 
     FALLBACK_INTERVAL = 10.minutes
-
     PERCENTAGE_CONVERSION_FACTOR = 100
+
+    LOG_PRECISION_JOBS = 2
+    LOG_PRECISION_PERCENTAGE = 1
+    LOG_PRECISION_INTERVAL = 3
+    LOG_PRECISION_ELAPSED = 0
+
+    DEFAULT_POLLING_STATS = {
+      total_polls: 0,
+      total_jobs_claimed: 0,
+      empty_polls: 0,
+      last_reset: proc { Time.current }
+    }.freeze
 
     included do
       attr_reader :adaptive_poller
@@ -32,12 +43,7 @@ module SolidQueue
           @adaptive_poller = AdaptivePoller.new(
             base_interval: polling_interval
           )
-          @polling_stats = {
-            total_polls: 0,
-            total_jobs_claimed: 0,
-            empty_polls: 0,
-            last_reset: Time.current
-          }
+          @polling_stats = create_polling_stats
 
           SolidQueue.logger&.info "Worker #{process_id rescue 'unknown'} initialized with adaptive polling enabled"
         end
@@ -87,33 +93,44 @@ module SolidQueue
       end
 
       def log_polling_stats
+        stats_summary = calculate_stats_summary
+        log_stats_message(stats_summary)
+
+        reset_polling_stats! if stats_summary[:elapsed] > AdaptivePoller::STATS_RESET_INTERVAL
+      end
+
+      def reset_polling_stats!
+        @polling_stats = create_polling_stats
+        adaptive_poller&.reset! if adaptive_poller.respond_to?(:reset!)
+      end
+
+      def create_polling_stats
+        DEFAULT_POLLING_STATS.merge(last_reset: Time.current)
+      end
+
+      def calculate_stats_summary
         elapsed = Time.current - @polling_stats[:last_reset]
         avg_jobs_per_poll = @polling_stats[:total_jobs_claimed].to_f / @polling_stats[:total_polls]
         empty_poll_rate = @polling_stats[:empty_polls].to_f / @polling_stats[:total_polls]
         current_interval = adaptive_poller&.current_interval || polling_interval
 
+        {
+          elapsed: elapsed,
+          avg_jobs_per_poll: avg_jobs_per_poll,
+          empty_poll_rate: empty_poll_rate,
+          current_interval: current_interval
+        }
+      end
+
+      def log_stats_message(stats)
         SolidQueue.logger&.info(
           "Worker #{process_id} adaptive polling stats: " \
           "polls=#{@polling_stats[:total_polls]} " \
-          "avg_jobs_per_poll=#{avg_jobs_per_poll.round(2)} " \
-          "empty_poll_rate=#{(empty_poll_rate * PERCENTAGE_CONVERSION_FACTOR).round(1)}% " \
-          "current_interval=#{current_interval.round(3)}s " \
-          "elapsed=#{elapsed.round(0)}s"
+          "avg_jobs_per_poll=#{stats[:avg_jobs_per_poll].round(LOG_PRECISION_JOBS)} " \
+          "empty_poll_rate=#{(stats[:empty_poll_rate] * PERCENTAGE_CONVERSION_FACTOR).round(LOG_PRECISION_PERCENTAGE)}% " \
+          "current_interval=#{stats[:current_interval].round(LOG_PRECISION_INTERVAL)}s " \
+          "elapsed=#{stats[:elapsed].round(LOG_PRECISION_ELAPSED)}s"
         )
-
-        if elapsed > AdaptivePoller::STATS_RESET_INTERVAL
-          reset_polling_stats!
-        end
-      end
-
-      def reset_polling_stats!
-        @polling_stats = {
-          total_polls: 0,
-          total_jobs_claimed: 0,
-          empty_polls: 0,
-          last_reset: Time.current
-        }
-        adaptive_poller&.reset! if adaptive_poller.respond_to?(:reset!)
       end
     end
 
