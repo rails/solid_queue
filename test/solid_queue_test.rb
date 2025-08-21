@@ -22,10 +22,10 @@ class SolidQueueTest < ActiveSupport::TestCase
       key: "static", command: "puts 's'", schedule: "every week", static: true
     )
 
-    SolidQueue.destroy_recurring_task(dynamic_task.id)
+    SolidQueue.destroy_recurring_task(dynamic_task.key)
 
     assert_raises(ActiveRecord::RecordNotFound) do
-      SolidQueue.destroy_recurring_task(static_task.id)
+      SolidQueue.destroy_recurring_task(static_task.key)
     end
 
     assert_not SolidQueue::RecurringTask.exists?(key: "dynamic", static: false)
