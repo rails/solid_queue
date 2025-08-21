@@ -48,8 +48,8 @@ module SolidQueue
     RecurringTask.create!(**attributes, key:, static: false)
   end
 
-  def destroy_recurring_task(id)
-    RecurringTask.dynamic.find(id).destroy!
+  def destroy_recurring_task(key)
+    RecurringTask.dynamic.find_by!(key:).destroy
   end
 
   [ Dispatcher, Scheduler, Worker ].each do |process|
