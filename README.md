@@ -751,7 +751,7 @@ You can create and delete recurring tasks at runtime, without editing the config
 #### Creating a recurring task
 
 ```ruby
-SolidQueue.schedule_recurring_task(
+SolidQueue.create_recurring_task(
   "my_dynamic_task",
   command: "puts 'Hello from a dynamic task!'",
   schedule: "every 10 minutes"
@@ -763,10 +763,10 @@ This will create a dynamic recurring task with the given key, command, and sched
 #### Deleting a recurring task
 
 ```ruby
-SolidQueue.delete_recurring_task(task_id)
+SolidQueue.destroy_recurring_task(key)
 ```
 
-This will delete a dynamically scheduled recurring task by its ID. If you attempt to delete a static (configuration-defined) recurring task, an error will be raised.
+This will delete a dynamically scheduled recurring task by its key. If you attempt to delete a static (configuration-defined) recurring task, an error will be raised.
 
 > **Note:** Static recurring tasks (those defined in `config/recurring.yml`) cannot be deleted at runtime. Attempting to do so will raise an error.
 
@@ -774,14 +774,14 @@ This will delete a dynamically scheduled recurring task by its ID. If you attemp
 
 ```ruby
 # Create a new dynamic recurring task
-recurring_task = SolidQueue.schedule_recurring_task(
+recurring_task = SolidQueue.create_recurring_task(
   "cleanup_temp_files",
   command: "TempFileCleaner.clean!",
   schedule: "every day at 2am"
 )
 
-# Delete the task later by ID
-SolidQueue.delete_recurring_task(recurring_task.id)
+# Delete the task later by key
+SolidQueue.destroy_recurring_task("cleanup_temp_files")
 ```
 
 ## Inspiration
