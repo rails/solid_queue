@@ -30,7 +30,7 @@ module SolidQueue
     end
 
     def start
-      # Supervisor Lifecycle - 3 - Boots which runns the boot callbacks
+      # Supervisor Lifecycle - 3 - Boots which runs the boot callbacks
       boot
       # Supervisor Lifecycle - 4 - Runs the start hooks for logging/hooks
       run_start_hooks
