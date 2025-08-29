@@ -76,8 +76,8 @@ module SolidQueue
       end
 
       def finished!
-        if SolidQueue.preserve_finished_jobs? || batch_id.present?
-          touch(:finished_at)
+        if SolidQueue.preserve_finished_jobs? || batch_id.present? # We clear jobs after the batch finishes
+          update!(finished_at: Time.current)
         else
           destroy!
         end
