@@ -4,11 +4,9 @@ module SolidQueue
   class Job < Record
     class EnqueueError < StandardError; end
 
-    include Executable, Clearable, Recurrable
+    include Executable, Clearable, Recurrable, Batchable
 
     serialize :arguments, coder: JSON
-
-    belongs_to :job_batch, foreign_key: :batch_id, optional: true
 
     class << self
       def enqueue_all(active_jobs)
@@ -57,7 +55,6 @@ module SolidQueue
         end
 
         def attributes_from_active_job(active_job)
-          active_job.batch_id = JobBatch.current_batch_id || active_job.batch_id
           {
             queue_name: active_job.queue_name || DEFAULT_QUEUE_NAME,
             active_job_id: active_job.job_id,
