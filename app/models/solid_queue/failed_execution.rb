@@ -2,7 +2,7 @@
 
 module SolidQueue
   class FailedExecution < Execution
-    include Dispatching
+    include Dispatching, Batchable
 
     serialize :error, coder: JSON
 

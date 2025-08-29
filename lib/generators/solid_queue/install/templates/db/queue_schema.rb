@@ -26,6 +26,26 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.index [ "job_id" ], name: "index_solid_queue_failed_executions_on_job_id", unique: true
   end
 
+  create_table "solid_queue_job_batches", force: :cascade do |t|
+    t.string "batch_id", null: false
+    t.string "parent_job_batch_id"
+    t.text "on_finish"
+    t.text "on_success"
+    t.text "on_failure"
+    t.text "metadata"
+    t.integer "total_jobs", default: 0, null: false
+    t.integer "pending_jobs", default: 0, null: false
+    t.integer "completed_jobs", default: 0, null: false
+    t.integer "failed_jobs", default: 0, null: false
+    t.integer "expected_children", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "finished_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "finished_at" ], name: "index_solid_queue_job_batches_on_finished_at"
+    t.index [ "parent_job_batch_id" ], name: "index_solid_queue_job_batches_on_parent_job_batch_id"
+  end
+
   create_table "solid_queue_jobs", force: :cascade do |t|
     t.string "queue_name", null: false
     t.string "class_name", null: false
@@ -37,7 +57,10 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.string "concurrency_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "batch_id"
+    t.datetime "batch_processed_at"
     t.index [ "active_job_id" ], name: "index_solid_queue_jobs_on_active_job_id"
+    t.index [ "batch_id" ], name: "index_solid_queue_jobs_on_batch_id"
     t.index [ "class_name" ], name: "index_solid_queue_jobs_on_class_name"
     t.index [ "finished_at" ], name: "index_solid_queue_jobs_on_finished_at"
     t.index [ "queue_name", "finished_at" ], name: "index_solid_queue_jobs_for_filtering"
