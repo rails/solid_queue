@@ -608,9 +608,10 @@ and optionally trigger callbacks based on their status. It supports the followin
 - Three available callbacks to fire:
   - `on_finish`: Fired when all jobs have finished, including retries. Fires even when some jobs have failed.
   - `on_success`: Fired when all jobs have succeeded, including retries. Will not fire if any jobs have failed, but will fire if jobs have been discarded using `discard_on`
-  - `on_failure`: Fired the _first_ time a job fails, after all retries are exhausted.
+  - `on_failure`: Fired when all jobs have finished, including retries. Will only fire if one or more jobs have failed.
 - If a job is part of a batch, it can enqueue more jobs for that batch using `batch#enqueue`
-- Batches can be nested within other batches, creating a hierarchy. Outer batches will not finish until all nested batches have finished.
+- Batches can be nested within other batches, creating a hierarchy. Outer batches will not fire callbacks until all nested jobs have finished.
+- Attaching arbitrary metadata to a batch
 
 ```rb
 class SleepyJob < ApplicationJob
@@ -627,7 +628,7 @@ class MultiStepJob < ApplicationJob
       # Because of this nested batch, the top-level batch won't finish until the inner,
       # 10 second job finishes
       # Both jobs will still run simultaneously
-      SolidQueue::JobBatch.enqueue do
+      SolidQueue::Batch.enqueue do
         SleepyJob.perform_later(10)
       end
     end
@@ -652,10 +653,11 @@ class BatchFailureJob < ApplicationJob
   end
 end
 
-SolidQueue::JobBatch.enqueue(
+SolidQueue::Batch.enqueue(
   on_finish: BatchFinishJob,
   on_success: BatchSuccessJob,
-  on_failure: BatchFailureJob
+  on_failure: BatchFailureJob,
+  metadata: { user_id: 123 }
 ) do
   5.times.map { |i| SleepyJob.perform_later(i) }
 end

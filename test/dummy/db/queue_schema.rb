@@ -39,18 +39,23 @@ ActiveRecord::Schema[7.1].define(version: 1) do
   end
 
   create_table "solid_queue_job_batches", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.bigint "parent_job_batch_id"
-    t.text "on_finish_active_job"
-    t.text "on_success_active_job"
-    t.text "on_failure_active_job"
+    t.string "batch_id"
+    t.string "parent_job_batch_id"
+    t.text "on_finish"
+    t.text "on_success"
+    t.text "on_failure"
+    t.text "metadata"
+    t.integer "total_jobs", default: 0, null: false
+    t.integer "pending_jobs", default: 0, null: false
+    t.integer "completed_jobs", default: 0, null: false
+    t.integer "failed_jobs", default: 0, null: false
+    t.integer "expected_children", default: 0, null: false
+    t.string "status", default: "pending", null: false
     t.datetime "finished_at"
-    t.datetime "changed_at"
-    t.datetime "last_changed_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["changed_at"], name: "index_solid_queue_job_batches_on_changed_at"
+    t.index ["batch_id"], name: "index_solid_queue_job_batches_on_batch_id", unique: true
     t.index ["finished_at"], name: "index_solid_queue_job_batches_on_finished_at"
-    t.index ["last_changed_at"], name: "index_solid_queue_job_batches_on_last_changed_at"
     t.index ["parent_job_batch_id"], name: "index_solid_queue_job_batches_on_parent_job_batch_id"
   end
 
@@ -65,7 +70,8 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.string "concurrency_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "batch_id"
+    t.string "batch_id"
+    t.datetime "batch_processed_at"
     t.index ["active_job_id"], name: "index_solid_queue_jobs_on_active_job_id"
     t.index ["batch_id"], name: "index_solid_queue_jobs_on_batch_id"
     t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
@@ -153,7 +159,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
-  add_foreign_key "solid_queue_jobs", "solid_queue_job_batches", column: "batch_id", on_delete: :cascade
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade

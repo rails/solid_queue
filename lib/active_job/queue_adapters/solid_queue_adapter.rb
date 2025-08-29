@@ -16,16 +16,40 @@ module ActiveJob
       end
 
       def enqueue(active_job) # :nodoc:
-        SolidQueue::Job.enqueue(active_job)
+        return if in_batch?(active_job)
+
+        SolidQueue::Job.enqueue(active_job).tap do |enqueued_job|
+          increment_job_count(active_job, enqueued_job)
+        end
       end
 
       def enqueue_at(active_job, timestamp) # :nodoc:
-        SolidQueue::Job.enqueue(active_job, scheduled_at: Time.at(timestamp))
+        return if in_batch?(active_job)
+
+        SolidQueue::Job.enqueue(active_job, scheduled_at: Time.at(timestamp)).tap do |enqueued_job|
+          increment_job_count(active_job, enqueued_job)
+        end
       end
 
       def enqueue_all(active_jobs) # :nodoc:
         SolidQueue::Job.enqueue_all(active_jobs)
       end
+
+      private
+
+        def in_batch?(active_job)
+          active_job.batch_id.present? && active_job.executions <= 0
+        end
+
+        def in_batch_retry?(active_job)
+          active_job.batch_id.present? && active_job.executions > 0
+        end
+
+        def increment_job_count(active_job, enqueued_job)
+          if enqueued_job.persisted? && in_batch_retry?(active_job)
+            SolidQueue::Batch.update_job_count(active_job.batch_id, 1)
+          end
+        end
     end
   end
 end
