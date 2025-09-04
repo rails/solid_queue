@@ -2,6 +2,7 @@
 
 require "solid_queue/version"
 require "solid_queue/engine"
+require "solid_queue/coders/json"
 
 require "active_job"
 require "active_job/queue_adapters"
@@ -15,6 +16,7 @@ loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
 loader.ignore("#{__dir__}/solid_queue/tasks.rb")
 loader.ignore("#{__dir__}/generators")
 loader.ignore("#{__dir__}/puma")
+loader.inflector.inflect("json" => "JSON")
 loader.setup
 
 module SolidQueue

@@ -64,6 +64,30 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal 8, execution.priority
   end
 
+  test "enqueue active job to be executed right away when active support is set to parse dates" do
+    ActiveSupport.parse_json_times = true
+    active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
+
+    assert_ready do
+      SolidQueue::Job.enqueue(active_job)
+    end
+
+    solid_queue_job = SolidQueue::Job.last
+    assert solid_queue_job.ready?
+    assert_equal :ready, solid_queue_job.status
+    assert_equal solid_queue_job.id, active_job.provider_job_id
+    assert_equal 8, solid_queue_job.priority
+    assert_equal "test", solid_queue_job.queue_name
+    assert_equal "AddToBufferJob", solid_queue_job.class_name
+    assert Time.now >= solid_queue_job.scheduled_at
+    assert_equal [ 1 ], solid_queue_job.arguments["arguments"]
+
+    execution = SolidQueue::ReadyExecution.last
+    assert_equal solid_queue_job, execution.job
+    assert_equal "test", execution.queue_name
+    assert_equal 8, execution.priority
+  end
+
   test "enqueue active job to be scheduled in the future" do
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 

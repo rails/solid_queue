@@ -6,7 +6,11 @@ module SolidQueue
 
     include Executable, Clearable, Recurrable
 
-    serialize :arguments, coder: JSON
+    if Rails.gem_version < Gem::Version.new("8.1")
+      serialize :arguments, coder: ::SolidQueue::Coders::JSON
+    else
+      serialize :arguments, coder: ::SolidQueue::Coders::JSON.new
+    end
 
     class << self
       def enqueue_all(active_jobs)
