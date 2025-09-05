@@ -26,9 +26,9 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.index [ "job_id" ], name: "index_solid_queue_failed_executions_on_job_id", unique: true
   end
 
-  create_table "solid_queue_job_batches", force: :cascade do |t|
+  create_table "solid_queue_batches", force: :cascade do |t|
     t.string "batch_id", null: false
-    t.string "parent_job_batch_id"
+    t.string "parent_batch_id"
     t.text "on_finish"
     t.text "on_success"
     t.text "on_failure"
@@ -37,13 +37,20 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.integer "pending_jobs", default: 0, null: false
     t.integer "completed_jobs", default: 0, null: false
     t.integer "failed_jobs", default: 0, null: false
-    t.integer "expected_children", default: 0, null: false
+    t.integer "total_child_batches", default: 0, null: false
     t.string "status", default: "pending", null: false
     t.datetime "finished_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index [ "finished_at" ], name: "index_solid_queue_job_batches_on_finished_at"
-    t.index [ "parent_job_batch_id" ], name: "index_solid_queue_job_batches_on_parent_job_batch_id"
+    t.index [ "batch_id" ], name: "index_solid_queue_batches_on_batch_id", unique: true
+    t.index [ "parent_batch_id" ], name: "index_solid_queue_batches_on_parent_batch_id"
+  end
+
+  create_table "solid_queue_batch_executions", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "batch_id", null: false
+    t.datetime "created_at", null: false
+    t.index [ "job_id" ], name: "index_solid_queue_batch_executions_on_job_id", unique: true
   end
 
   create_table "solid_queue_jobs", force: :cascade do |t|
@@ -58,7 +65,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "batch_id"
-    t.datetime "batch_processed_at"
     t.index [ "active_job_id" ], name: "index_solid_queue_jobs_on_active_job_id"
     t.index [ "batch_id" ], name: "index_solid_queue_jobs_on_batch_id"
     t.index [ "class_name" ], name: "index_solid_queue_jobs_on_class_name"

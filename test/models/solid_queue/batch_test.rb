@@ -1,11 +1,11 @@
 require "test_helper"
 
-class SolidQueue::BatchRecordTest < ActiveSupport::TestCase
+class SolidQueue::BatchTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   teardown do
     SolidQueue::Job.destroy_all
-    SolidQueue::BatchRecord.destroy_all
+    SolidQueue::Batch.destroy_all
   end
 
   class BatchWithArgumentsJob < ApplicationJob
@@ -24,14 +24,14 @@ class SolidQueue::BatchRecordTest < ActiveSupport::TestCase
 
   test "batch will be completed on success" do
     batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) { }
-    job_batch = SolidQueue::BatchRecord.find_by(batch_id: batch.batch_id)
+    job_batch = SolidQueue::Batch.find_by(batch_id: batch.batch_id)
     assert_not_nil job_batch.on_finish
     assert_equal BatchCompletionJob.name, job_batch.on_finish["job_class"]
   end
 
   test "batch will be completed on finish" do
     batch = SolidQueue::Batch.enqueue(on_success: BatchCompletionJob) { }
-    job_batch = SolidQueue::BatchRecord.find_by(batch_id: batch.batch_id)
+    job_batch = SolidQueue::Batch.find_by(batch_id: batch.batch_id)
     assert_not_nil job_batch.on_success
     assert_equal BatchCompletionJob.name, job_batch.on_success["job_class"]
   end
@@ -61,9 +61,9 @@ class SolidQueue::BatchRecordTest < ActiveSupport::TestCase
       NiceJob.perform_later("world")
     end
 
-    assert_not_nil SolidQueue::BatchRecord.last.on_finish["arguments"]
-    assert_equal SolidQueue::BatchRecord.last.on_finish["arguments"], [ 1, 2 ]
-    assert_equal SolidQueue::BatchRecord.last.on_finish["queue_name"], "batch"
+    assert_not_nil SolidQueue::Batch.last.on_finish["arguments"]
+    assert_equal SolidQueue::Batch.last.on_finish["arguments"], [ 1, 2 ]
+    assert_equal SolidQueue::Batch.last.on_finish["queue_name"], "batch"
   end
 
   test "creates batch with metadata" do
@@ -73,9 +73,9 @@ class SolidQueue::BatchRecordTest < ActiveSupport::TestCase
       NiceJob.perform_later("world")
     end
 
-    assert_not_nil SolidQueue::BatchRecord.last.metadata
-    assert_equal SolidQueue::BatchRecord.last.metadata["source"], "test"
-    assert_equal SolidQueue::BatchRecord.last.metadata["priority"], "high"
-    assert_equal SolidQueue::BatchRecord.last.metadata["user_id"], 123
+    assert_not_nil SolidQueue::Batch.last.metadata
+    assert_equal SolidQueue::Batch.last.metadata["source"], "test"
+    assert_equal SolidQueue::Batch.last.metadata["priority"], "high"
+    assert_equal SolidQueue::Batch.last.metadata["user_id"], 123
   end
 end

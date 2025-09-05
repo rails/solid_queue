@@ -47,6 +47,7 @@ module ActiveJob
 
         def increment_job_count(active_job, enqueued_job)
           if enqueued_job.persisted? && in_batch_retry?(active_job)
+            SolidQueue::BatchExecution.track_job_creation(active_job, active_job.batch_id)
             SolidQueue::Batch.update_job_count(active_job.batch_id, 1)
           end
         end

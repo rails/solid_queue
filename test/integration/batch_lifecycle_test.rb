@@ -6,7 +6,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   FailingJobError = Class.new(RuntimeError)
 
   def assert_finished_in_order(*batches)
-    job_batches = batches.map { |batch| SolidQueue::BatchRecord.find_by(batch_id: batch.batch_id) }
+    job_batches = batches.map { |batch| SolidQueue::Batch.find_by(batch_id: batch.batch_id) }
 
     job_batches.each_cons(2) do |batch1, batch2|
       assert_equal batch1.reload.finished_at < batch2.reload.finished_at, true
@@ -28,7 +28,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     JobBuffer.clear
 
     SolidQueue::Job.destroy_all
-    SolidQueue::BatchRecord.destroy_all
+    SolidQueue::Batch.destroy_all
 
     ApplicationJob.enqueue_after_transaction_commit = false if defined?(ApplicationJob.enqueue_after_transaction_commit)
     SolidQueue.preserve_finished_jobs = true
@@ -101,7 +101,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
-    assert_equal 4, SolidQueue::BatchRecord.finished.count
+    assert_equal 4, SolidQueue::Batch.finished.count
     assert_finished_in_order(batch4, batch2, batch1)
     assert_finished_in_order(batch3, batch2, batch1)
   end
@@ -122,7 +122,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_job_batches_to_finish_for(2.seconds)
 
     assert_equal [ "added from inside 1", "added from inside 2", "added from inside 3", "hey", "ho" ], JobBuffer.values.sort
-    assert_equal 3, SolidQueue::BatchRecord.finished.count
+    assert_equal 3, SolidQueue::Batch.finished.count
     assert_finished_in_order(batch2, batch1)
   end
 
@@ -154,9 +154,9 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_job_batches_to_finish_for(2.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
 
-    assert_equal 3, SolidQueue::BatchRecord.finished.count
-    assert_equal 6, SolidQueue::Job.finished.count
-    assert_equal 6, SolidQueue::Job.count
+    assert_equal 3, SolidQueue::Batch.finished.count
+    assert_equal 3, SolidQueue::Job.finished.count
+    assert_equal 3, SolidQueue::Job.count
     assert_finished_in_order(batch3, batch2, batch1)
   end
 
@@ -175,23 +175,23 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_job_batches_to_finish_for(3.seconds)
     wait_for_jobs_to_finish_for(3.seconds)
 
-    job_batch1 = SolidQueue::BatchRecord.find_by(batch_id: batch1.batch_id)
-    job_batch2 = SolidQueue::BatchRecord.find_by(batch_id: batch2.batch_id)
+    job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
+    job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
 
-    assert_equal 2, SolidQueue::BatchRecord.count
-    assert_equal 2, SolidQueue::BatchRecord.finished.count
+    assert_equal 2, SolidQueue::Batch.count
+    assert_equal 2, SolidQueue::Batch.finished.count
 
-    assert_equal 3, job_batch1.total_jobs
-    assert_equal 1, job_batch1.failed_jobs
-    assert_equal 2, job_batch1.completed_jobs
+    assert_equal 3, job_batch1.total_jobs  # 1 original + 2 retries
+    assert_equal 1, job_batch1.failed_jobs  # Final failure
+    assert_equal 2, job_batch1.completed_jobs  # 2 retries marked as "finished"
     assert_equal 0, job_batch1.pending_jobs
 
-    assert_equal 3, job_batch2.total_jobs
-    assert_equal 1, job_batch2.failed_jobs
-    assert_equal 2, job_batch2.completed_jobs
+    assert_equal 3, job_batch2.total_jobs  # 1 original + 2 retries
+    assert_equal 1, job_batch2.failed_jobs  # Final failure
+    assert_equal 2, job_batch2.completed_jobs  # 2 retries marked as "finished"
     assert_equal 0, job_batch2.pending_jobs
 
-    assert_equal [ "failed", "failed" ].sort, SolidQueue::BatchRecord.all.pluck(:status)
+    assert_equal [ "failed", "failed" ].sort, SolidQueue::Batch.all.pluck(:status)
     assert_equal [ "0: 1 jobs failed!", "1: 1 jobs failed!" ], JobBuffer.values.sort
     assert_finished_in_order(batch2, batch1)
   end
@@ -211,11 +211,11 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_job_batches_to_finish_for(3.seconds)
     wait_for_jobs_to_finish_for(3.seconds)
 
-    job_batch1 = SolidQueue::BatchRecord.find_by(batch_id: batch1.batch_id)
-    job_batch2 = SolidQueue::BatchRecord.find_by(batch_id: batch2.batch_id)
+    job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
+    job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
 
-    assert_equal 2, SolidQueue::BatchRecord.count
-    assert_equal 2, SolidQueue::BatchRecord.finished.count
+    assert_equal 2, SolidQueue::Batch.count
+    assert_equal 2, SolidQueue::Batch.finished.count
 
     assert_equal 1, job_batch1.total_jobs
     assert_equal 0, job_batch1.failed_jobs
@@ -227,7 +227,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 1, job_batch2.completed_jobs
     assert_equal 0, job_batch2.pending_jobs
 
-    assert_equal [ "completed", "completed" ].sort, SolidQueue::BatchRecord.all.pluck(:status)
+    assert_equal [ "completed", "completed" ].sort, SolidQueue::Batch.all.pluck(:status)
     assert_equal [ "0: 1 jobs succeeded!", "1: 1 jobs succeeded!" ], JobBuffer.values.sort
     assert_finished_in_order(batch2, batch1)
   end

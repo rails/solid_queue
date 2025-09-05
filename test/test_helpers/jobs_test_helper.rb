@@ -20,7 +20,7 @@ module JobsTestHelper
   def wait_for_job_batches_to_finish_for(timeout = 1.second)
     wait_while_with_timeout(timeout) do
       skip_active_record_query_cache do
-        SolidQueue::BatchRecord.where(finished_at: nil).any?
+        SolidQueue::Batch.where(finished_at: nil).any?
       end
     end
   end
