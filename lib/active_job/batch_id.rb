@@ -3,7 +3,7 @@
 # Inspired by active_job/core.rb docs
 # https://github.com/rails/rails/blob/1c2529b9a6ba5a1eff58be0d0373d7d9d401015b/activejob/lib/active_job/core.rb#L136
 module ActiveJob
-  module BatchRecordId
+  module BatchId
     extend ActiveSupport::Concern
 
     included do
@@ -18,7 +18,7 @@ module ActiveJob
     def enqueue(options = {})
       super.tap do |job|
         if solid_queue_job?
-          SolidQueue::BatchRecord::Buffer.capture_job(self)
+          SolidQueue::Batch::Buffer.capture_job(self)
         end
       end
     end
@@ -33,9 +33,7 @@ module ActiveJob
     end
 
     def batch
-      @batch ||= SolidQueue::Batch.new(
-        _batch_record: SolidQueue::BatchRecord.find_by(batch_id: batch_id)
-      )
+      @batch ||= SolidQueue::Batch.find_by(batch_id: batch_id)
     end
 
     private
