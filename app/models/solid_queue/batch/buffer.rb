@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class BatchRecord
+  class Batch
     class Buffer
       attr_reader :jobs, :child_batches
 
