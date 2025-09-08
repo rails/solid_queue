@@ -15,14 +15,6 @@ module ActiveJob
       self.batch_id = SolidQueue::Batch.current_batch_id if solid_queue_job?
     end
 
-    def enqueue(options = {})
-      super.tap do |job|
-        if solid_queue_job?
-          SolidQueue::Batch::Buffer.capture_job(self)
-        end
-      end
-    end
-
     def serialize
       super.merge("batch_id" => batch_id)
     end

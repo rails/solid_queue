@@ -5,11 +5,9 @@ require "test_helper"
 class BatchLifecycleTest < ActiveSupport::TestCase
   FailingJobError = Class.new(RuntimeError)
 
-  def assert_finished_in_order(*batches)
-    job_batches = batches.map { |batch| SolidQueue::Batch.find_by(batch_id: batch.batch_id) }
-
-    job_batches.each_cons(2) do |batch1, batch2|
-      assert_equal batch1.reload.finished_at < batch2.reload.finished_at, true
+  def assert_finished_in_order(*finishables)
+    finishables.each_cons(2) do |finished1, finished2|
+      assert_equal finished1.reload.finished_at < finished2.reload.finished_at, true
     end
   end
 
@@ -84,20 +82,48 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     end
   end
 
-  test "nested batches finish from the inside out" do
-    batch2 = batch3 = batch4 = nil
-    batch1 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
-      batch2 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
-        batch3 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
-        batch4 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
+  test "empty batches never finish" do
+    # `enqueue_after_transaction_commit` makes it difficult to tell if a batch is empty, or if the
+    #   jobs are waiting to be run after commit.
+    # If we could tell deterministically, we could enqueue an EmptyJob to make sure the batches
+    #   don't hang forever.
+    SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
+      SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
+        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
+        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
       end
     end
 
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(1.second)
+
+    assert_equal [], JobBuffer.values
+    assert_equal 4, SolidQueue::Batch.pending.count
+  end
+
+  test "nested batches finish from the inside out" do
+    batch2 = batch3 = batch4 = nil
+    batch1 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
+      SolidQueue::Batch::EmptyJob.perform_later
+      batch2 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
+        SolidQueue::Batch::EmptyJob.perform_later
+        batch3 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) do
+          SolidQueue::Batch::EmptyJob.perform_later
+        end
+        batch4 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) do
+          SolidQueue::Batch::EmptyJob.perform_later
+        end
+      end
+    end
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(1.second)
 
     expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
@@ -119,7 +145,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(2.seconds)
 
     assert_equal [ "added from inside 1", "added from inside 2", "added from inside 3", "hey", "ho" ], JobBuffer.values.sort
     assert_equal 3, SolidQueue::Batch.finished.count
@@ -151,8 +177,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(2.seconds)
 
     assert_equal 3, SolidQueue::Batch.finished.count
     assert_equal 3, SolidQueue::Job.finished.count
@@ -172,8 +197,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(3.seconds)
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_for_batches_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(1.second)
 
     job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
     job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
@@ -208,8 +233,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(3.seconds)
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_for_batches_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(1.second)
 
     job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
     job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
@@ -245,7 +270,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(2.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
 
     assert_equal true, batch1.reload.finished?
@@ -265,8 +290,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_job_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(1.second)
 
     assert_equal [ "Hi finish #{batch.batch_id}!", "Hi success #{batch.batch_id}!", "hey" ].sort, JobBuffer.values.sort
     assert_equal 1, batch.reload.completed_jobs
@@ -274,6 +299,32 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 0, batch.pending_jobs
     assert_equal 1, batch.total_jobs
   end
+
+  # test "batch finishes without firing callbacks if no jobs enqueue properly" do
+  #   ApplicationJob.enqueue_after_transaction_commit = true
+  #   batch1 = nil
+  #   JobResult.transaction do
+  #     batch1 = SolidQueue::Batch.enqueue(
+  #       metadata: { source: "test", priority: "high", user_id: 123 },
+  #       on_finish: OnFinishJob,
+  #       on_success: OnSuccessJob,
+  #       on_failure: OnFailureJob
+  #     ) do
+  #       AddToBufferJob.perform_later "hey"
+  #     end
+
+  #     raise ActiveRecord::Rollback
+  #   end
+
+  #   assert_equal [].sort, JobBuffer.values.sort
+  #   assert_equal 0, batch1.reload.completed_jobs
+  #   assert_equal 0, batch1.failed_jobs
+  #   assert_equal 0, batch1.pending_jobs
+  #   assert_equal 0, batch1.total_jobs
+  #   batch1.reload
+  #   assert_equal true, batch1.finished?
+  #   assert_equal "completed", batch1.status
+  # end
 
   class OnFinishJob < ApplicationJob
     queue_as :background
