@@ -2,6 +2,8 @@
 
 module SolidQueue
   class ReadyExecution < Execution
+    include BatchPreparable
+
     scope :queued_as, ->(queue_name) { where(queue_name: queue_name) }
 
     assumes_attributes_from_job
