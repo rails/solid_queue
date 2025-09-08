@@ -6,15 +6,23 @@ module SolidQueue
     belongs_to :batch, foreign_key: :batch_id, primary_key: :batch_id
 
     class << self
-      def track_job_creation(active_jobs, batch_id)
-        execution_data = Array.wrap(active_jobs).map do |active_job|
-          {
-            job_id: active_job.provider_job_id,
-            batch_id: batch_id
-          }
-        end
+      def create_all_from_jobs(jobs)
+        batch_jobs = jobs.select { |job| job.batch_id.present? }
+        return if batch_jobs.empty?
 
-        SolidQueue::BatchExecution.insert_all(execution_data)
+        batch_jobs.group_by(&:batch_id).each do |batch_id, jobs|
+          BatchExecution.insert_all!(jobs.map { |job|
+            { batch_id:, job_id: job.respond_to?(:provider_job_id) ? job.provider_job_id : job.id }
+          })
+
+          total = jobs.size
+          SolidQueue::Batch.upsert(
+            { batch_id:, total_jobs: total, pending_jobs: total },
+            on_duplicate: Arel.sql(
+              "total_jobs = total_jobs + #{total}, pending_jobs = pending_jobs + #{total}"
+            )
+          )
+        end
       end
 
       def process_job_completion(job, status)

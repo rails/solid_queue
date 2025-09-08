@@ -4,6 +4,8 @@ module SolidQueue
   class Batch < Record
     STATUSES = %w[pending processing completed failed]
 
+    include Trackable
+
     belongs_to :parent_batch, foreign_key: :parent_batch_id, class_name: "SolidQueue::Batch", optional: true
     has_many :jobs, foreign_key: :batch_id, primary_key: :batch_id
     has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution"
@@ -16,34 +18,16 @@ module SolidQueue
 
     validates :status, inclusion: { in: STATUSES }
 
-    scope :pending, -> { where(status: "pending") }
-    scope :processing, -> { where(status: "processing") }
-    scope :completed, -> { where(status: "completed") }
-    scope :failed, -> { where(status: "failed") }
-    scope :finished, -> { where(status: %w[completed failed]) }
-    scope :unfinished, -> { where(status: %w[pending processing]) }
-
     after_initialize :set_batch_id
     before_create :set_parent_batch_id
 
     def enqueue(&block)
       raise "You cannot enqueue a batch that is already finished" if finished?
 
-      SolidQueue::Batch::Buffer.capture_child_batch(self) if new_record?
+      save! if new_record?
 
-      buffer = SolidQueue::Batch::Buffer.new
-      buffer.capture do
-        Batch.wrap_in_batch_context(batch_id) do
-          block.call(self)
-        end
-      end
-
-      if enqueue_after_transaction_commit?
-        ActiveRecord.after_all_transactions_commit do
-          enqueue_batch(buffer)
-        end
-      else
-        enqueue_batch(buffer)
+      Batch.wrap_in_batch_context(batch_id) do
+        block.call(self)
       end
     end
 
@@ -68,7 +52,7 @@ module SolidQueue
         if pending_jobs == 0
           unfinished_children = child_batches.where.not(status: %w[completed failed]).count
 
-          if total_child_batches == 0 || unfinished_children == 0
+          if unfinished_children == 0
             new_status = failed_jobs > 0 ? "failed" : "completed"
             update!(status: new_status, finished_at: Time.current)
             execute_callbacks
@@ -80,92 +64,7 @@ module SolidQueue
       end
     end
 
-    def finished?
-      status.in?(%w[completed failed])
-    end
-
-    def processing?
-      status == "processing"
-    end
-
-    def pending?
-      status == "pending"
-    end
-
-    def progress_percentage
-      return 0 if total_jobs == 0
-      ((completed_jobs + failed_jobs) * 100.0 / total_jobs).round(2)
-    end
-
     private
-
-      def enqueue_after_transaction_commit?
-        return false unless defined?(ApplicationJob.enqueue_after_transaction_commit)
-
-        case ApplicationJob.enqueue_after_transaction_commit
-        when :always, true
-          true
-        when :never, false
-          false
-        when :default
-          true
-        end
-      end
-
-      def enqueue_batch(buffer)
-        if new_record?
-          enqueue_new_batch(buffer)
-        else
-          enqueue_existing_batch(buffer)
-        end
-      end
-
-      def enqueue_new_batch(buffer)
-        SolidQueue::Batch.transaction do
-          save!
-
-          # If batch has no jobs, enqueue an EmptyJob
-          # This ensures callbacks always execute, even for empty batches
-          jobs = buffer.jobs.values
-          if jobs.empty?
-            empty_job = SolidQueue::Batch::EmptyJob.new
-            empty_job.batch_id = batch_id
-            jobs = [ empty_job ]
-          end
-
-          # Enqueue jobs - this handles creation and preparation
-          enqueued_count = SolidQueue::Job.enqueue_all(jobs)
-
-          persisted_jobs = jobs.select { |job| job.provider_job_id.present? }
-          SolidQueue::BatchExecution.track_job_creation(persisted_jobs, batch_id)
-
-          # Update batch record with counts
-          update!(
-            total_jobs: enqueued_count,
-            pending_jobs: enqueued_count,
-            total_child_batches: buffer.child_batches.size
-          )
-        end
-      end
-
-      def enqueue_existing_batch(buffer)
-        jobs = buffer.jobs.values
-        new_child_batches = buffer.child_batches.size
-
-        SolidQueue::Batch.transaction do
-          enqueued_count = SolidQueue::Job.enqueue_all(jobs)
-
-          persisted_jobs = jobs.select(&:successfully_enqueued?)
-          SolidQueue::BatchExecution.track_job_creation(persisted_jobs, batch_id)
-
-          Batch.where(batch_id: batch_id).update_all([
-            "total_jobs = total_jobs + ?, pending_jobs = pending_jobs + ?, total_child_batches = total_child_batches + ?",
-            enqueued_count, enqueued_count, new_child_batches
-          ])
-        end
-
-        jobs.count(&:successfully_enqueued?)
-      end
 
       def set_parent_batch_id
         self.parent_batch_id ||= Batch.current_batch_id if Batch.current_batch_id.present?
@@ -237,13 +136,6 @@ module SolidQueue
         end
       end
 
-      def update_job_count(batch_id, count)
-        count = count.to_i
-        Batch.where(batch_id: batch_id).update_all(
-          "total_jobs = total_jobs + #{count}, pending_jobs = pending_jobs + #{count}",
-        )
-      end
-
       def current_batch_id
         ActiveSupport::IsolatedExecutionState[:current_batch_id]
       end
@@ -258,5 +150,3 @@ module SolidQueue
     end
   end
 end
-
-require_relative "batch/buffer"

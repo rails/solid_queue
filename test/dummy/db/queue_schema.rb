@@ -49,7 +49,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.integer "pending_jobs", default: 0, null: false
     t.integer "completed_jobs", default: 0, null: false
     t.integer "failed_jobs", default: 0, null: false
-    t.integer "total_child_batches", default: 0, null: false
     t.string "status", default: "pending", null: false
     t.datetime "finished_at"
     t.datetime "created_at", null: false
