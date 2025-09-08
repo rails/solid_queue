@@ -2,7 +2,7 @@
 
 module SolidQueue
   class ScheduledExecution < Execution
-    include Dispatching
+    include Dispatching, BatchPreparable
 
     scope :due, -> { where(scheduled_at: ..Time.current) }
     scope :ordered, -> { order(scheduled_at: :asc, priority: :asc, job_id: :asc) }
