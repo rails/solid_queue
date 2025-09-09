@@ -18,9 +18,7 @@ module SolidQueue
           total = jobs.size
           SolidQueue::Batch.upsert(
             { batch_id:, total_jobs: total, pending_jobs: total },
-            on_duplicate: Arel.sql(
-              "total_jobs = total_jobs + #{total}, pending_jobs = pending_jobs + #{total}"
-            )
+            **provider_upsert_options
           )
         end
       end
@@ -48,6 +46,27 @@ module SolidQueue
         batch = Batch.find_by(batch_id: batch_id)
         batch&.check_completion!
       end
+
+      private
+
+        def provider_upsert_options
+          case connection.adapter_name
+          when "PostgreSQL", "SQLite"
+            {
+              unique_by: :batch_id,
+              on_duplicate: Arel.sql(
+                "total_jobs = solid_queue_batches.total_jobs + excluded.total_jobs, " \
+                "pending_jobs = solid_queue_batches.pending_jobs + excluded.pending_jobs"
+              )
+            }
+          else
+            {
+              on_duplicate: Arel.sql(
+                "total_jobs = total_jobs + VALUES(total_jobs), pending_jobs = pending_jobs + VALUES(pending_jobs)"
+              )
+            }
+          end
+        end
     end
   end
 end
