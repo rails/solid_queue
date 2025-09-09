@@ -234,6 +234,30 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_finished_in_order(batch2.reload, batch1.reload)
   end
 
+  test "executes the same with perform_all_later as it does a normal enqueue" do
+    batch2 = nil
+    batch1 = SolidQueue::Batch.enqueue do
+      ActiveJob.perform_all_later([ FailingJob.new, FailingJob.new ])
+      batch2 = SolidQueue::Batch.enqueue do
+        ActiveJob.perform_all_later([ AddToBufferJob.new("ok"), AddToBufferJob.new("ok2") ])
+      end
+    end
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_batches_to_finish_for(3.seconds)
+    wait_for_jobs_to_finish_for(1.second)
+
+    assert_equal 6, batch1.reload.jobs.count
+    assert_equal 6, batch1.total_jobs
+    assert_equal 2, SolidQueue::Batch.finished.count
+    assert_equal "failed", batch1.status
+    assert_equal 2, batch2.reload.jobs.count
+    assert_equal 2, batch2.total_jobs
+    assert_equal "completed", batch2.status
+  end
+
   test "discarded jobs fire properly" do
     batch2 = nil
     batch1 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("0")) do
