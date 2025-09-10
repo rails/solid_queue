@@ -76,7 +76,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "batch_id"
-    t.datetime "batch_processed_at"
     t.index ["active_job_id"], name: "index_solid_queue_jobs_on_active_job_id"
     t.index ["batch_id"], name: "index_solid_queue_jobs_on_batch_id"
     t.index ["class_name"], name: "index_solid_queue_jobs_on_class_name"
