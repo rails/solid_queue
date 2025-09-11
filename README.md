@@ -28,6 +28,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Performance considerations](#performance-considerations)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
+- [Batch jobs](#batch-jobs)
 - [Puma plugin](#puma-plugin)
 - [Jobs and transactional integrity](#jobs-and-transactional-integrity)
 - [Recurring tasks](#recurring-tasks)
@@ -660,6 +661,21 @@ SolidQueue::Batch.enqueue(
   metadata: { user_id: 123 }
 ) do
   5.times.map { |i| SleepyJob.perform_later(i) }
+end
+```
+
+### Batch options
+
+As part of the processing of a batch, some jobs are automatically enqueued:
+
+- A `SolidQueue::Batch::BatchMonitorJob` is enqueued for every `Batch` being processed
+- In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued
+
+By default, these jobs run on the `default` queue. You can specify an alternative queue for them in an initializer:
+
+```rb
+Rails.application.config.after_initialize do # or to_prepare
+  SolidQueue::Batch.maintenance_queue_name = "my_batch_queue"
 end
 ```
 

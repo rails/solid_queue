@@ -5,21 +5,12 @@ require "test_helper"
 class BatchLifecycleTest < ActiveSupport::TestCase
   FailingJobError = Class.new(RuntimeError)
 
-  def assert_finished_in_order(*finishables)
-    finishables.each_cons(2) do |finished1, finished2|
-      assert_equal finished1.finished_at < finished2.finished_at, true
-    end
-  end
-
-  def job!(active_job)
-    SolidQueue::Job.find_by!(active_job_id: active_job.job_id)
-  end
-
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for([ FailingJobError ], @_on_thread_error)
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
     @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
+    SolidQueue::Batch.maintenance_queue_name = "background"
   end
 
   teardown do
@@ -34,6 +25,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     ApplicationJob.enqueue_after_transaction_commit = false if defined?(ApplicationJob.enqueue_after_transaction_commit)
     SolidQueue.preserve_finished_jobs = true
+    SolidQueue::Batch.maintenance_queue_name = nil
   end
 
   class BatchOnSuccessJob < ApplicationJob
@@ -86,40 +78,12 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     end
   end
 
-  test "empty batches never finish" do
-    # `enqueue_after_transaction_commit` makes it difficult to tell if a batch is empty, or if the
-    #   jobs are waiting to be run after commit.
-    # If we could tell deterministically, we could enqueue an EmptyJob to make sure the batches
-    #   don't hang forever.
-    SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
-      SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
-        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
-        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
-      end
-    end
-
-    @dispatcher.start
-    @worker.start
-
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(1.second)
-
-    assert_equal [], JobBuffer.values
-    assert_equal 4, SolidQueue::Batch.pending.count
-  end
-
   test "nested batches finish from the inside out" do
     batch2 = batch3 = batch4 = nil
     batch1 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
-      SolidQueue::Batch::EmptyJob.perform_later
       batch2 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
-        SolidQueue::Batch::EmptyJob.perform_later
-        batch3 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) do
-          SolidQueue::Batch::EmptyJob.perform_later
-        end
-        batch4 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) do
-          SolidQueue::Batch::EmptyJob.perform_later
-        end
+        batch3 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
+        batch4 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
       end
     end
 
@@ -188,10 +152,11 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     wait_for_batches_to_finish_for(2.seconds)
 
+    jobs = batch_jobs(batch1, batch2, batch3)
     assert_equal [ "hey", "ho", "let's go" ], JobBuffer.values.sort
     assert_equal 3, SolidQueue::Batch.finished.count
-    assert_equal 3, SolidQueue::Job.finished.count
-    assert_equal 3, SolidQueue::Job.count
+    assert_equal 3, jobs.finished.count
+    assert_equal 3, jobs.count
     assert_finished_in_order(batch3.reload, batch2.reload, batch1.reload)
     assert_finished_in_order(job!(job3), batch3)
     assert_finished_in_order(job!(job2), batch2)
@@ -301,8 +266,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     end
 
     assert_equal false, batch1.reload.finished?
-    assert_equal 1, SolidQueue::Job.count
-    assert_equal 0, SolidQueue::Job.finished.count
+    assert_equal 1, batch1.jobs.count
+    assert_equal 0, batch1.jobs.finished.count
 
     @dispatcher.start
     @worker.start
@@ -359,5 +324,19 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     def perform(batch)
       JobBuffer.add "Hi failure #{batch.batch_id}!"
     end
+  end
+
+  def assert_finished_in_order(*finishables)
+    finishables.each_cons(2) do |finished1, finished2|
+      assert_equal finished1.finished_at < finished2.finished_at, true
+    end
+  end
+
+  def job!(active_job)
+    SolidQueue::Job.find_by!(active_job_id: active_job.job_id)
+  end
+
+  def batch_jobs(*batches)
+    SolidQueue::Job.where(batch_id: batches.map(&:batch_id))
   end
 end
