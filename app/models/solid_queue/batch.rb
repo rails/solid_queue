@@ -33,9 +33,12 @@ module SolidQueue
         block.call(self)
       end
 
-      ActiveRecord.after_all_transactions_commit do
-        enqueue_empty_job if reload.total_jobs == 0
-        enqueue_monitor_job
+      if ActiveSupport.respond_to?(:after_all_transactions_commit)
+        ActiveRecord.after_all_transactions_commit do
+          start_monitoring
+        end
+      else
+        start_monitoring
       end
     end
 
@@ -139,6 +142,11 @@ module SolidQueue
         Batch.wrap_in_batch_context(nil) do
           BatchMonitorJob.set(queue: self.class.maintenance_queue_name || "default").perform_later(batch_id: batch_id)
         end
+      end
+
+      def start_monitoring
+        enqueue_empty_job if reload.total_jobs == 0
+        enqueue_monitor_job
       end
 
     class << self
