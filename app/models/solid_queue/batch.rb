@@ -21,6 +21,9 @@ module SolidQueue
     after_initialize :set_batch_id
     before_create :set_parent_batch_id
 
+    mattr_accessor :maintenance_queue_name
+    self.maintenance_queue_name = "default"
+
     def enqueue(&block)
       raise "You cannot enqueue a batch that is already finished" if finished?
 
@@ -28,6 +31,11 @@ module SolidQueue
 
       Batch.wrap_in_batch_context(batch_id) do
         block.call(self)
+      end
+
+      ActiveRecord.after_all_transactions_commit do
+        enqueue_empty_job if reload.total_jobs == 0
+        enqueue_monitor_job
       end
     end
 
@@ -118,6 +126,18 @@ module SolidQueue
         if parent_batch_id.present?
           parent = Batch.find_by(batch_id: parent_batch_id)
           parent&.check_completion! unless parent&.finished?
+        end
+      end
+
+      def enqueue_empty_job
+        Batch.wrap_in_batch_context(batch_id) do
+          EmptyJob.set(queue: self.class.maintenance_queue_name || "default").perform_later
+        end
+      end
+
+      def enqueue_monitor_job
+        Batch.wrap_in_batch_context(nil) do
+          BatchMonitorJob.set(queue: self.class.maintenance_queue_name || "default").perform_later(batch_id: batch_id)
         end
       end
 
