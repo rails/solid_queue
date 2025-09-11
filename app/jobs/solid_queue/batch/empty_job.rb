@@ -2,9 +2,7 @@
 
 module SolidQueue
   class Batch
-    class EmptyJob < ApplicationJob
-      queue_as :background
-
+    class EmptyJob < (defined?(ApplicationJob) ? ApplicationJob : ActiveJob::Base)
       def perform
         # This job does nothing - it just exists to trigger batch completion
         # The batch completion will be handled by the normal job_finished! flow
