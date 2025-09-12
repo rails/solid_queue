@@ -39,7 +39,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
 Solid Queue is configured by default in new Rails 8 applications. If you're running an earlier version, you can add it manually following these steps:
 
 1. `bundle add solid_queue`
-2. `bin/rails solid_queue:install`
+2. `bin/rails g solid_queue:install`
 
 (Note: The minimum supported version of Rails is 7.1 and Ruby is 3.1.6.)
 
