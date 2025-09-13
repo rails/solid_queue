@@ -24,15 +24,17 @@ module SolidQueue
     def enqueue(&block)
       raise "You cannot enqueue a batch that is already finished" if finished?
 
-      save! if new_record?
+      transaction do
+        save! if new_record?
 
-      Batch.wrap_in_batch_context(batch_id) do
-        block.call(self)
-      end
+        Batch.wrap_in_batch_context(batch_id) do
+          block.call(self)
+        end
 
-      if ActiveRecord.respond_to?(:after_all_transactions_commit)
-        ActiveRecord.after_all_transactions_commit do
-          start_batch
+        if ActiveRecord.respond_to?(:after_all_transactions_commit)
+          ActiveRecord.after_all_transactions_commit do
+            start_batch
+          end
         end
       end
     end
