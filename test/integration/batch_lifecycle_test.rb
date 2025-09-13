@@ -78,12 +78,11 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     end
   end
 
-  test "nested batches finish from the inside out" do
-    batch2 = batch3 = batch4 = nil
-    batch1 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
-      batch2 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
-        batch3 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
-        batch4 = SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
+  test "empty batches fire callbacks" do
+    SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("3")) do
+      SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("2")) do
+        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1")) { }
+        SolidQueue::Batch.enqueue(on_success: BatchOnSuccessJob.new("1.1")) { }
       end
     end
 
@@ -96,8 +95,6 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
     assert_equal 4, SolidQueue::Batch.finished.count
-    assert_finished_in_order(batch4.reload, batch2.reload, batch1.reload)
-    assert_finished_in_order(batch3.reload, batch2, batch1)
   end
 
   test "all jobs are run, including jobs enqueued inside of other jobs" do
@@ -118,10 +115,9 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     assert_equal [ "added from inside 1", "added from inside 2", "added from inside 3", "hey", "ho" ], JobBuffer.values.sort
     assert_equal 3, SolidQueue::Batch.finished.count
-    assert_finished_in_order(batch2.reload, batch1.reload)
-    assert_finished_in_order(job!(job3), batch2)
+    assert_finished_in_order(job!(job3), batch2.reload)
     assert_finished_in_order(job!(job2), batch2)
-    assert_finished_in_order(job!(job1), batch1)
+    assert_finished_in_order(job!(job1), batch1.reload)
   end
 
   test "when self.enqueue_after_transaction_commit = true" do
@@ -157,10 +153,9 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 3, SolidQueue::Batch.finished.count
     assert_equal 3, jobs.finished.count
     assert_equal 3, jobs.count
-    assert_finished_in_order(batch3.reload, batch2.reload, batch1.reload)
-    assert_finished_in_order(job!(job3), batch3)
-    assert_finished_in_order(job!(job2), batch2)
-    assert_finished_in_order(job!(job1), batch1)
+    assert_finished_in_order(job!(job3), batch3.reload)
+    assert_finished_in_order(job!(job2), batch2.reload)
+    assert_finished_in_order(job!(job1), batch1.reload)
   end
 
   test "failed jobs fire properly" do
@@ -194,9 +189,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 2, job_batch2.completed_jobs  # 2 retries marked as "finished"
     assert_equal 0, job_batch2.pending_jobs
 
-    assert_equal [ "failed", "failed" ].sort, SolidQueue::Batch.all.pluck(:status)
+    assert_equal [ true, true ].sort, SolidQueue::Batch.all.map(&:failed?)
     assert_equal [ "0: 1 jobs failed!", "1: 1 jobs failed!" ], JobBuffer.values.sort
-    assert_finished_in_order(batch2.reload, batch1.reload)
   end
 
   test "executes the same with perform_all_later as it does a normal enqueue" do
@@ -217,10 +211,10 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 6, batch1.reload.jobs.count
     assert_equal 6, batch1.total_jobs
     assert_equal 2, SolidQueue::Batch.finished.count
-    assert_equal "failed", batch1.status
+    assert_equal true, batch1.failed?
     assert_equal 2, batch2.reload.jobs.count
     assert_equal 2, batch2.total_jobs
-    assert_equal "completed", batch2.status
+    assert_equal true, batch2.succeeded?
   end
 
   test "discarded jobs fire properly" do
@@ -254,9 +248,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 1, job_batch2.completed_jobs
     assert_equal 0, job_batch2.pending_jobs
 
-    assert_equal [ "completed", "completed" ].sort, SolidQueue::Batch.all.pluck(:status)
+    assert_equal [ true, true ].sort, SolidQueue::Batch.all.map(&:succeeded?)
     assert_equal [ "0: 1 jobs succeeded!", "1: 1 jobs succeeded!" ], JobBuffer.values.sort
-    assert_finished_in_order(batch2.reload, batch1.reload)
   end
 
   test "preserve_finished_jobs = false" do

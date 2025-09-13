@@ -2,11 +2,9 @@
 
 module SolidQueue
   class Batch < Record
-    STATUSES = %w[pending processing completed failed]
-
     include Trackable
 
-    belongs_to :parent_batch, foreign_key: :parent_batch_id, class_name: "SolidQueue::Batch", optional: true
+    belongs_to :parent_batch, foreign_key: :parent_batch_id, primary_key: :batch_id, class_name: "SolidQueue::Batch", optional: true
     has_many :jobs, foreign_key: :batch_id, primary_key: :batch_id
     has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution"
     has_many :child_batches, foreign_key: :parent_batch_id, primary_key: :batch_id, class_name: "SolidQueue::Batch"
@@ -16,10 +14,9 @@ module SolidQueue
     serialize :on_failure, coder: JSON
     serialize :metadata, coder: JSON
 
-    validates :status, inclusion: { in: STATUSES }
-
     after_initialize :set_batch_id
     before_create :set_parent_batch_id
+    after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     mattr_accessor :maintenance_queue_name
     self.maintenance_queue_name = "default"
@@ -33,12 +30,10 @@ module SolidQueue
         block.call(self)
       end
 
-      if ActiveSupport.respond_to?(:after_all_transactions_commit)
+      if ActiveRecord.respond_to?(:after_all_transactions_commit)
         ActiveRecord.after_all_transactions_commit do
-          start_monitoring
+          start_batch
         end
-      else
-        start_monitoring
       end
     end
 
@@ -55,22 +50,16 @@ module SolidQueue
     end
 
     def check_completion!
-      return if finished?
+      return if finished? || !ready?
 
       with_lock do
-        return if finished_at?
+        return if finished_at? || !ready?
 
         if pending_jobs == 0
-          unfinished_children = child_batches.where.not(status: %w[completed failed]).count
-
-          if unfinished_children == 0
-            new_status = failed_jobs > 0 ? "failed" : "completed"
-            update!(status: new_status, finished_at: Time.current)
-            execute_callbacks
-          end
-        elsif status == "pending" && (completed_jobs > 0 || failed_jobs > 0)
-          # Move from pending to processing once any job completes
-          update!(status: "processing")
+          finished_attributes = { finished_at: Time.current }
+          finished_attributes[:failed_at] = Time.current if failed_jobs > 0
+          update!(finished_attributes)
+          execute_callbacks
         end
       end
     end
@@ -108,28 +97,19 @@ module SolidQueue
       end
 
       def execute_callbacks
-        if status == "failed"
+        if failed_at?
           perform_completion_job(:on_failure, {}) if on_failure.present?
-        elsif status == "completed"
+        else
           perform_completion_job(:on_success, {}) if on_success.present?
         end
 
         perform_completion_job(:on_finish, {}) if on_finish.present?
 
         clear_unpreserved_jobs
-
-        check_parent_completion!
       end
 
       def clear_unpreserved_jobs
-        SolidQueue::Batch::CleanupJob.perform_later(self) unless SolidQueue.preserve_finished_jobs?
-      end
-
-      def check_parent_completion!
-        if parent_batch_id.present?
-          parent = Batch.find_by(batch_id: parent_batch_id)
-          parent&.check_completion! unless parent&.finished?
-        end
+        SolidQueue::Batch::CleanupJob.set(queue: self.class.maintenance_queue_name || "default").perform_later(self) unless SolidQueue.preserve_finished_jobs?
       end
 
       def enqueue_empty_job
@@ -138,15 +118,9 @@ module SolidQueue
         end
       end
 
-      def enqueue_monitor_job
-        Batch.wrap_in_batch_context(nil) do
-          BatchMonitorJob.set(queue: self.class.maintenance_queue_name || "default").perform_later(batch_id: batch_id)
-        end
-      end
-
-      def start_monitoring
+      def start_batch
         enqueue_empty_job if reload.total_jobs == 0
-        enqueue_monitor_job
+        update!(enqueued_at: Time.current)
       end
 
     class << self

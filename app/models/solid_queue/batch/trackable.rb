@@ -6,24 +6,26 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        scope :pending, -> { where(status: "pending") }
-        scope :processing, -> { where(status: "processing") }
-        scope :completed, -> { where(status: "completed") }
-        scope :failed, -> { where(status: "failed") }
-        scope :finished, -> { where(status: %w[completed failed]) }
-        scope :unfinished, -> { where(status: %w[pending processing]) }
+        scope :finished, -> { where.not(finished_at: nil) }
+        scope :succeeded, -> { finished.where(failed_at: nil) }
+        scope :unfinished, -> { where(finished_at: nil) }
+        scope :failed, -> { where.not(failed_at: nil) }
+      end
+
+      def failed?
+        failed_at.present?
+      end
+
+      def succeeded?
+        finished? && !failed?
       end
 
       def finished?
-        status.in?(%w[completed failed])
+        finished_at.present?
       end
 
-      def processing?
-        status == "processing"
-      end
-
-      def pending?
-        status == "pending"
+      def ready?
+        enqueued_at.present?
       end
 
       def progress_percentage
