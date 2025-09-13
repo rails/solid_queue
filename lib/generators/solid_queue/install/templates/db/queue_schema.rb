@@ -26,32 +26,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.index [ "job_id" ], name: "index_solid_queue_failed_executions_on_job_id", unique: true
   end
 
-  create_table "solid_queue_batches", force: :cascade do |t|
-    t.string "batch_id", null: false
-    t.string "parent_batch_id"
-    t.text "on_finish"
-    t.text "on_success"
-    t.text "on_failure"
-    t.text "metadata"
-    t.integer "total_jobs", default: 0, null: false
-    t.integer "pending_jobs", default: 0, null: false
-    t.integer "completed_jobs", default: 0, null: false
-    t.integer "failed_jobs", default: 0, null: false
-    t.string "status", default: "pending", null: false
-    t.datetime "finished_at"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index [ "batch_id" ], name: "index_solid_queue_batches_on_batch_id", unique: true
-    t.index [ "parent_batch_id" ], name: "index_solid_queue_batches_on_parent_batch_id"
-  end
-
-  create_table "solid_queue_batch_executions", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "batch_id", null: false
-    t.datetime "created_at", null: false
-    t.index [ "job_id" ], name: "index_solid_queue_batch_executions_on_job_id", unique: true
-  end
-
   create_table "solid_queue_jobs", force: :cascade do |t|
     t.string "queue_name", null: false
     t.string "class_name", null: false
@@ -146,6 +120,33 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.index [ "expires_at" ], name: "index_solid_queue_semaphores_on_expires_at"
     t.index [ "key", "value" ], name: "index_solid_queue_semaphores_on_key_and_value"
     t.index [ "key" ], name: "index_solid_queue_semaphores_on_key", unique: true
+  end
+
+  create_table "solid_queue_batches", force: :cascade do |t|
+    t.string "batch_id"
+    t.string "parent_batch_id"
+    t.text "on_finish"
+    t.text "on_success"
+    t.text "on_failure"
+    t.text "metadata"
+    t.integer "total_jobs", default: 0, null: false
+    t.integer "pending_jobs", default: 0, null: false
+    t.integer "completed_jobs", default: 0, null: false
+    t.integer "failed_jobs", default: 0, null: false
+    t.datetime "enqueued_at"
+    t.datetime "finished_at"
+    t.datetime "failed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["batch_id"], name: "index_solid_queue_batches_on_batch_id", unique: true
+    t.index ["parent_batch_id"], name: "index_solid_queue_batches_on_parent_batch_id"
+  end
+
+  create_table "solid_queue_batch_executions", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "batch_id", null: false
+    t.datetime "created_at", null: false
+    t.index [ "job_id" ], name: "index_solid_queue_batch_executions_on_job_id", unique: true
   end
 
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
