@@ -2,9 +2,7 @@
 
 module SolidQueue
   class Batch
-    class CleanupJob < ApplicationJob
-      queue_as :background
-
+    class CleanupJob < (defined?(ApplicationJob) ? ApplicationJob : ActiveJob::Base)
       discard_on ActiveRecord::RecordNotFound
 
       def perform(job_batch)

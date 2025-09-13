@@ -42,6 +42,9 @@ module SolidQueue
             )
           end
         end
+
+        batch = Batch.find_by(batch_id: batch_id)
+        batch.check_completion! if batch.present?
       end
 
       private
