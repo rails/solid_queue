@@ -109,7 +109,7 @@ GEM
     psych (5.2.2)
       date
       stringio
-    puma (6.4.3)
+    puma (7.0.2)
       nio4r (~> 2.0)
     raabro (1.4.0)
     racc (1.8.1)
@@ -203,7 +203,7 @@ DEPENDENCIES
   mocha
   mysql2
   pg
-  puma
+  puma (~> 7.0)
   rdoc
   rubocop-rails-omakase
   solid_queue!
