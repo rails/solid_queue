@@ -12,6 +12,16 @@ module SolidQueue
         scope :failed, -> { where.not(failed_at: nil) }
       end
 
+      def status
+        if finished?
+          failed? ? "failed" : "completed"
+        elsif enqueued_at.present?
+          "processing"
+        else
+          "pending"
+        end
+      end
+
       def failed?
         failed_at.present?
       end
