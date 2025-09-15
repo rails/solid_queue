@@ -136,7 +136,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
 
   create_table "solid_queue_batches", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "batch_id"
-    t.string "parent_batch_id"
     t.text "on_finish"
     t.text "on_success"
     t.text "on_failure"
@@ -151,7 +150,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["batch_id"], name: "index_solid_queue_batches_on_batch_id", unique: true
-    t.index ["parent_batch_id"], name: "index_solid_queue_batches_on_parent_batch_id"
   end
 
   create_table "solid_queue_batch_executions", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -159,6 +157,7 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.string "batch_id", null: false
     t.datetime "created_at", null: false
     t.index ["job_id"], name: "index_solid_queue_batch_executions_on_job_id", unique: true
+    t.index ["batch_id"], name: "index_solid_queue_batch_executions_on_batch_id"
   end
 
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
