@@ -4,10 +4,8 @@ module SolidQueue
   class Batch < Record
     include Trackable
 
-    belongs_to :parent_batch, foreign_key: :parent_batch_id, primary_key: :batch_id, class_name: "SolidQueue::Batch", optional: true
     has_many :jobs, foreign_key: :batch_id, primary_key: :batch_id
     has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution"
-    has_many :child_batches, foreign_key: :parent_batch_id, primary_key: :batch_id, class_name: "SolidQueue::Batch"
 
     serialize :on_finish, coder: JSON
     serialize :on_success, coder: JSON
@@ -15,7 +13,6 @@ module SolidQueue
     serialize :metadata, coder: JSON
 
     after_initialize :set_batch_id
-    before_create :set_parent_batch_id
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     mattr_accessor :maintenance_queue_name
@@ -67,10 +64,6 @@ module SolidQueue
     end
 
     private
-
-      def set_parent_batch_id
-        self.parent_batch_id ||= Batch.current_batch_id if Batch.current_batch_id.present?
-      end
 
       def set_batch_id
         self.batch_id ||= SecureRandom.uuid
@@ -132,8 +125,7 @@ module SolidQueue
             on_success: on_success,
             on_failure: on_failure,
             on_finish: on_finish,
-            metadata: metadata,
-            parent_batch_id: current_batch_id
+            metadata: metadata
           )
 
           batch.enqueue(&block)
