@@ -50,16 +50,28 @@ module SolidQueue
 
     def check_completion!
       return if finished? || !ready?
+      return if batch_executions.limit(1).exists?
+
+      rows = Batch
+        .by_batch_id(batch_id)
+        .unfinished
+        .empty_executions
+        .update_all(finished_at: Time.current)
+
+      return if rows.zero?
 
       with_lock do
-        return if finished_at? || !ready?
-
-        if pending_jobs == 0
-          finished_attributes = { finished_at: Time.current }
-          finished_attributes[:failed_at] = Time.current if failed_jobs > 0
-          update!(finished_attributes)
-          execute_callbacks
+        failed = jobs.joins(:failed_execution).count
+        finished_attributes = {}
+        if failed > 0
+          finished_attributes[:failed_at] = Time.current
+          finished_attributes[:failed_jobs] = failed
         end
+        finished_attributes[:completed_jobs] = total_jobs - failed
+        finished_attributes[:pending_jobs] = 0
+
+        update!(finished_attributes)
+        execute_callbacks
       end
     end
 
