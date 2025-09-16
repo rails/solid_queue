@@ -5,6 +5,14 @@ module SolidQueue
     belongs_to :job, optional: true
     belongs_to :batch, foreign_key: :batch_id, primary_key: :batch_id
 
+    after_commit :check_completion, on: :destroy
+
+    private
+      def check_completion
+        batch = Batch.find_by(batch_id: batch_id)
+        batch.check_completion! if batch.present?
+      end
+
     class << self
       def create_all_from_jobs(jobs)
         batch_jobs = jobs.select { |job| job.batch_id.present? }
@@ -21,30 +29,6 @@ module SolidQueue
             **provider_upsert_options
           )
         end
-      end
-
-      def process_job_completion(job, status)
-        batch_id = job.batch_id
-        batch_execution = job.batch_execution
-
-        return if batch_execution.blank?
-
-        transaction do
-          batch_execution.destroy!
-
-          if status == "failed"
-            Batch.where(batch_id: batch_id).update_all(
-              "pending_jobs = pending_jobs - 1, failed_jobs = failed_jobs + 1"
-            )
-          else
-            Batch.where(batch_id: batch_id).update_all(
-              "pending_jobs = pending_jobs - 1, completed_jobs = completed_jobs + 1"
-            )
-          end
-        end
-
-        batch = Batch.find_by(batch_id: batch_id)
-        batch.check_completion! if batch.present?
       end
 
       private

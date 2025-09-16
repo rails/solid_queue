@@ -11,9 +11,9 @@ module SolidQueue
 
       private
         def update_batch_progress
-          # FailedExecutions are only created when the job is done retrying
           if is_a?(FailedExecution)
-            BatchExecution.process_job_completion(job, "failed")
+            # FailedExecutions are only created when the job is done retrying
+            job.batch_execution&.destroy!
           end
         rescue => e
           Rails.logger.error "[SolidQueue] Failed to notify batch #{job.batch_id} about job #{job.id} failure: #{e.message}"
