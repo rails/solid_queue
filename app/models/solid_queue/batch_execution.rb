@@ -24,7 +24,7 @@ module SolidQueue
           })
 
           total = jobs.size
-          SolidQueue::Batch.where(batch_id:).update_all(["total_jobs = total_jobs + ?", total])
+          SolidQueue::Batch.where(batch_id:).update_all([ "total_jobs = total_jobs + ?", total ])
         end
       end
     end
