@@ -24,32 +24,9 @@ module SolidQueue
           })
 
           total = jobs.size
-          SolidQueue::Batch.upsert(
-            { batch_id:, total_jobs: total },
-            **provider_upsert_options
-          )
+          SolidQueue::Batch.where(batch_id:).update_all(["total_jobs = total_jobs + ?", total])
         end
       end
-
-      private
-
-        def provider_upsert_options
-          case connection.adapter_name
-          when "PostgreSQL", "SQLite"
-            {
-              unique_by: :batch_id,
-              on_duplicate: Arel.sql(
-                "total_jobs = solid_queue_batches.total_jobs + excluded.total_jobs"
-              )
-            }
-          else
-            {
-              on_duplicate: Arel.sql(
-                "total_jobs = total_jobs + VALUES(total_jobs)"
-              )
-            }
-          end
-        end
     end
   end
 end
