@@ -611,7 +611,6 @@ and optionally trigger callbacks based on their status. It supports the followin
   - `on_success`: Fired when all jobs have succeeded, including retries. Will not fire if any jobs have failed, but will fire if jobs have been discarded using `discard_on`
   - `on_failure`: Fired when all jobs have finished, including retries. Will only fire if one or more jobs have failed.
 - If a job is part of a batch, it can enqueue more jobs for that batch using `batch#enqueue`
-- Batches can be nested within other batches, creating a hierarchy. Outer batches will not fire callbacks until all nested jobs have finished.
 - Attaching arbitrary metadata to a batch
 
 ```rb
@@ -619,20 +618,6 @@ class SleepyJob < ApplicationJob
   def perform(seconds_to_sleep)
     Rails.logger.info "Feeling #{seconds_to_sleep} seconds sleepy..."
     sleep seconds_to_sleep
-  end
-end
-
-class MultiStepJob < ApplicationJob
-  def perform
-    batch.enqueue do
-      SleepyJob.perform_later(5)
-      # Because of this nested batch, the top-level batch won't finish until the inner,
-      # 10 second job finishes
-      # Both jobs will still run simultaneously
-      SolidQueue::Batch.enqueue do
-        SleepyJob.perform_later(10)
-      end
-    end
   end
 end
 
@@ -666,12 +651,9 @@ end
 
 ### Batch options
 
-As part of the processing of a batch, some jobs are automatically enqueued:
+In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued.
 
-- A `SolidQueue::Batch::BatchMonitorJob` is enqueued for every `Batch` being processed
-- In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued
-
-By default, these jobs run on the `default` queue. You can specify an alternative queue for them in an initializer:
+By default, this jobs run on the `default` queue. You can specify an alternative queue for it in an initializer:
 
 ```rb
 Rails.application.config.after_initialize do # or to_prepare
