@@ -111,12 +111,6 @@ module SolidQueue
         end
 
         perform_completion_job(:on_finish, {}) if on_finish.present?
-
-        clear_unpreserved_jobs
-      end
-
-      def clear_unpreserved_jobs
-        SolidQueue::Batch::CleanupJob.set(queue: self.class.maintenance_queue_name || "default").perform_later(self) unless SolidQueue.preserve_finished_jobs?
       end
 
       def enqueue_empty_job
