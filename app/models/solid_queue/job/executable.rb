@@ -78,7 +78,7 @@ module SolidQueue
       end
 
       def finished!
-        if SolidQueue.preserve_finished_jobs? || batch_id.present? # We clear jobs after the batch finishes
+        if SolidQueue.preserve_finished_jobs?
           update!(finished_at: Time.current)
         else
           destroy!
