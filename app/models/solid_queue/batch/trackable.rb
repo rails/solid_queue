@@ -57,7 +57,7 @@ module SolidQueue
       end
 
       def pending_jobs
-        finished? ? self[:pending_jobs] : batch_executions.count
+        finished? ? 0 : batch_executions.count
       end
 
       def progress_percentage

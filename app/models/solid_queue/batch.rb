@@ -68,7 +68,6 @@ module SolidQueue
           finished_attributes[:failed_jobs] = failed
         end
         finished_attributes[:completed_jobs] = total_jobs - failed
-        finished_attributes[:pending_jobs] = 0
 
         update!(finished_attributes)
         execute_callbacks
