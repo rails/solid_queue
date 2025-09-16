@@ -28,9 +28,7 @@ module SolidQueue
           return unless saved_change_to_finished_at? && finished_at.present?
           return unless batch_id.present?
 
-          # Jobs marked as finished are considered completed
-          # (even if they failed and are being retried - we don't know that here)
-          BatchExecution.process_job_completion(self, "completed")
+          batch_execution&.destroy!
         rescue => e
           Rails.logger.error "[SolidQueue] Failed to update batch #{batch_id} progress for job #{id}: #{e.message}"
         end
