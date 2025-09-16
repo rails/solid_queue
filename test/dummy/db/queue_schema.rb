@@ -141,7 +141,6 @@ ActiveRecord::Schema[7.1].define(version: 1) do
     t.text "on_failure"
     t.text "metadata"
     t.integer "total_jobs", default: 0, null: false
-    t.integer "pending_jobs", default: 0, null: false
     t.integer "completed_jobs", default: 0, null: false
     t.integer "failed_jobs", default: 0, null: false
     t.datetime "enqueued_at"
