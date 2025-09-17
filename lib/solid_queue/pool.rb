@@ -22,6 +22,7 @@ module SolidQueue
         wrap_in_app_executor do
           thread_execution.perform
         ensure
+          ActiveRecord::Base.clear_active_connections! if SolidQueue.clear_connections_after_job
           available_threads.increment
           mutex.synchronize { on_idle.try(:call) if idle? }
         end
