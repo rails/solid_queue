@@ -11,15 +11,27 @@ Puma::Plugin.create do
       monitor_solid_queue
     end
 
-    launcher.events.on_booted do
-      @solid_queue_pid = fork do
-        Thread.new { monitor_puma }
-        SolidQueue::Supervisor.start
+    if Gem::Version.new(Puma::Const::VERSION) < Gem::Version.new("7")
+      launcher.events.on_booted do
+        @solid_queue_pid = fork do
+          Thread.new { monitor_puma }
+          SolidQueue::Supervisor.start
+        end
       end
-    end
 
-    launcher.events.on_stopped { stop_solid_queue }
-    launcher.events.on_restart { stop_solid_queue }
+      launcher.events.on_stopped { stop_solid_queue }
+      launcher.events.on_restart { stop_solid_queue }
+    else
+      launcher.events.after_booted do
+        @solid_queue_pid = fork do
+          Thread.new { monitor_puma }
+          SolidQueue::Supervisor.start
+        end
+      end
+
+      launcher.events.after_stopped { stop_solid_queue }
+      launcher.events.before_restart { stop_solid_queue }
+    end
   end
 
   private

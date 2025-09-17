@@ -33,7 +33,7 @@ default: &default
   username: root
   pool: 20
   host: "127.0.0.1"
-  port: 33060
+  port: 33066
 <% end %>
 
 development:

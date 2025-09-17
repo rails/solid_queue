@@ -10,6 +10,7 @@ module SolidQueue
 
     class << self
       def enqueue_all(active_jobs)
+        active_jobs.each { |job| job.scheduled_at ||= Time.current }
         active_jobs_by_job_id = active_jobs.index_by(&:job_id)
 
         transaction do

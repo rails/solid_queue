@@ -356,6 +356,22 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal "enqueued inside a rolled back transaction", job.arguments.dig("arguments", 0)
   end
 
+  test "enqueue_all assigns scheduled_at if missing" do
+    freeze_time do
+      active_jobs = [
+        AddToBufferJob.new(1),
+        AddToBufferJob.new(2).set(wait: 5.minutes)
+      ]
+
+      ActiveJob.perform_all_later(active_jobs)
+
+      jobs = SolidQueue::Job.where(active_job_id: active_jobs.map(&:job_id)).order(:id)
+
+      assert_equal Time.current, jobs[0].scheduled_at
+      assert_equal 5.minutes.from_now, jobs[1].scheduled_at
+    end
+  end
+
   private
     def assert_ready(&block)
       assert_job_counts(ready: 1, &block)

@@ -48,7 +48,7 @@ module SolidQueue
     end
 
     def delay_from_now
-      [ (next_time - Time.current).to_f, 0 ].max
+      [ (next_time - Time.current).to_f, 0.1 ].max
     end
 
     def next_time
