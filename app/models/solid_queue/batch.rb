@@ -5,7 +5,8 @@ module SolidQueue
     include Trackable
 
     has_many :jobs, foreign_key: :batch_id, primary_key: :batch_id
-    has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution"
+    has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution",
+      dependent: :destroy
 
     serialize :on_finish, coder: JSON
     serialize :on_success, coder: JSON
@@ -25,7 +26,7 @@ module SolidQueue
         save! if new_record?
 
         Batch.wrap_in_batch_context(batch_id) do
-          block.call(self)
+          block&.call(self)
         end
 
         if ActiveRecord.respond_to?(:after_all_transactions_commit)
