@@ -37,8 +37,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
 
     def fail_all_with(error)
-      SolidQueue.instrument(:fail_many_claimed) do |payload|
-        includes(:job).tap do |executions|
+      includes(:job).tap do |executions|
+        return if executions.empty?
+
+        SolidQueue.instrument(:fail_many_claimed) do |payload|
           executions.each do |execution|
             execution.failed_with(error)
             execution.unblock_next_job
