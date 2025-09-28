@@ -9,11 +9,7 @@ module SolidQueue::Processes
     def start
       boot
 
-      if running_async?
-        @thread = create_thread { run }
-      else
-        run
-      end
+      run
     end
 
     def stop
