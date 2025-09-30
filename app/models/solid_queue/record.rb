@@ -6,11 +6,21 @@ module SolidQueue
 
     connects_to(**SolidQueue.connects_to) if SolidQueue.connects_to
 
-    def self.non_blocking_lock
-      if SolidQueue.use_skip_locked
-        lock(Arel.sql("FOR UPDATE SKIP LOCKED"))
-      else
-        lock
+    class << self
+      def connection
+        if SolidQueue.connects_to.present?
+          connected_to(role: :writing) { super }
+        else
+          super
+        end
+      end
+
+      def non_blocking_lock
+        if SolidQueue.use_skip_locked
+          lock(Arel.sql("FOR UPDATE SKIP LOCKED"))
+        else
+          lock
+        end
       end
     end
   end
