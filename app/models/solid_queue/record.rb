@@ -9,8 +9,8 @@ module SolidQueue
     class << self
       def connection
         if SolidQueue.connects_to.present?
-          connected_to(role: :writing) { super }
-        else
+          role = SolidQueue.connects_to.dig(:database)&.keys&.first || :writing
+          connected_to(role: role) { super }        else
           super
         end
       end
