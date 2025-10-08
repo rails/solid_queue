@@ -58,8 +58,11 @@ module SolidQueue
       end
 
       def determine_backtrace_size_limit
-        column = self.class.connection.schema_cache.columns_hash(self.class.table_name)["error"]
-        if column.limit.present?
+        column = self.class.connection_pool.with_connection do |connection|
+          connection.schema_cache.columns_hash(self.class.table_name)["error"]
+        end
+
+        if column && column.limit.present?
           column.limit - exception_class_name.bytesize - exception_message.bytesize - JSON_OVERHEAD
         end
       end
