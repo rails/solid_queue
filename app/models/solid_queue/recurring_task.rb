@@ -36,7 +36,7 @@ module SolidQueue
       end
 
       def create_or_update_all(tasks)
-        if connection.supports_insert_conflict_target?
+        if supports_insert_conflict_target?
           # PostgreSQL fails and aborts the current transaction when it hits a duplicate key conflict
           # during two concurrent INSERTs for the same value of an unique index. We need to explicitly
           # indicate unique_by to ignore duplicate rows by this value when inserting
