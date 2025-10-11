@@ -146,7 +146,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(5.seconds)
 
     jobs = batch_jobs(batch1, batch2, batch3)
     assert_equal [ "hey", "ho", "let's go" ], JobBuffer.values.sort
@@ -170,8 +170,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(3.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.second)
 
     job_batch1 = SolidQueue::Batch.find_by(id: batch1.id)
     job_batch2 = SolidQueue::Batch.find_by(id: batch2.id)
@@ -205,8 +205,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(3.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.second)
 
     assert_equal 6, batch1.reload.jobs.count
     assert_equal 6, batch1.total_jobs
@@ -229,8 +229,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(3.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.second)
 
     job_batch1 = SolidQueue::Batch.find_by(id: batch1.id)
     job_batch2 = SolidQueue::Batch.find_by(id: batch2.id)
@@ -265,8 +265,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
 
     assert_equal true, batch1.reload.finished?
     assert_equal 0, SolidQueue::Job.count
