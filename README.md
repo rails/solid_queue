@@ -643,7 +643,7 @@ SolidQueue::Batch.enqueue(
   on_finish: BatchFinishJob,
   on_success: BatchSuccessJob,
   on_failure: BatchFailureJob,
-  metadata: { user_id: 123 }
+  user_id: 123
 ) do
   5.times.map { |i| SleepyJob.perform_later(i) }
 end
