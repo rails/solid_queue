@@ -24,14 +24,14 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
   test "batch will be completed on success" do
     batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) { }
-    job_batch = SolidQueue::Batch.find_by(batch_id: batch.batch_id)
+    job_batch = SolidQueue::Batch.find_by(id: batch.id)
     assert_not_nil job_batch.on_finish
     assert_equal BatchCompletionJob.name, job_batch.on_finish["job_class"]
   end
 
   test "batch will be completed on finish" do
     batch = SolidQueue::Batch.enqueue(on_success: BatchCompletionJob) { }
-    job_batch = SolidQueue::Batch.find_by(batch_id: batch.batch_id)
+    job_batch = SolidQueue::Batch.find_by(id: batch.id)
     assert_not_nil job_batch.on_success
     assert_equal BatchCompletionJob.name, job_batch.on_success["job_class"]
   end
@@ -43,7 +43,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     end
 
     assert_equal 2, SolidQueue::Job.count
-    assert_equal [ batch.batch_id ] * 2, SolidQueue::Job.last(2).map(&:batch_id)
+    assert_equal [ batch.id ] * 2, SolidQueue::Job.last(2).map(&:batch_id)
   end
 
   test "batch id is present inside the block" do
@@ -68,7 +68,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
   test "creates batch with metadata" do
     SolidQueue::Batch.enqueue(
-      metadata: { source: "test", priority: "high", user_id: 123 }
+      source: "test", priority: "high", user_id: 123
     ) do
       NiceJob.perform_later("world")
     end

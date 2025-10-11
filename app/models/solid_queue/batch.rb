@@ -48,6 +48,10 @@ module SolidQueue
       super(serialize_callback(value))
     end
 
+    def metadata
+      (super || {}).with_indifferent_access
+    end
+
     def check_completion!
       return if finished? || !ready?
       return if batch_executions.limit(1).exists?
@@ -124,7 +128,7 @@ module SolidQueue
       end
 
     class << self
-      def enqueue(on_success: nil, on_failure: nil, on_finish: nil, metadata: nil, &block)
+      def enqueue(on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
         new.tap do |batch|
           batch.assign_attributes(
             on_success: on_success,

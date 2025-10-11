@@ -274,10 +274,10 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
   test "batch interface" do
     batch = SolidQueue::Batch.enqueue(
-      metadata: { source: "test", priority: "high", user_id: 123 },
       on_finish: OnFinishJob,
       on_success: OnSuccessJob,
-      on_failure: OnFailureJob
+      on_failure: OnFailureJob,
+      source: "test", priority: "high", user_id: 123
     ) do
       AddToBufferJob.perform_later "hey"
     end
