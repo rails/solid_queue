@@ -10,12 +10,11 @@ module SolidQueue
         scope :succeeded, -> { finished.where(failed_at: nil) }
         scope :unfinished, -> { where(finished_at: nil) }
         scope :failed, -> { where.not(failed_at: nil) }
-        scope :by_batch_id, ->(batch_id) { where(batch_id:) }
         scope :empty_executions, -> {
           where(<<~SQL)
             NOT EXISTS (
               SELECT 1 FROM solid_queue_batch_executions
-              WHERE solid_queue_batch_executions.batch_id = solid_queue_batches.batch_id
+              WHERE solid_queue_batch_executions.batch_id = solid_queue_batches.id
               LIMIT 1
             )
           SQL
