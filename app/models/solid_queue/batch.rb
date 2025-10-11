@@ -4,16 +4,15 @@ module SolidQueue
   class Batch < Record
     include Trackable
 
-    has_many :jobs, foreign_key: :batch_id, primary_key: :batch_id
-    has_many :batch_executions, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::BatchExecution",
-      dependent: :destroy
+    has_many :jobs
+    has_many :batch_executions, class_name: "SolidQueue::BatchExecution", dependent: :destroy
 
     serialize :on_finish, coder: JSON
     serialize :on_success, coder: JSON
     serialize :on_failure, coder: JSON
     serialize :metadata, coder: JSON
 
-    after_initialize :set_batch_id
+    after_initialize :set_active_job_batch_id
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     mattr_accessor :maintenance_queue_name
@@ -25,7 +24,7 @@ module SolidQueue
       transaction do
         save! if new_record?
 
-        Batch.wrap_in_batch_context(batch_id) do
+        Batch.wrap_in_batch_context(id) do
           block&.call(self)
         end
 
@@ -54,7 +53,7 @@ module SolidQueue
       return if batch_executions.limit(1).exists?
 
       rows = Batch
-        .by_batch_id(batch_id)
+        .where(id: id)
         .unfinished
         .empty_executions
         .update_all(finished_at: Time.current)
@@ -77,8 +76,8 @@ module SolidQueue
 
     private
 
-      def set_batch_id
-        self.batch_id ||= SecureRandom.uuid
+      def set_active_job_batch_id
+        self.active_job_batch_id ||= SecureRandom.uuid
       end
 
       def as_active_job(active_job_klass)
@@ -114,7 +113,7 @@ module SolidQueue
       end
 
       def enqueue_empty_job
-        Batch.wrap_in_batch_context(batch_id) do
+        Batch.wrap_in_batch_context(id) do
           EmptyJob.set(queue: self.class.maintenance_queue_name || "default").perform_later
         end
       end

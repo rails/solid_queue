@@ -3,13 +3,13 @@
 module SolidQueue
   class BatchExecution < Record
     belongs_to :job, optional: true
-    belongs_to :batch, foreign_key: :batch_id, primary_key: :batch_id
+    belongs_to :batch
 
     after_commit :check_completion, on: :destroy
 
     private
       def check_completion
-        batch = Batch.find_by(batch_id: batch_id)
+        batch = Batch.find_by(id: batch_id)
         batch.check_completion! if batch.present?
       end
 
@@ -24,7 +24,7 @@ module SolidQueue
           })
 
           total = jobs.size
-          SolidQueue::Batch.where(batch_id:).update_all([ "total_jobs = total_jobs + ?", total ])
+          SolidQueue::Batch.where(id: batch_id).update_all([ "total_jobs = total_jobs + ?", total ])
         end
       end
     end

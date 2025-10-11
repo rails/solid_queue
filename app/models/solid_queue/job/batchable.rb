@@ -6,7 +6,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        belongs_to :batch, foreign_key: :batch_id, primary_key: :batch_id, class_name: "SolidQueue::Batch", optional: true
+        belongs_to :batch, optional: true
         has_one :batch_execution, foreign_key: :job_id, dependent: :destroy
 
         after_create :create_batch_execution, if: :batch_id?

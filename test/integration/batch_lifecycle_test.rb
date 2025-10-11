@@ -173,8 +173,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_batches_to_finish_for(3.seconds)
     wait_for_jobs_to_finish_for(1.second)
 
-    job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
-    job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
+    job_batch1 = SolidQueue::Batch.find_by(id: batch1.id)
+    job_batch2 = SolidQueue::Batch.find_by(id: batch2.id)
 
     assert_equal 2, SolidQueue::Batch.count
     assert_equal 2, SolidQueue::Batch.finished.count
@@ -232,8 +232,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_batches_to_finish_for(3.seconds)
     wait_for_jobs_to_finish_for(1.second)
 
-    job_batch1 = SolidQueue::Batch.find_by(batch_id: batch1.batch_id)
-    job_batch2 = SolidQueue::Batch.find_by(batch_id: batch2.batch_id)
+    job_batch1 = SolidQueue::Batch.find_by(id: batch1.id)
+    job_batch2 = SolidQueue::Batch.find_by(id: batch2.id)
 
     assert_equal 2, SolidQueue::Batch.count
     assert_equal 2, SolidQueue::Batch.finished.count
@@ -288,7 +288,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_batches_to_finish_for(2.seconds)
     wait_for_jobs_to_finish_for(1.second)
 
-    assert_equal [ "Hi finish #{batch.batch_id}!", "Hi success #{batch.batch_id}!", "hey" ].sort, JobBuffer.values.sort
+    assert_equal [ "Hi finish #{batch.id}!", "Hi success #{batch.id}!", "hey" ].sort, JobBuffer.values.sort
     assert_equal 1, batch.reload.completed_jobs
     assert_equal 0, batch.failed_jobs
     assert_equal 0, batch.pending_jobs
@@ -299,7 +299,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     queue_as :background
 
     def perform(batch)
-      JobBuffer.add "Hi finish #{batch.batch_id}!"
+      JobBuffer.add "Hi finish #{batch.id}!"
     end
   end
 
@@ -307,7 +307,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     queue_as :background
 
     def perform(batch)
-      JobBuffer.add "Hi success #{batch.batch_id}!"
+      JobBuffer.add "Hi success #{batch.id}!"
     end
   end
 
@@ -315,7 +315,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     queue_as :background
 
     def perform(batch)
-      JobBuffer.add "Hi failure #{batch.batch_id}!"
+      JobBuffer.add "Hi failure #{batch.id}!"
     end
   end
 
@@ -330,6 +330,6 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   end
 
   def batch_jobs(*batches)
-    SolidQueue::Job.where(batch_id: batches.map(&:batch_id))
+    SolidQueue::Job.where(id: batches.map(&:id))
   end
 end
