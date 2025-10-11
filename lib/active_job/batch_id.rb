@@ -25,7 +25,7 @@ module ActiveJob
     end
 
     def batch
-      @batch ||= SolidQueue::Batch.find_by(batch_id: batch_id)
+      @batch ||= SolidQueue::Batch.find_by(id: batch_id)
     end
 
     private
