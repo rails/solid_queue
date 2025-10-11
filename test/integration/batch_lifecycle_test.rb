@@ -330,6 +330,6 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   end
 
   def batch_jobs(*batches)
-    SolidQueue::Job.where(id: batches.map(&:id))
+    SolidQueue::Job.where(batch_id: batches.map(&:id))
   end
 end
