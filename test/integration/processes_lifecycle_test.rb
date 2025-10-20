@@ -123,25 +123,22 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
-    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
+    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 1 }
 
-    signal_process(@pid, :TERM, wait: 0.5)
+    signal_process(@pid, :TERM, wait: 0.5.second)
+    wait_for_jobs_to_finish_for(2.seconds, except: pause)
 
-    sleep(SolidQueue.shutdown_timeout + 0.5.second)
+    wait_while_with_timeout!(SolidQueue.shutdown_timeout + 1.second) { process_exists?(@pid) }
+    assert_not process_exists?(@pid)
 
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # This job was left claimed as the worker was shutdown without
-    # a chance to terminate orderly
     assert_started_job_result("pause")
-    assert_job_status(pause, :claimed)
-
-    # The process running the long job couldn't deregister, the other did
-    assert_registered_workers_for(:background)
-
-    # Now wait until the supervisor finishes for real, which will complete the cleanup
-    wait_for_process_termination_with_timeout(@pid, timeout: 1.second)
+    # Workers were shutdown without a chance to terminate orderly, but
+    # since they're linked to the supervisor, the supervisor deregistering
+    # also deregistered them and released claimed jobs
+    assert_job_status(pause, :ready)
     assert_clean_termination
   end
 
