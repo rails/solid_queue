@@ -29,18 +29,22 @@ module SolidQueue
     end
 
     def start
-      boot
-      run_start_hooks
+      wrap_in_app_executor do
+        boot
+        run_start_hooks
 
-      start_processes
-      launch_maintenance_task
+        start_processes
+        launch_maintenance_task
 
-      supervise
+        supervise
+      end
     end
 
     def stop
-      super
-      run_stop_hooks
+      wrap_in_app_executor do
+        super
+        run_stop_hooks
+      end
     end
 
     private
