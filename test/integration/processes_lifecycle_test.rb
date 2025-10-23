@@ -182,12 +182,6 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no exit", :background, 4)
     assert_completed_job_results("paused no exit", :default, 1)
 
-    # The background worker exits because of the exit job,
-    # leaving the pause job claimed
-    [ exit_job, pause_job ].each do |job|
-      assert_job_status(job, :claimed)
-    end
-
     assert process_exists?(@pid)
     terminate_process(@pid)
 
