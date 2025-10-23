@@ -28,6 +28,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
 - [Puma plugin](#puma-plugin)
+- [Health-check HTTP server](#health-check-http-server)
 - [Jobs and transactional integrity](#jobs-and-transactional-integrity)
 - [Recurring tasks](#recurring-tasks)
 - [Inspiration](#inspiration)
@@ -602,6 +603,32 @@ plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Puma would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
 
 **Note**: phased restarts are not supported currently because the plugin requires [app preloading](https://github.com/puma/puma?tab=readme-ov-file#cluster-mode) to work.
+
+## Health-check HTTP server
+
+Solid Queue can start a tiny HTTP server to respond to basic health checks in the same process. This is useful for container orchestrators (e.g. Kubernetes) and external monitoring.
+
+- Endpoints:
+  - `/` and `/health`: returns `200 OK` with body `OK`
+  - Any other path: returns `404 Not Found`
+- Disabled by default. When enabled, defaults are:
+  - host: `ENV["SOLID_QUEUE_HTTP_HOST"]` or `"0.0.0.0"`
+  - port: `ENV["SOLID_QUEUE_HTTP_PORT"]` or `9393`
+
+Enable and configure via `config.solid_queue`:
+
+```ruby
+# config/initializers/solid_queue.rb or config/application.rb
+Rails.application.configure do
+  config.solid_queue.health_server_enabled = true
+  # Optional overrides (defaults already read the env vars above)
+  # config.solid_queue.health_server_host = "0.0.0.0"
+  # config.solid_queue.health_server_port = 9393
+end
+```
+
+Note:
+- When the Puma plugin is active (`plugin :solid_queue` in `puma.rb`), Solid Queue will skip starting the health server even if `health_server_enabled` is set. A warning is logged instead. This prevents running multiple embedded servers in the same process tree.
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and vice versa, and ensuring that your job won't be enqueued until the transaction within which you're enqueuing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you. Because this can be quite tricky and many people shouldn't need to worry about it, by default Solid Queue is configured in a different database as the main app.
