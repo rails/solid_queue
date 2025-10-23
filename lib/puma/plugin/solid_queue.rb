@@ -13,6 +13,7 @@ Puma::Plugin.create do
 
     if Gem::Version.new(Puma::Const::VERSION) < Gem::Version.new("7")
       launcher.events.on_booted do
+        SolidQueue.puma_plugin = true
         @solid_queue_pid = fork do
           Thread.new { monitor_puma }
           SolidQueue::Supervisor.start
@@ -23,6 +24,7 @@ Puma::Plugin.create do
       launcher.events.on_restart { stop_solid_queue }
     else
       launcher.events.after_booted do
+        SolidQueue.puma_plugin = true
         @solid_queue_pid = fork do
           Thread.new { monitor_puma }
           SolidQueue::Supervisor.start

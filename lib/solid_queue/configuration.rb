@@ -7,10 +7,11 @@ module SolidQueue
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
     validate :ensure_correctly_sized_thread_pool
+    validate :ensure_valid_health_server
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
-        "SolidQueue::#{kind.to_s.titleize}".safe_constantize.new(**attributes)
+        "SolidQueue::#{kind.to_s.camelize}".safe_constantize.new(**attributes)
       end
     end
 
@@ -38,7 +39,7 @@ module SolidQueue
     def configured_processes
       if only_work? then workers
       else
-        dispatchers + workers + schedulers
+        dispatchers + workers + schedulers + health_server
       end
     end
 
@@ -129,6 +130,31 @@ module SolidQueue
         end
       end
 
+      def health_server
+        if SolidQueue.puma_plugin
+          SolidQueue.logger&.warn("SolidQueue health server is configured but Puma plugin is active; skipping starting health server to avoid duplicate servers")
+          return []
+        end
+
+        options = health_server_options
+        return [] unless options
+
+        [ Process.new(:health_server, options) ]
+      end
+
+      def ensure_valid_health_server
+        server_options = health_server_options
+        return unless server_options
+
+        unless server_options[:host].present?
+          errors.add(:base, "Health server: host is required")
+        end
+
+        unless server_options.key?(:port) && server_options[:port].present?
+          errors.add(:base, "Health server: port is required")
+        end
+      end
+
       def workers_options
         @workers_options ||= processes_config.fetch(:workers, [])
           .map { |options| options.dup.symbolize_keys }
@@ -139,6 +165,14 @@ module SolidQueue
           .map { |options| options.dup.symbolize_keys }
       end
 
+      def health_server_options
+        @health_server_options ||= begin
+          options = processes_config[:health_server]
+          options = options.dup.symbolize_keys if options
+          options.present? ? options : nil
+        end
+      end
+
       def recurring_tasks
         @recurring_tasks ||= recurring_tasks_config.map do |id, options|
           RecurringTask.from_configuration(id, **options) if options&.has_key?(:schedule)
@@ -147,8 +181,8 @@ module SolidQueue
 
       def processes_config
         @processes_config ||= config_from \
-          options.slice(:workers, :dispatchers).presence || options[:config_file],
-          keys: [ :workers, :dispatchers ],
+          options.slice(:workers, :dispatchers, :health_server).presence || options[:config_file],
+          keys: [ :workers, :dispatchers, :health_server ],
           fallback: { workers: [ WORKER_DEFAULTS ], dispatchers: [ DISPATCHER_DEFAULTS ] }
       end
 

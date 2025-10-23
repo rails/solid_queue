@@ -41,9 +41,11 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  mattr_accessor :puma_plugin, default: false
+
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
-  [ Dispatcher, Scheduler, Worker ].each do |process|
+  [ Dispatcher, Scheduler, Worker, HealthServer ].each do |process|
     define_singleton_method(:"on_#{process.name.demodulize.downcase}_start") do |&block|
       process.on_start(&block)
     end
