@@ -52,6 +52,7 @@ jobs:
     env:
       TARGET_DB: ${{ matrix.database }}
       BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/${{ matrix.gemfile }}.gemfile
+      RAILS_ENV: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,3 +69,12 @@ jobs:
           bin/rails db:setup
       - name: Run tests
         run: bin/rails test
+      - name: Upload logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          path: |
+            test/dummy/log/test.log
+          if-no-files-found: ignore
+          retention-days: 7

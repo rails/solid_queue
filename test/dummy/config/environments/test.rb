@@ -59,4 +59,9 @@ Rails.application.configure do
   config.solid_queue.logger = ActiveSupport::Logger.new(nil)
 
   config.solid_queue.shutdown_timeout = 2.seconds
+
+  config.log_formatter = proc do |severity, timestamp, progname, msg|
+    ts = timestamp.getlocal.strftime("%H:%M:%S.%3N")
+    "#{ts} #{msg}\n"
+  end
 end
