@@ -73,7 +73,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
-          name: logs
+          name: logs-${{ matrix.database }}-${{ matrix.gemfile }}-ruby${{ matrix.ruby-version }}-attempt${{ github.run_attempt }}
           path: |
             test/dummy/log/test.log
           if-no-files-found: ignore
