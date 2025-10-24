@@ -37,5 +37,11 @@ module SolidQueue
         include ActiveJob::ConcurrencyControls
       end
     end
+
+    initializer "solid_queue.health_server" do
+      ActiveSupport.on_load(:solid_queue) do
+        SolidQueue.start_health_server
+      end
+    end
   end
 end
