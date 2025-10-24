@@ -20,11 +20,11 @@ class SolidQueue::Process < SolidQueue::Record
   end
 
   def heartbeat
-    # Clear any previous changes before locking, for example, in case a previous heartbeat
-    # failed because of a DB issue (with SQLite depending on configuration, a BusyException
-    # is not rare) and we still have the unpersisted value
-    restore_attributes
-    with_lock { touch(:last_heartbeat_at) }
+    if SolidQueue.silence_heartbeats? && ActiveRecord::Base.logger
+      ActiveRecord::Base.logger.silence { perform_heartbeat }
+    else
+      perform_heartbeat
+    end
   end
 
   def deregister(pruned: false)
@@ -43,5 +43,13 @@ class SolidQueue::Process < SolidQueue::Record
   private
     def supervised?
       supervisor_id.present?
+    end
+
+    def perform_heartbeat
+      # Clear any previous changes before locking, for example, in case a previous heartbeat
+      # failed because of a DB issue (with SQLite depending on configuration, a BusyException
+      # is not rare) and we still have the unpersisted value
+      restore_attributes
+      with_lock { touch(:last_heartbeat_at) }
     end
 end
