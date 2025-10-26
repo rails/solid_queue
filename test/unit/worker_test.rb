@@ -192,19 +192,4 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.start
     sleep 1.second
   end
-
-  private
-    def with_polling(silence:)
-      old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
-      yield
-    ensure
-      SolidQueue.silence_polling = old_silence_polling
-    end
-
-    def with_active_record_logger(logger)
-      old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, logger
-      yield
-    ensure
-      ActiveRecord::Base.logger = old_logger
-    end
 end

@@ -118,19 +118,4 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher.start
     wait_while_with_timeout(1.second) { !SolidQueue::ScheduledExecution.exists? }
   end
-
-  private
-    def with_polling(silence:)
-      old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
-      yield
-    ensure
-      SolidQueue.silence_polling = old_silence_polling
-    end
-
-    def with_active_record_logger(logger)
-      old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, logger
-      yield
-    ensure
-      ActiveRecord::Base.logger = old_logger
-    end
 end
