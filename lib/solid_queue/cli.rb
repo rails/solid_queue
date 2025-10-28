@@ -8,6 +8,8 @@ module SolidQueue
       desc: "Path to config file (default: #{Configuration::DEFAULT_CONFIG_FILE_PATH}).",
       banner: "SOLID_QUEUE_CONFIG"
 
+    class_option :mode, type: :string, default: "fork", enum: %w[ fork async ], desc: "Whether to fork processes for workers and dispatchers (fork) or to run these in the same process as the supervisor (async)"
+
     class_option :recurring_schedule_file, type: :string,
       desc: "Path to recurring schedule definition (default: #{Configuration::DEFAULT_RECURRING_SCHEDULE_FILE_PATH}).",
       banner: "SOLID_QUEUE_RECURRING_SCHEDULE"
