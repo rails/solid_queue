@@ -107,6 +107,8 @@ class DispatcherTest < ActiveSupport::TestCase
 
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 3, SolidQueue::ReadyExecution.count
+  ensure
+    dispatcher.stop
   end
 
   test "sleeps `polling_interval` between polls if there are no un-dispatched jobs" do
@@ -117,6 +119,8 @@ class DispatcherTest < ActiveSupport::TestCase
 
     dispatcher.start
     wait_while_with_timeout(1.second) { !SolidQueue::ScheduledExecution.exists? }
+  ensure
+    dispatcher.stop
   end
 
   private
