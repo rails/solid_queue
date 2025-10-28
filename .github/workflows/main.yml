@@ -79,4 +79,4 @@ jobs:
           path: |
             test/dummy/log/test.log
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
