@@ -18,17 +18,19 @@ module SolidQueue::Processes
       attr_accessor :process
 
       def register
-        @process = SolidQueue::Process.register \
-          kind: kind,
-          name: name,
-          pid: pid,
-          hostname: hostname,
-          supervisor: try(:supervisor),
-          metadata: metadata.compact
+        wrap_in_app_executor do
+          @process = SolidQueue::Process.register \
+            kind: kind,
+            name: name,
+            pid: pid,
+            hostname: hostname,
+            supervisor: try(:supervisor),
+            metadata: metadata.compact
+        end
       end
 
       def deregister
-        process&.deregister
+        wrap_in_app_executor { process&.deregister }
       end
 
       def registered?

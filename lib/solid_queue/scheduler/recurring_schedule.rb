@@ -46,7 +46,7 @@ module SolidQueue
       end
 
       def reload_tasks
-        @configured_tasks = SolidQueue::RecurringTask.where(key: task_keys)
+        @configured_tasks = SolidQueue::RecurringTask.where(key: task_keys).to_a
       end
 
       def schedule(task)
