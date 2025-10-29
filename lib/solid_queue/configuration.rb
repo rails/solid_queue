@@ -222,6 +222,7 @@ module SolidQueue
         if file.exist?
           ActiveSupport::ConfigurationFile.parse(file).deep_symbolize_keys
         else
+          puts "[solid_queue] WARNING: Provided configuration file '#{file}' does not exist. Falling back to default configuration."
           {}
         end
       end

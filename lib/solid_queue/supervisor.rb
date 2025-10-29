@@ -29,22 +29,18 @@ module SolidQueue
     end
 
     def start
-      wrap_in_app_executor do
-        boot
-        run_start_hooks
+      boot
+      run_start_hooks
 
-        start_processes
-        launch_maintenance_task
+      start_processes
+      launch_maintenance_task
 
-        supervise
-      end
+      supervise
     end
 
     def stop
-      wrap_in_app_executor do
-        super
-        run_stop_hooks
-      end
+      super
+      run_stop_hooks
     end
 
     private
@@ -180,9 +176,11 @@ module SolidQueue
       # executions it had claimed as failed so that they can be retried
       # by some other worker.
       def handle_claimed_jobs_by(terminated_fork, status)
-        if registered_process = SolidQueue::Process.find_by(name: terminated_fork.name)
-          error = Processes::ProcessExitError.new(status)
-          registered_process.fail_all_claimed_executions_with(error)
+        wrap_in_app_executor do
+          if registered_process = SolidQueue::Process.find_by(name: terminated_fork.name)
+            error = Processes::ProcessExitError.new(status)
+            registered_process.fail_all_claimed_executions_with(error)
+          end
         end
       end
 
