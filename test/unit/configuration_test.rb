@@ -29,7 +29,7 @@ class ConfigurationTest < ActiveSupport::TestCase
   test "warns if provided configuration file does not exist" do
     assert_output "[solid_queue] WARNING: Provided configuration file '/path/to/nowhere.yml' does not exist. Falling back to default configuration.\n" do
       configuration = SolidQueue::Configuration.new(config_file: Pathname.new("/path/to/nowhere.yml"))
-      assert_predicate configuration, :valid?
+      assert configuration.valid?
     end
   end
 
