@@ -53,6 +53,17 @@ class ActiveSupport::TestCase
     end
   end
 
+  def run(...)
+    # Rails 8.1.dev changed default logging levels
+    if defined?(with_debug_event_reporting)
+      with_debug_event_reporting do
+        super
+      end
+    else
+      super
+    end
+  end
+
   private
     def wait_while_with_timeout(timeout, &block)
       wait_while_with_timeout!(timeout, &block)
