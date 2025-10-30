@@ -69,6 +69,10 @@ module SolidQueue
     preserve_finished_jobs
   end
 
+  def deprecator
+    @deprecator ||= ActiveSupport::Deprecation.new(next_major_version, "SolidQueue")
+  end
+
   def instrument(channel, **options, &block)
     ActiveSupport::Notifications.instrument("#{channel}.solid_queue", **options, &block)
   end
