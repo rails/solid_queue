@@ -30,8 +30,6 @@ class RecurringTasksTest < ActiveSupport::TestCase
         assert_equal "42", result.value
       end
     end
-
-    # no need to stop @pid supervisor - that will be handled in teardown
   end
 
   test "persist and delete configured tasks" do
@@ -61,8 +59,6 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
     scheduler1.stop
     scheduler2.stop
-
-    # no need to stop @pid supervisor - that will be handled in teardown
   end
 
   private
@@ -93,6 +89,5 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
       terminate_process(pid)
       wait_for_registered_processes(0, timeout: SolidQueue.shutdown_timeout)
-      sleep SolidQueue.shutdown_timeout
     end
 end
