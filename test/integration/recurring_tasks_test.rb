@@ -6,25 +6,16 @@ class RecurringTasksTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @pid = run_supervisor_as_fork(skip_recurring: false)
-    # 1 supervisor + 2 workers + 1 dispatcher + 1 scheduler
-    wait_for_registered_processes(5, timeout: 3.second)
+    @pid = run_recurring_supervisor
   end
 
   teardown do
-    terminate_process(@pid) if process_exists?(@pid)
-
-    SolidQueue::Process.destroy_all
-    SolidQueue::Job.destroy_all
-    SolidQueue::RecurringTask.delete_all
-    JobResult.delete_all
+    terminate_gracefully(@pid)
   end
 
   test "enqueue and process periodic tasks" do
     wait_for_jobs_to_be_enqueued(2, timeout: 2.5.seconds)
     wait_for_jobs_to_finish_for(2.5.seconds)
-
-    terminate_process(@pid)
 
     skip_active_record_query_cache do
       assert SolidQueue::Job.count >= 2
@@ -39,24 +30,20 @@ class RecurringTasksTest < ActiveSupport::TestCase
         assert_equal "42", result.value
       end
     end
+
+    # no need to stop @pid supervisor - that will be handled in teardown
   end
 
   test "persist and delete configured tasks" do
     configured_task = { periodic_store_result: { class: "StoreResultJob", schedule: "every second" } }
-    # Wait for concurrency schedule loading after process registration
-    sleep(0.5)
 
     assert_recurring_tasks configured_task
-    terminate_process(@pid)
-
     task = SolidQueue::RecurringTask.find_by(key: "periodic_store_result")
     task.update!(class_name: "StoreResultJob", schedule: "every minute", arguments: [ 42 ])
 
-    @pid = run_supervisor_as_fork(skip_recurring: false)
-    wait_for_registered_processes(5, timeout: 3.second)
+    terminate_gracefully(@pid)
 
-    # Wait for concurrency schedule loading after process registration
-    sleep(0.5)
+    @pid = run_recurring_supervisor
 
     assert_recurring_tasks configured_task
 
@@ -72,9 +59,10 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
     assert_recurring_tasks updated_task
 
-    terminate_process(@pid)
     scheduler1.stop
     scheduler2.stop
+
+    # no need to stop @pid supervisor - that will be handled in teardown
   end
 
   private
@@ -91,5 +79,20 @@ class RecurringTasksTest < ActiveSupport::TestCase
           assert_equal(attrs[:args], task.arguments) if attrs[:args]
         end
       end
+    end
+
+    def run_recurring_supervisor
+      pid = run_supervisor_as_fork(skip_recurring: false)
+      wait_for_registered_processes(5, timeout: 3.seconds) # 1 supervisor + 2 workers + 1 dispatcher + 1 scheduler
+      sleep 1.second # Wait for concurrency schedule loading after process registration
+      pid
+    end
+
+    def terminate_gracefully(pid)
+      return if pid.nil? || !process_exists?(pid)
+
+      terminate_process(pid)
+      wait_for_registered_processes(0, timeout: SolidQueue.shutdown_timeout)
+      sleep SolidQueue.shutdown_timeout
     end
 end
