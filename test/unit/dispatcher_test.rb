@@ -40,8 +40,9 @@ class DispatcherTest < ActiveSupport::TestCase
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: false) do
+        rewind_io(log)
         @dispatcher.start
-        sleep 0.2
+        sleep 0.5.second
       end
     end
 
@@ -52,8 +53,9 @@ class DispatcherTest < ActiveSupport::TestCase
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: true) do
+        rewind_io(log)
         @dispatcher.start
-        sleep 0.2
+        sleep 0.5.second
       end
     end
 
@@ -64,7 +66,7 @@ class DispatcherTest < ActiveSupport::TestCase
     with_active_record_logger(nil) do
       with_polling(silence: true) do
         @dispatcher.start
-        sleep 0.2
+        sleep 0.5.second
       end
     end
 
@@ -75,8 +77,9 @@ class DispatcherTest < ActiveSupport::TestCase
 
   test "run more than one instance of the dispatcher" do
     15.times do
-      AddToBufferJob.set(wait: 0.2).perform_later("I'm scheduled")
+      AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled")
     end
+    sleep 0.5.second
     assert_equal 15, SolidQueue::ScheduledExecution.count
 
     another_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10)
@@ -98,15 +101,17 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
     dispatcher.expects(:handle_thread_error).never
 
-    3.times { AddToBufferJob.set(wait: 0.1).perform_later("I'm scheduled") }
+    3.times { AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled") }
+    sleep 0.5.second
     assert_equal 3, SolidQueue::ScheduledExecution.count
-    sleep 0.1
 
     dispatcher.start
     wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
 
     assert_equal 0, SolidQueue::ScheduledExecution.count
     assert_equal 3, SolidQueue::ReadyExecution.count
+  ensure
+    dispatcher.stop
   end
 
   test "sleeps `polling_interval` between polls if there are no un-dispatched jobs" do
@@ -117,6 +122,8 @@ class DispatcherTest < ActiveSupport::TestCase
 
     dispatcher.start
     wait_while_with_timeout(1.second) { !SolidQueue::ScheduledExecution.exists? }
+  ensure
+    dispatcher.stop
   end
 
   private
@@ -132,5 +139,10 @@ class DispatcherTest < ActiveSupport::TestCase
       yield
     ensure
       ActiveRecord::Base.logger = old_logger
+    end
+
+    def rewind_io(log)
+      log.truncate(0)
+      log.rewind
     end
 end

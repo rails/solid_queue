@@ -20,6 +20,7 @@ jobs:
   tests:
     name: Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -29,10 +30,12 @@ jobs:
         - 3.3
         - 3.4
         database: [ mysql, postgres, sqlite ]
-        gemfile: [ rails_7_1, rails_7_2, rails_8_0, rails_main ]
+        gemfile: [ rails_7_1, rails_7_2, rails_8_0, rails_8_1, rails_main ]
         exclude:
           - ruby-version: "3.1"
             gemfile: rails_8_0
+          - ruby-version: "3.1"
+            gemfile: rails_8_1
           - ruby-version: "3.1"
             gemfile: rails_main
     services:
@@ -41,7 +44,7 @@ jobs:
         env:
           MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
         ports:
-          - 33060:3306
+          - 33066:3306
         options: --health-cmd "mysql -h localhost -e \"select now()\"" --health-interval 1s --health-timeout 5s --health-retries 30
       postgres:
         image: postgres:15.1
@@ -52,6 +55,7 @@ jobs:
     env:
       TARGET_DB: ${{ matrix.database }}
       BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/${{ matrix.gemfile }}.gemfile
+      RAILS_ENV: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,3 +72,12 @@ jobs:
           bin/rails db:setup
       - name: Run tests
         run: bin/rails test
+      - name: Upload logs on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.database }}-${{ matrix.gemfile }}-ruby${{ matrix.ruby-version }}-attempt${{ github.run_attempt }}
+          path: |
+            test/dummy/log/test.log
+          if-no-files-found: ignore
+          retention-days: 30

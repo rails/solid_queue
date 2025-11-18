@@ -20,7 +20,7 @@ module SolidQueue
 
       # Requires a unique index on key
       def create_unique_by(attributes)
-        if connection.supports_insert_conflict_target?
+        if supports_insert_conflict_target?
           insert({ **attributes }, unique_by: :key).any?
         else
           create!(**attributes)

@@ -26,6 +26,13 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, batch_size: SolidQueue::Configuration::DISPATCHER_DEFAULTS[:batch_size]
   end
 
+  test "warns if provided configuration file does not exist" do
+    assert_output "[solid_queue] WARNING: Provided configuration file '/path/to/nowhere.yml' does not exist. Falling back to default configuration.\n" do
+      configuration = SolidQueue::Configuration.new(config_file: Pathname.new("/path/to/nowhere.yml"))
+      assert configuration.valid?
+    end
+  end
+
   test "read configuration from default file" do
     configuration = SolidQueue::Configuration.new
     assert 3, configuration.configured_processes.count
@@ -120,16 +127,20 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert error.include?("periodic_invalid_class: Class name doesn't correspond to an existing class")
     assert error.include?("periodic_incorrect_schedule: Schedule is not a supported recurring schedule")
 
-    assert SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring)).valid?
+    assert_output(/Provided configuration file '[^']+' does not exist\./) do
+      assert SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring)).valid?
+    end
     assert SolidQueue::Configuration.new(skip_recurring: true).valid?
 
     configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_production_only))
     assert configuration.valid?
     assert_processes configuration, :scheduler, 0
 
-    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_empty))
-    assert configuration.valid?
-    assert_processes configuration, :scheduler, 0
+    assert_output(/Provided configuration file '[^']+' does not exist\./) do
+      configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_empty))
+      assert configuration.valid?
+      assert_processes configuration, :scheduler, 0
+    end
 
     # No processes
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [])

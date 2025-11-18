@@ -342,7 +342,7 @@ When receiving a `QUIT` signal, if workers still have jobs in-flight, these will
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats. Jobs that were claimed by processes with an expired heartbeat will be marked as failed with a `SolidQueue::Processes::ProcessPrunedError`. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
 
-In a similar way, if a worker is terminated in any other way not initiated by the above signals (e.g. a worker is sent a `KILL` signal), jobs in progress will be marked as failed so that they can be inspected, with a `SolidQueue::Processes::Process::ProcessExitError`. Sometimes a job in particular is responsible for this, for example, if it has a memory leak and you have a mechanism to kill processes over a certain memory threshold, so this will help identifying this kind of situation.
+In a similar way, if a worker is terminated in any other way not initiated by the above signals (e.g. a worker is sent a `KILL` signal), jobs in progress will be marked as failed so that they can be inspected, with a `SolidQueue::Processes::ProcessExitError`. Sometimes a job in particular is responsible for this, for example, if it has a memory leak and you have a mechanism to kill processes over a certain memory threshold, so this will help identifying this kind of situation.
 
 
 ### Database configuration
@@ -519,11 +519,11 @@ DeliverAnnouncementToContactJob.set(wait: 30.minutes).perform_later(contact)
 
 The 3 jobs will go into the scheduled queue and will wait there until they're due. Then, 10 minutes after, the first two jobs will be enqueued and the second one most likely will be blocked because the first one will be running first. Then, assuming the jobs are fast and finish in a few seconds, when the third job is due, it'll be enqueued normally.
 
-Normally scheduled jobs are enqueued in batches, but with concurrency controls, jobs need to be enqueued one by one. This has an impact on performance, similarly to the impact of concurrency controls in bulk enqueuing. Read below for more details. I'd generally advise against mixing concurrency controls with waiting/scheduling in the future.
+Normally scheduled jobs are enqueued in batches, but with concurrency controls, jobs need to be enqueued one by one. This has an impact on performance, similarly to the impact of concurrency controls in bulk enqueuing. Read below for more details. We generally advise against mixing concurrency controls with waiting/scheduling in the future.
 
 ### Performance considerations
 
-Concurrency controls introduce significant overhead (blocked executions need to be created and promoted to ready, semaphores need to be created and updated) so you should consider carefully whether you need them. For throttling purposes, where you plan to have `limit` significantly larger than 1, I'd encourage relying on a limited number of workers per queue instead. For example:
+Concurrency controls introduce significant overhead (blocked executions need to be created and promoted to ready, semaphores need to be created and updated) so you should consider carefully whether you need them. For throttling purposes, where you plan to have `limit` significantly larger than 1, we encourage relying on a limited number of workers per queue instead. For example:
 
 ```ruby
 class ThrottledJob < ApplicationJob

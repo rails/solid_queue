@@ -36,14 +36,16 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "schedule several conflicting jobs over the same record sequentially" do
-    UpdateResultJob.set(wait: 0.23.seconds).perform_later(@result, name: "000", pause: 0.1.seconds)
+    # Writes to @result at 0.4s
+    UpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: "000", pause: 0.2.seconds)
 
     ("A".."F").each_with_index do |name, i|
-      NonOverlappingUpdateResultJob.set(wait: (0.2 + i * 0.01).seconds).perform_later(@result, name: name, pause: 0.3.seconds)
+      # "A" is enqueued at 0.2s and writes to @result at 0.6s, the write at 0.4s gets overwritten
+      NonOverlappingUpdateResultJob.set(wait: (0.2 + i * 0.1).seconds).perform_later(@result, name: name, pause: 0.4.seconds)
     end
 
     ("G".."K").each_with_index do |name, i|
-      NonOverlappingUpdateResultJob.set(wait: (0.3 + i * 0.01).seconds).perform_later(@result, name: name)
+      NonOverlappingUpdateResultJob.set(wait: (1 + i * 0.1).seconds).perform_later(@result, name: name)
     end
 
     wait_for_jobs_to_finish_for(5.seconds)
