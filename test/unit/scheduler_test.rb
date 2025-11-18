@@ -24,7 +24,7 @@ class SchedulerTest < ActiveSupport::TestCase
     end
 
     schedulers.each(&:start)
-    sleep 2
+    wait_while_with_timeout(2.5.seconds) { SolidQueue::RecurringExecution.count != 2 }
     schedulers.each(&:stop)
 
     assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
