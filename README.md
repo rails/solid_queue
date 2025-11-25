@@ -127,7 +127,7 @@ In `config/cable.yml`
 ```diff
 development:
 -  adapter: async
-+ adapter: solid_cable
++  adapter: solid_cable
 +  connects_to:
 +    database:
 +      writing: cable
