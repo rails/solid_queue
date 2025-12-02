@@ -92,10 +92,10 @@ development:
 + primary:
     <<: *default
     database: storage/development.sqlite3
-+  queue:
-+    <<: *default
-+    database: storage/development_queue.sqlite3
-+    migrations_paths: db/queue_migrate
++ queue:
++   <<: *default
++   database: storage/development_queue.sqlite3
++   migrations_paths: db/queue_migrate
 ```
 
 Next, add the following to `development.rb`
