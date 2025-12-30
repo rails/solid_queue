@@ -2,11 +2,11 @@
 
 require "test_helper"
 
-class ProcessesLifecycleTest < ActiveSupport::TestCase
+class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @pid = run_supervisor_as_fork(workers: [ { queues: :background }, { queues: :default, threads: 5 } ])
+    @pid = run_supervisor_as_fork(mode: :async, workers: [ { queues: :background }, { queues: :default, threads: 5 } ])
 
     wait_for_registered_processes(3, timeout: 3.second)
     assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
@@ -43,14 +43,12 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # Running worker finish with jobs in progress and terminate orderly
-    assert_completed_job_results("pause")
-    assert_job_status(pause, :finished)
-
-    # Termination is almost clean, but the supervisor remains
-    assert_registered_supervisor_with(@pid)
-    assert_no_registered_workers
-    assert_no_claimed_jobs
+    # In async mode, killing the supervisor kills all threads too,
+    # so we can't complete in-flight jobs
+    assert_registered_supervisor
+    assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
+    assert_started_job_result("pause")
+    assert_claimed_jobs
   end
 
   test "term supervisor multiple times" do
@@ -58,7 +56,7 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
       signal_process(@pid, :TERM, wait: 0.1.second)
     end
 
-    wait_while_with_timeout(SolidQueue.shutdown_timeout + 1.second) { process_exists?(@pid) }
+    sleep(1.second)
     assert_clean_termination
   end
 
@@ -74,15 +72,17 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     wait_while_with_timeout(2.seconds) { process_exists?(@pid) }
     assert_not process_exists?(@pid)
 
+    # In async mode, QUIT calls exit! which terminates immediately without cleanup.
+    # The in-flight job remains claimed and the process/workers remain registered.
+    # A future supervisor will need to prune and fail these orphaned executions.
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
-
     assert_started_job_result("pause")
-    # Workers were shutdown without a chance to terminate orderly, but
-    # since they're linked to the supervisor, the supervisor deregistering
-    # also deregistered them and released claimed jobs
-    assert_job_status(pause, :ready)
-    assert_clean_termination
+    assert_job_status(pause, :claimed)
+
+    assert_registered_supervisor
+    assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
+    assert_claimed_jobs
   end
 
   test "term supervisor while there are jobs in-flight" do
@@ -121,25 +121,29 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.seconds)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
     wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 1 }
 
     signal_process(@pid, :TERM, wait: 0.5.second)
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
 
-    wait_while_with_timeout!(SolidQueue.shutdown_timeout + 5.seconds) { process_exists?(@pid) }
+    # exit! exits with status 1 by default
+    wait_for_process_termination_with_timeout(@pid, timeout: SolidQueue.shutdown_timeout + 5.seconds, exitstatus: 1)
     assert_not process_exists?(@pid)
 
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
+    # When timeout is exceeded, exit! is called without cleanup.
+    # The in-flight job stays claimed and processes stay registered.
+    # A future supervisor will need to prune and fail these orphaned executions.
     assert_started_job_result("pause")
-    # Workers were shutdown without a chance to terminate orderly, but
-    # since they're linked to the supervisor, the supervisor deregistering
-    # also deregistered them and released claimed jobs
-    assert_job_status(pause, :ready)
-    assert_clean_termination
+    assert_job_status(pause, :claimed)
+
+    assert_registered_supervisor
+    assert find_processes_registered_as("Worker").any? { |w| w.metadata["queues"].include?("background") }
+    assert_claimed_jobs
   end
 
   test "process some jobs that raise errors" do
@@ -165,105 +169,6 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     assert_clean_termination
   end
 
-  test "process a job that exits" do
-    2.times do
-      enqueue_store_result_job("no exit", :background)
-      enqueue_store_result_job("no exit", :default)
-    end
-    enqueue_store_result_job("paused no exit", :default, pause: 0.5.second)
-    # the worker for :background queue will exit abnormally
-    exit_job = enqueue_store_result_job("exit", :background, exit_value: 1, pause: 0.5.second)
-    # this will run *after* exit_job (pause: 1.second) - should also be marked as failed
-    pause_job = enqueue_store_result_job("exit", :background, pause: 1.second)
-
-    # this will run *before* exit_job (no pause) - should complete normally
-    2.times { enqueue_store_result_job("no exit", :background) }
-
-    wait_for_jobs_to_finish_for(3.seconds, except: [ exit_job, pause_job ])
-
-    assert_completed_job_results("no exit", :default, 2)
-    assert_completed_job_results("no exit", :background, 4)
-    assert_completed_job_results("paused no exit", :default, 1)
-
-    assert process_exists?(@pid)
-    terminate_process(@pid)
-
-    # Since the worker exited abnormally, the jobs it had claimed would be failed now
-    [ exit_job, pause_job ].each do |job|
-      assert_job_status(job, :failed)
-    end
-
-    assert_clean_termination
-  end
-
-  test "terminate worker individually" do
-    enqueue_store_result_job("pause", pause: 0.5.seconds)
-    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
-
-    worker = find_processes_registered_as("Worker").first
-
-    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
-    signal_process(worker.pid, :TERM, wait: 0.1.second)
-
-    # Worker is gone
-    wait_for_registered_processes(2, timeout: 3.second)
-    assert_nil SolidQueue::Process.find_by(id: worker.id)
-
-    # Jobs were completed
-    wait_for_jobs_to_finish_for(1.second)
-    assert_completed_job_results("pause", :background)
-    assert_completed_job_results("pause", :default)
-
-    # And there's a new worker that has been registered for that queue:
-    wait_for_registered_processes(3, timeout: 3.second)
-    assert_registered_workers_for(:background, :default, supervisor_pid: @pid)
-
-    # And they can process jobs just fine
-    enqueue_store_result_job("no_pause")
-    enqueue_store_result_job("no_pause", :default)
-    wait_for_jobs_to_finish_for(1.second)
-
-    assert_completed_job_results("no_pause", :background)
-    assert_completed_job_results("no_pause", :default)
-
-    terminate_process(@pid)
-    assert_clean_termination
-  end
-
-  test "kill worker individually" do
-    killed_pause = enqueue_store_result_job("killed_pause", pause: 2.seconds)
-    enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
-
-    wait_for_jobs_to_finish_for(1.second, except: [ killed_pause ])
-
-    worker = find_processes_registered_as("Worker").detect { |process| process.metadata["queues"].include? "background" }
-    signal_process(worker.pid, :KILL, wait: 0.5.seconds)
-
-    # Worker didn't have time to clean up or finish the work
-    sleep(0.5.second)
-    assert SolidQueue::Process.exists?(id: worker.id)
-
-    # And there's a new worker that has been registered for the background queue
-    wait_for_registered_processes(4, timeout: 5.second)
-
-    # The job in the background queue would be failed by the supervisor
-    # when it replaced the killed worker
-    assert_started_job_result("killed_pause")
-    assert_job_status(killed_pause, :failed)
-    # The other one could finish
-    assert_completed_job_results("pause", :default)
-
-    # The two current workers can process jobs just fine
-    enqueue_store_result_job("no_pause")
-    enqueue_store_result_job("no_pause", :default)
-    sleep(2.seconds)
-
-    assert_completed_job_results("no_pause", :background)
-    assert_completed_job_results("no_pause", :default)
-
-    terminate_process(@pid)
-    assert_clean_termination
-  end
 
   private
     def assert_clean_termination
@@ -282,10 +187,10 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
       end
     end
 
-    def assert_registered_supervisor_with(pid)
-      processes = find_processes_registered_as("Supervisor")
+    def assert_registered_supervisor
+      processes = find_processes_registered_as("Supervisor(async)")
       assert_equal 1, processes.count
-      assert_equal pid, processes.first.pid
+      assert_equal @pid, processes.first.pid
     end
 
     def assert_no_registered_workers
@@ -309,11 +214,6 @@ class ProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_job_status(active_job, status)
-      # Make sure we skip AR query cache. Otherwise the queries done here
-      # might be cached and since we haven't done any non-SELECT queries
-      # after they were cached on the connection used in the test, the cache
-      # will still apply, even though the data returned by the cached queries
-      # might have been deleted in the forked processes.
       skip_active_record_query_cache do
         job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
         assert job.public_send("#{status}?")

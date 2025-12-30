@@ -1,6 +1,6 @@
 require "test_helper"
 
-class SupervisorTest < ActiveSupport::TestCase
+class ForkSupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
@@ -203,7 +203,7 @@ class SupervisorTest < ActiveSupport::TestCase
     end
     status = DummyStatus.new(worker_process.pid, 1)
 
-    supervisor = SolidQueue::Supervisor.allocate
+    supervisor = SolidQueue::ForkSupervisor.allocate
 
     supervisor.send(:handle_claimed_jobs_by, terminated_fork, status)
 
@@ -223,7 +223,7 @@ class SupervisorTest < ActiveSupport::TestCase
 
     def assert_registered_supervisor(pid)
       skip_active_record_query_cache do
-        processes = find_processes_registered_as("Supervisor")
+        processes = find_processes_registered_as("Supervisor(fork)")
         assert_equal 1, processes.count
         assert_nil processes.first.supervisor
         assert_equal pid, processes.first.pid

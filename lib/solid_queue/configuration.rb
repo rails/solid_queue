@@ -31,11 +31,8 @@ module SolidQueue
     DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
 
-    attr_reader :mode
-
     def initialize(**options)
       @options = options.with_defaults(default_options)
-      @mode = @options[:mode].to_s.inquiry
     end
 
     def configured_processes
@@ -57,6 +54,14 @@ module SolidQueue
 
         "Invalid processes configured:\n#{error_messages}"
       end
+    end
+
+    def mode
+      @options[:mode].to_s.inquiry
+    end
+
+    def standalone?
+      mode.fork? || @options[:standalone]
     end
 
     private
@@ -88,6 +93,7 @@ module SolidQueue
       def default_options
         {
           mode: :fork,
+          standalone: true,
           config_file: Rails.root.join(ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH),
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),
           only_work: false,

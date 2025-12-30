@@ -6,8 +6,8 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        before_boot :register_signal_handlers
-        after_shutdown :restore_default_signal_handlers
+        before_boot :register_signal_handlers, if: :standalone?
+        after_shutdown :restore_default_signal_handlers, if: :standalone?
       end
 
       private
