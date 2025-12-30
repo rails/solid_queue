@@ -39,7 +39,8 @@ module SolidQueue
         break unless pid
 
         if (terminated_fork = process_instances.delete(pid)) && !status.exited? || status.exitstatus > 0
-          handle_claimed_jobs_by(terminated_fork, status)
+          error = Processes::ProcessExitError.new(status)
+          release_claimed_jobs_by(terminated_fork, with_error: error)
         end
 
         configured_processes.delete(pid)
@@ -52,21 +53,10 @@ module SolidQueue
       SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
         if terminated_fork = process_instances.delete(pid)
           payload[:fork] = terminated_fork
-          handle_claimed_jobs_by(terminated_fork, status)
+          error = Processes::ProcessExitError.new(status)
+          release_claimed_jobs_by(terminated_fork, with_error: error)
 
           start_process(configured_processes.delete(pid))
-        end
-      end
-    end
-
-    # When a supervised fork crashes or exits we need to mark all the
-    # executions it had claimed as failed so that they can be retried
-    # by some other worker.
-    def handle_claimed_jobs_by(terminated_fork, status)
-      wrap_in_app_executor do
-        if registered_process = SolidQueue::Process.find_by(name: terminated_fork.name)
-          error = Processes::ProcessExitError.new(status)
-          registered_process.fail_all_claimed_executions_with(error)
         end
       end
     end

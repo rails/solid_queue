@@ -186,8 +186,8 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   end
 
   # Regression test for supervisor failing to handle claimed jobs when its own
-  # process record has been pruned (NoMethodError in #handle_claimed_jobs_by).
-  test "handle_claimed_jobs_by fails claimed executions even if supervisor record is missing" do
+  # process record has been pruned (NoMethodError in #release_claimed_jobs_by).
+  test "release_claimed_jobs_by fails claimed executions even if supervisor record is missing" do
     worker_name = "worker-test-#{SecureRandom.hex(4)}"
 
     worker_process = SolidQueue::Process.register(kind: "Worker", pid: 999_999, name: worker_name)
@@ -196,20 +196,14 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     claimed_execution = SolidQueue::ReadyExecution.claim("*", 1, worker_process.id).first
 
     terminated_fork = Struct.new(:name).new(worker_name)
-
-    DummyStatus = Struct.new(:pid, :exitstatus) do
-      def signaled? = false
-      def termsig = nil
-    end
-    status = DummyStatus.new(worker_process.pid, 1)
-
     supervisor = SolidQueue::ForkSupervisor.allocate
+    error = RuntimeError.new
 
-    supervisor.send(:handle_claimed_jobs_by, terminated_fork, status)
+    supervisor.send(:release_claimed_jobs_by, terminated_fork, with_error: error)
 
     failed = SolidQueue::FailedExecution.find_by(job_id: claimed_execution.job_id)
     assert failed.present?
-    assert_equal "SolidQueue::Processes::ProcessExitError", failed.exception_class
+    assert_equal "RuntimeError", failed.exception_class
   end
 
   private
