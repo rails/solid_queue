@@ -201,6 +201,7 @@ DEPENDENCIES
   appraisal
   debug (~> 1.9)
   logger
+  minitest (~> 5.0)
   mocha
   mysql2
   pg
