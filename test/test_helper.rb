@@ -1,6 +1,9 @@
 # Configure Rails Environment
 ENV["RAILS_ENV"] = "test"
 
+# Ensure minitest gem is loaded before Rails tries to use minitest/mock
+require "minitest"
+
 require_relative "../test/dummy/config/environment"
 ActiveRecord::Migrator.migrations_paths = [ File.expand_path("../test/dummy/db/migrate", __dir__) ]
 require "rails/test_help"

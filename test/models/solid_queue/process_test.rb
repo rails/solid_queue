@@ -1,5 +1,4 @@
 require "test_helper"
-require "minitest/mock"
 
 class SolidQueue::ProcessTest < ActiveSupport::TestCase
   test "prune processes with expired heartbeats" do
@@ -58,16 +57,16 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
 
   test "hostname's with special characters are properly loaded" do
     worker = SolidQueue::Worker.new(queues: "*", threads: 3, polling_interval: 0.2)
-    hostname = "Basecamp’s-Computer"
+    hostname = "Basecamp's-Computer"
 
-    Socket.stub :gethostname, hostname.dup.force_encoding("ASCII-8BIT") do
-      worker.start
-      wait_for_registered_processes(1, timeout: 1.second)
+    Socket.stubs(:gethostname).returns(hostname.dup.force_encoding("ASCII-8BIT"))
 
-      assert_equal hostname, SolidQueue::Process.last.hostname
+    worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
 
-      worker.stop
-    end
+    assert_equal hostname, SolidQueue::Process.last.hostname
+
+    worker.stop
   end
 
   test "clear unregistered changes before locking for heartbeat" do
