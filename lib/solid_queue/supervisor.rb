@@ -21,8 +21,14 @@ module SolidQueue
       end
     end
 
+    delegate :mode, :standalone?, to: :configuration
+
     def initialize(configuration)
       @configuration = configuration
+
+      @configured_processes = {}
+      @process_instances = {}
+
       super
     end
 
@@ -41,8 +47,12 @@ module SolidQueue
       run_stop_hooks
     end
 
+    def kind
+      "Supervisor(#{mode})"
+    end
+
     private
-      attr_reader :configuration
+      attr_reader :configuration, :configured_processes, :process_instances
 
       def boot
         SolidQueue.instrument(:start_process, process: self) do
@@ -52,15 +62,21 @@ module SolidQueue
         end
       end
 
+      def start_processes
+        configuration.configured_processes.each { |configured_process| start_process(configured_process) }
+      end
+
       def supervise
         loop do
           break if stopped?
 
-          set_procline
-          process_signal_queue
+          if standalone?
+            set_procline
+            process_signal_queue
+          end
 
           unless stopped?
-            reap_and_replace_terminated_forks
+            check_and_replace_terminated_processes
             interruptible_sleep(1.second)
           end
         end
@@ -68,12 +84,48 @@ module SolidQueue
         shutdown
       end
 
-      def start_processes
+      def start_process(configured_process)
+        process_instance = configured_process.instantiate.tap do |instance|
+          instance.supervised_by process
+          instance.mode = mode
+        end
+
+        process_id = process_instance.start
+
+        configured_processes[process_id] = configured_process
+        process_instances[process_id] = process_instance
+      end
+
+      def check_and_replace_terminated_processes
+      end
+
+      def terminate_gracefully
+        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: configured_processes.keys) do |payload|
+          perform_graceful_termination
+
+          unless all_processes_terminated?
+            payload[:shutdown_timeout_exceeded] = true
+            terminate_immediately
+          end
+        end
+      end
+
+      def terminate_immediately
+        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: configured_processes.keys) do
+          perform_immediate_termination
+        end
+      end
+
+      def perform_graceful_termination
         raise NotImplementedError
       end
 
-      def set_procline
-        procline "supervising #{supervised_processes.join(", ")}"
+      def perform_immediate_termination
+        raise NotImplementedError
+      end
+
+      def all_processes_terminated?
+        raise NotImplementedError
       end
 
       def shutdown
@@ -84,12 +136,12 @@ module SolidQueue
         end
       end
 
-      def sync_std_streams
-        STDOUT.sync = STDERR.sync = true
+      def set_procline
+        procline "supervising #{configured_processes.keys.join(", ")}"
       end
 
-      def reap_and_replace_terminated_forks
-        # No-op by default, implemented in ForkSupervisor
+      def sync_std_streams
+        STDOUT.sync = STDERR.sync = true
       end
   end
 end

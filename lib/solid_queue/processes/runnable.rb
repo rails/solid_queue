@@ -7,16 +7,26 @@ module SolidQueue::Processes
     attr_writer :mode
 
     def start
-      boot
-
-      run
+      run_in_mode do
+        boot
+        run
+      end
     end
 
     def stop
       super
-
       wake_up
-      @thread&.join
+
+      # When not supervised, block until the thread terminates for backward
+      # compatibility with code that expects stop to be synchronous.
+      # When supervised, the supervisor controls the shutdown timeout.
+      unless supervised?
+        @thread&.join
+      end
+    end
+
+    def alive?
+      !running_async? || @thread&.alive?
     end
 
     private
@@ -24,6 +34,18 @@ module SolidQueue::Processes
 
       def mode
         (@mode || DEFAULT_MODE).to_s.inquiry
+      end
+
+      def run_in_mode(&block)
+        case
+        when running_as_fork?
+          fork(&block)
+        when running_async?
+          @thread = create_thread(&block)
+          @thread.object_id
+        else
+          block.call
+        end
       end
 
       def boot
