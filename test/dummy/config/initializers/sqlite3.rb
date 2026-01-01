@@ -1,8 +1,10 @@
 module SqliteImmediateTransactions
   def begin_db_transaction
-    log("begin immediate transaction", "TRANSACTION") do
-      with_raw_connection(allow_retry: true, materialize_transactions: false) do |conn|
-        conn.transaction(:immediate)
+    if Rails.gem_version < Gem::Version.new("8.2")
+      log("begin immediate transaction", "TRANSACTION") do
+        with_raw_connection(allow_retry: true, materialize_transactions: false) do |conn|
+          conn.transaction(:immediate)
+        end
       end
     end
   end
