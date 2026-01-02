@@ -4,18 +4,18 @@ module SolidQueue
   module Timer
     extend self
 
-    def wait_until(timeout, condition, &block)
+    def wait_until(timeout, condition)
       if timeout > 0
         deadline = monotonic_time_now + timeout
 
         while monotonic_time_now < deadline && !condition.call
           sleep 0.1
-          block.call
+          yield if block_given?
         end
       else
         while !condition.call
           sleep 0.5
-          block.call
+          yield if block_given?
         end
       end
     end
