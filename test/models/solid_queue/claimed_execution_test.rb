@@ -62,6 +62,24 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.ready?
   end
 
+  test "release bypasses concurrency limits when no other job with same key is executing" do
+    job_result = JobResult.create!(queue_name: "default", status: "")
+
+    # Create Job A with concurrency limit and claim it
+    job_a = DiscardableUpdateResultJob.perform_later(job_result, name: "A")
+    solid_queue_job_a = SolidQueue::Job.find_by(active_job_id: job_a.job_id)
+    SolidQueue::ReadyExecution.claim(solid_queue_job_a.queue_name, 1, @process.id)
+    claimed_execution_a = SolidQueue::ClaimedExecution.find_by(job_id: solid_queue_job_a.id)
+    assert claimed_execution_a
+
+    # Release job A - no other job with same key is running, so it should go to ready
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::ReadyExecution.count } => 1 do
+      claimed_execution_a.release
+    end
+
+    assert solid_queue_job_a.reload.ready?
+  end
+
   test "fail with error" do
     claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
     job = claimed_execution.job
