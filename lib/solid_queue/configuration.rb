@@ -92,7 +92,7 @@ module SolidQueue
 
       def default_options
         {
-          mode: :fork,
+          mode: ENV["SOLID_QUEUE_SUPERVISOR_MODE"] || :fork,
           standalone: true,
           config_file: Rails.root.join(ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH),
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),

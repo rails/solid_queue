@@ -14,8 +14,9 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Dashboard UI Setup](#dashboard-ui-setup)
   - [Incremental adoption](#incremental-adoption)
   - [High performance requirements](#high-performance-requirements)
+- [Workers, dispatchers, and scheduler](#workers-dispatchers-and-scheduler)
+  - [Fork vs. async mode](#fork-vs-async-mode)
 - [Configuration](#configuration)
-  - [Workers, dispatchers, and scheduler](#workers-dispatchers-and-scheduler)
   - [Queue order and priorities](#queue-order-and-priorities)
   - [Queues specification and performance](#queues-specification-and-performance)
   - [Threads, processes, and signals](#threads-processes-and-signals)
@@ -179,9 +180,7 @@ end
 
 Solid Queue was designed for the highest throughput when used with MySQL 8+, MariaDB 10.6+, or PostgreSQL 9.5+, as they support `FOR UPDATE SKIP LOCKED`. You can use it with older versions, but in that case, you might run into lock waits if you run multiple workers for the same queue. You can also use it with SQLite on smaller applications.
 
-## Configuration
-
-### Workers, dispatchers, and scheduler
+## Workers, dispatchers, and scheduler
 
 We have several types of actors in Solid Queue:
 
@@ -190,7 +189,19 @@ We have several types of actors in Solid Queue:
 - The _scheduler_ manages [recurring tasks](#recurring-tasks), enqueuing jobs for them when they're due.
 - The _supervisor_ runs workers and dispatchers according to the configuration, controls their heartbeats, and stops and starts them when needed.
 
-Solid Queue's supervisor will fork a separate process for each supervised worker/dispatcher/scheduler.
+### Fork vs. async mode
+
+By default, Solid Queue runs in `fork` mode. This means the supervisor will fork a separate process for each supervised worker/dispatcher/scheduler. This provides the best isolation and performance, but can have additional memory usage and might not work with some Ruby implementations. As an alternative, you can run all workers, dispatchers and schedulers in the same process as the supervisor, in different threads, with an `async` mode. You can choose this mode by running `bin/jobs` as:
+
+```
+bin/jobs --mode async
+```
+
+Or you can also set the environment variable `SOLID_QUEUE_SUPERVISOR_MODE` to `async`. If you use the `async` mode, the `processes` option in the configuration described below will be ignored.
+
+**The recommended and default mode is `fork`. Only use `async` if you know what you're doing and have strong reasons to**
+
+## Configuration
 
 By default, Solid Queue will try to find your configuration under `config/queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG` or by using the `-c/--config_file` option with `bin/jobs`, like this:
 
@@ -254,7 +265,7 @@ Here's an overview of the different options:
 
 - `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
 It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker thread uses one connection, and two additional connections are reserved for polling and heartbeat.
-- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting.
+- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 
 
@@ -334,7 +345,7 @@ queues: back*
 
 Workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
 
-The supervisor is in charge of managing these processes, and it responds to the following signals:
+The supervisor is in charge of managing these processes, and it responds to the following signals when running in its own process via `bin/jobs` or with [the Puma plugin](#puma-plugin) with the default `fork` mode:
 - `TERM`, `INT`: starts graceful termination. The supervisor will send a `TERM` signal to its supervised processes, and it'll wait up to `SolidQueue.shutdown_timeout` time until they're done. If any supervised processes are still around by then, it'll send a `QUIT` signal to them to indicate they must exit.
 - `QUIT`: starts immediate termination. The supervisor will send a `QUIT` signal to its supervised processes, causing them to exit immediately.
 
@@ -602,6 +613,22 @@ plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
 that you set in production only. This is what Rails 8's default Puma config looks like. Otherwise, if you're using Puma in development but not Solid Queue, starting Puma would start also Solid Queue supervisor and it'll most likely fail because it won't be properly configured.
 
 **Note**: phased restarts are not supported currently because the plugin requires [app preloading](https://github.com/puma/puma?tab=readme-ov-file#cluster-mode) to work.
+
+### Running as a fork or asynchronously
+
+By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage.
+
+Alternatively, workers and dispatchers can be run within the same Puma process(s). To do so just configure the plugin as:
+
+```ruby
+plugin :solid_queue
+solid_queue_mode :async
+```
+
+Note that in this case, the `processes` configuration option will be ignored. See also [Fork vs. async mode](#fork-vs-async-mode).
+
+**The recommended and default mode is `fork`. Only use `async` if you know what you're doing and have strong reasons to**
+
 
 ## Jobs and transactional integrity
 :warning: Having your jobs in the same ACID-compliant database as your application data enables a powerful yet sharp tool: taking advantage of transactional integrity to ensure some action in your app is not committed unless your job is also committed and vice versa, and ensuring that your job won't be enqueued until the transaction within which you're enqueuing it is committed. This can be very powerful and useful, but it can also backfire if you base some of your logic on this behaviour, and in the future, you move to another active job backend, or if you simply move Solid Queue to its own database, and suddenly the behaviour changes under you. Because this can be quite tricky and many people shouldn't need to worry about it, by default Solid Queue is configured in a different database as the main app.

@@ -42,7 +42,7 @@ Puma::Plugin.create do
         launcher.events.after_booted do
           @solid_queue_pid = fork do
             Thread.new { monitor_puma }
-            SolidQueue::Supervisor.start(mode: :fork)
+            start_solid_queue(mode: :fork)
           end
         end
 
@@ -54,27 +54,31 @@ Puma::Plugin.create do
     def start_async(launcher)
       if Gem::Version.new(Puma::Const::VERSION) < Gem::Version.new("7")
         launcher.events.on_booted do
-          @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, standalone: false)
+          start_solid_queue(mode: :async, standalone: false)
         end
 
-        launcher.events.on_stopped { @solid_queue_supervisor&.stop }
+        launcher.events.on_stopped { solid_queue_supervisor&.stop }
 
         launcher.events.on_restart do
           solid_queue_supervisor&.stop
-          @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, standalone: false)
+          start_solid_queue(mode: :async, standalone: false)
         end
       else
         launcher.events.after_booted do
-          @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, standalone: false)
+          start_solid_queue(mode: :async, standalone: false)
         end
 
-        launcher.events.after_stopped { @solid_queue_supervisor&.stop }
+        launcher.events.after_stopped { solid_queue_supervisor&.stop }
 
         launcher.events.before_restart do
           solid_queue_supervisor&.stop
-          @solid_queue_supervisor = SolidQueue::Supervisor.start(mode: :async, standalone: false)
+          start_solid_queue(mode: :async, standalone: false)
         end
       end
+    end
+
+    def start_solid_queue(**options)
+      @solid_queue_supervisor = SolidQueue::Supervisor.start(**options)
     end
 
     def stop_solid_queue_fork
