@@ -40,6 +40,8 @@ jobs:
             gemfile: rails_8_1
           - ruby-version: "3.1"
             gemfile: rails_main
+          - ruby-version: "3.2"
+            gemfile: rails_main
     services:
       mysql:
         image: mysql:8.0.31
