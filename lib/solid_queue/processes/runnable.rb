@@ -92,16 +92,5 @@ module SolidQueue::Processes
       def running_as_fork?
         mode.fork?
       end
-
-
-      def create_thread(&block)
-        Thread.new do
-          Thread.current.name = name
-          block.call
-        rescue Exception => exception
-          handle_thread_error(exception)
-          raise
-        end
-      end
   end
 end

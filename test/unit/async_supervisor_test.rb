@@ -4,7 +4,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   test "start as non-standalone" do
-    supervisor, thread = run_supervisor_as_thread
+    supervisor = run_supervisor_as_thread
     wait_for_registered_processes(4)
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -12,7 +12,6 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
 
     supervisor.stop
-    thread.join
 
     assert_no_registered_processes
   end
@@ -30,7 +29,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   end
 
   test "start as non-standalone with provided configuration" do
-    supervisor, thread = run_supervisor_as_thread(workers: [], dispatchers: [ { batch_size: 100 } ])
+    supervisor = run_supervisor_as_thread(workers: [], dispatchers: [ { batch_size: 100 } ])
     wait_for_registered_processes(2) # supervisor + dispatcher
 
     assert_registered_processes(kind: "Supervisor(async)")
@@ -38,7 +37,6 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
 
     supervisor.stop
-    thread.join
 
     assert_no_registered_processes
   end
@@ -51,14 +49,13 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
       dispatchers: []
     }
 
-    supervisor, thread = run_supervisor_as_thread(**config)
+    supervisor = run_supervisor_as_thread(**config)
     wait_for_registered_processes(2) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
     wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
 
     supervisor.stop
-    thread.join
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ClaimedExecution.count
@@ -89,13 +86,8 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   end
 
   private
-    def run_supervisor_as_thread(**kwargs)
-      configuration = SolidQueue::Configuration.new(mode: :async, standalone: false, **kwargs)
-      supervisor = SolidQueue::AsyncSupervisor.new(configuration)
-
-      thread = Thread.new { supervisor.start }
-
-      [ supervisor, thread ]
+    def run_supervisor_as_thread(**options)
+      SolidQueue::Supervisor.start(mode: :async, standalone: false, **options)
     end
 
     def simulate_orphaned_executions(count)

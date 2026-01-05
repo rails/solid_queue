@@ -171,6 +171,7 @@ class InstrumentationTest < ActiveSupport::TestCase
         wait_for_registered_processes(1, timeout: 1.second)
 
         worker.stop
+        wait_for_registered_processes(0, timeout: 1.second)
       end
     end
 

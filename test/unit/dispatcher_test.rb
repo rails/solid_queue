@@ -12,7 +12,6 @@ class DispatcherTest < ActiveSupport::TestCase
 
   teardown do
     @dispatcher.stop
-    wait_for_registered_processes(0, timeout: 2.seconds)
   end
 
   test "dispatcher is registered as process" do
@@ -76,52 +75,59 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_no_registered_processes
   end
 
-  test "dispatch scheduled executions" do
+  test "run more than one instance of the dispatcher" do
+    15.times do
+      AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled")
+    end
+    sleep 0.5.second
+    assert_equal 15, SolidQueue::ScheduledExecution.count
+
+    another_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10)
+
+    @dispatcher.start
+    another_dispatcher.start
+
+    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
+
     skip_active_record_query_cache do
-      15.times do
-        AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled")
-      end
-      sleep 0.5.second
-      assert_equal 15, SolidQueue::ScheduledExecution.count
-
-      @dispatcher.start
-      wait_for_registered_processes(1, timeout: 2.seconds)
-
-      wait_while_with_timeout(3.seconds) { SolidQueue::ScheduledExecution.any? }
-
       assert_equal 0, SolidQueue::ScheduledExecution.count
       assert_equal 15, SolidQueue::ReadyExecution.count
     end
+  ensure
+    another_dispatcher&.stop
   end
 
   test "sleeps `0.seconds` between polls if there are ready to dispatch jobs" do
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
+    dispatcher.expects(:interruptible_sleep).with(0.seconds).at_least(3)
+    dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+    dispatcher.expects(:handle_thread_error).never
+
+    3.times { AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled") }
+    sleep 0.5.second
+    assert_equal 3, SolidQueue::ScheduledExecution.count
+
+    dispatcher.start
+    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
+
     skip_active_record_query_cache do
-      @dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
-      @dispatcher.expects(:interruptible_sleep).with(0.seconds).at_least(3)
-      @dispatcher.expects(:interruptible_sleep).with(@dispatcher.polling_interval).at_least_once
-      @dispatcher.expects(:handle_thread_error).never
-
-      3.times { AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled") }
-      sleep 0.5.second
-      assert_equal 3, SolidQueue::ScheduledExecution.count
-
-      @dispatcher.start
-      wait_for_registered_processes(1, timeout: 2.seconds)
-      wait_while_with_timeout(3.seconds) { SolidQueue::ScheduledExecution.any? }
-
       assert_equal 0, SolidQueue::ScheduledExecution.count
       assert_equal 3, SolidQueue::ReadyExecution.count
     end
+  ensure
+    dispatcher.stop
   end
 
   test "sleeps `polling_interval` between polls if there are no un-dispatched jobs" do
-    @dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
-    @dispatcher.expects(:interruptible_sleep).with(0.seconds).never
-    @dispatcher.expects(:interruptible_sleep).with(@dispatcher.polling_interval).at_least_once
-    @dispatcher.expects(:handle_thread_error).never
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 10, batch_size: 1)
+    dispatcher.expects(:interruptible_sleep).with(0.seconds).never
+    dispatcher.expects(:interruptible_sleep).with(dispatcher.polling_interval).at_least_once
+    dispatcher.expects(:handle_thread_error).never
 
-    @dispatcher.start
+    dispatcher.start
     wait_while_with_timeout(1.second) { !SolidQueue::ScheduledExecution.exists? }
+  ensure
+    dispatcher.stop
   end
 
   private
