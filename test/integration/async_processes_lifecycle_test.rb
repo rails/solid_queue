@@ -32,11 +32,11 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "kill supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 1.second)
+    pause = enqueue_store_result_job("pause", pause: 3.second)
 
     signal_process(@pid, :KILL, wait: 0.2.seconds)
     wait_for_jobs_to_finish_for(2.seconds)
-    wait_for_registered_processes(1, timeout: 3.second)
+    wait_for_registered_processes(1, timeout: 2.second)
 
     assert_not process_exists?(@pid)
 

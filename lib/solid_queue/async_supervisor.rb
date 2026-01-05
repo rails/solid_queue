@@ -2,6 +2,8 @@
 
 module SolidQueue
   class AsyncSupervisor < Supervisor
+    after_shutdown :terminate_gracefully, unless: :standalone?
+
     def stop
       super
       @thread&.join
