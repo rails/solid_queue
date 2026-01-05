@@ -178,8 +178,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "verify transactions remain valid after Job creation conflicts via limits_concurrency" do
-    # Doesn't work with enqueue_after_transaction_commit? true on SolidQueueAdapter, but only Rails 7.2 uses this
-    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 2
+    # Doesn't work when enqueue_after_transaction_commit is enabled
+    skip if ActiveJob::Base.respond_to?(:enqueue_after_transaction_commit) &&
+            [ true, :default ].include?(ActiveJob::Base.enqueue_after_transaction_commit)
 
     ActiveRecord::Base.transaction do
       NonOverlappingUpdateResultJob.perform_later(@result, name: "A", pause: 0.2.seconds)
