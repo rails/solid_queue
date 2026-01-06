@@ -197,6 +197,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "discard jobs when concurrency limit is reached with on_conflict: :discard" do
     job1 = DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 3)
+    sleep(0.1)
+
     # should be discarded due to concurrency limit
     job2 = DiscardableUpdateResultJob.perform_later(@result, name: "2")
     # should also be discarded
@@ -219,8 +221,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "discard on conflict across different concurrency keys" do
     another_result = JobResult.create!(queue_name: "default", status: "")
-    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 0.2)
-    DiscardableUpdateResultJob.perform_later(another_result, name: "2", pause: 0.2)
+    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 2)
+    DiscardableUpdateResultJob.perform_later(another_result, name: "2", pause: 2)
+    sleep(0.1)
     DiscardableUpdateResultJob.perform_later(@result, name: "3") # Should be discarded
     DiscardableUpdateResultJob.perform_later(another_result, name: "4") # Should be discarded
 
