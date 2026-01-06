@@ -1,10 +1,8 @@
 module SqliteImmediateTransactions
   def begin_db_transaction
-    if Rails.gem_version < Gem::Version.new("8.2")
-      log("begin immediate transaction", "TRANSACTION") do
-        with_raw_connection(allow_retry: true, materialize_transactions: false) do |conn|
-          conn.transaction(:immediate)
-        end
+    log("begin immediate transaction", "TRANSACTION") do
+      with_raw_connection(allow_retry: true, materialize_transactions: false) do |conn|
+        conn.transaction(:immediate)
       end
     end
   end
@@ -26,7 +24,10 @@ end
 
 ActiveSupport.on_load :active_record do
   if defined?(ActiveRecord::ConnectionAdapters::SQLite3Adapter)
-    ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SqliteImmediateTransactions
+    # Rails 8.0+ has immediate transactions built-in
+    if Rails::VERSION::MAJOR < 8
+      ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SqliteImmediateTransactions
+    end
     ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SQLite3Configuration
   end
 
