@@ -3,6 +3,7 @@
 module SolidQueue
   class Dispatcher < Processes::Poller
     include LifecycleHooks
+
     attr_reader :batch_size
 
     after_boot :run_start_hooks

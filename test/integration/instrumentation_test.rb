@@ -166,7 +166,7 @@ class InstrumentationTest < ActiveSupport::TestCase
     SolidQueue::Process.any_instance.expects(:destroy!).raises(error).at_least_once
 
     events = subscribed("deregister_process.solid_queue") do
-      assert_raises RuntimeError do
+      assert_raises ExpectedTestError do
         worker = SolidQueue::Worker.new.tap(&:start)
         wait_for_registered_processes(1, timeout: 1.second)
 
