@@ -38,7 +38,7 @@ module SolidQueue
         pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
-        if (terminated_fork = process_instances.delete(pid)) && !status.exited? || status.exitstatus > 0
+        if (terminated_fork = process_instances.delete(pid)) && (!status.exited? || status.exitstatus.to_i > 0)
           error = Processes::ProcessExitError.new(status)
           release_claimed_jobs_by(terminated_fork, with_error: error)
         end
