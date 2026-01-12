@@ -154,7 +154,9 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_not recurring_task_with(class_name: "UnknownJob").valid?
 
     # Empty class name and command
-    assert_not recurring_task_with(key: "task-id", schedule: "every minute").valid?
+    task = SolidQueue::RecurringTask.from_configuration("task-id", schedule: "every minute")
+    assert_not task.valid?
+    assert_includes task.errors[:base], "either command or class must be present"
   end
 
   test "task with custom queue and priority" do
