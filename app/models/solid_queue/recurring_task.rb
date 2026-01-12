@@ -110,7 +110,7 @@ module SolidQueue
 
       def ensure_command_or_class_present
         unless command.present? || class_name.present?
-          errors.add :base, :command_and_class_blank, message: "either command or class_name must be present"
+          errors.add :base, :command_and_class_blank, message: "either command or class must be present"
         end
       end
 
