@@ -340,6 +340,19 @@ instead of this:
 queues: back*
 ```
 
+Also, if a wildcard (*) is included alongside explicit queue names, Solid Queue treats the configuration as queues: *.
+
+This means that when * appears alongside explicit queue names, the worker uses the unfiltered polling query, ignores the specified queue order, and processes jobs from all queues.
+
+For example, this:
+```yml
+queues: [default, backend, incineration, *]
+```
+
+behaves the same as:
+```yml
+queues: *
+```
 
 ### Threads, processes, and signals
 
