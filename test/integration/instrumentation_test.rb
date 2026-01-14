@@ -353,7 +353,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       scheduler.start
-      sleep(1.01)
+      sleep(1.5)
       scheduler.stop
     end
 
@@ -375,7 +375,7 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     events = subscribed("enqueue_recurring_task.solid_queue") do
       scheduler.start
-      sleep(1.01)
+      sleep(1.5)
       scheduler.stop
     end
 

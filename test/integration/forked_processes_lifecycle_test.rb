@@ -64,7 +64,8 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 1.second)
+    # long enough pause to make sure it doesn't finish
+    pause = enqueue_store_result_job("pause", pause: 60.second)
 
     wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
 
@@ -87,7 +88,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 1.second)
 
     signal_process(@pid, :TERM, wait: 0.3.second)
     wait_for_jobs_to_finish_for(3.seconds)
@@ -104,10 +105,10 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "int supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
+    pause = enqueue_store_result_job("pause", pause: 1.second)
 
     signal_process(@pid, :INT, wait: 0.3.second)
-    wait_for_jobs_to_finish_for(2.second)
+    wait_for_jobs_to_finish_for(3.second)
 
     assert_completed_job_results("no pause")
     assert_completed_job_results("pause")

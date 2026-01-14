@@ -40,6 +40,8 @@ class ActiveSupport::TestCase
     SolidQueue::RecurringTask.delete_all
     SolidQueue::ScheduledExecution.delete_all
     SolidQueue::ReadyExecution.delete_all
+    SolidQueue::ClaimedExecution.delete_all
+    SolidQueue::FailedExecution.delete_all
     JobResult.delete_all
   end
 

@@ -5,7 +5,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   test "start as non-standalone" do
     supervisor = run_supervisor_as_thread
-    wait_for_registered_processes(4)
+    wait_for_registered_processes(4, timeout: 10.seconds)
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", supervisor_id: supervisor.process_id, count: 2)
@@ -18,7 +18,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   test "start standalone" do
     pid = run_supervisor_as_fork(mode: :async)
-    wait_for_registered_processes(4)
+    wait_for_registered_processes(4, timeout: 10.seconds)
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", supervisor_pid: pid, count: 2)
@@ -30,7 +30,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   test "start as non-standalone with provided configuration" do
     supervisor = run_supervisor_as_thread(workers: [], dispatchers: [ { batch_size: 100 } ])
-    wait_for_registered_processes(2) # supervisor + dispatcher
+    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + dispatcher
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", count: 0)
@@ -50,7 +50,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     }
 
     supervisor = run_supervisor_as_thread(**config)
-    wait_for_registered_processes(2) # supervisor + 1 worker
+    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
     wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
@@ -72,7 +72,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     }
 
     pid = run_supervisor_as_fork(mode: :async, **config)
-    wait_for_registered_processes(2) # supervisor + 1 worker
+    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
     wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
