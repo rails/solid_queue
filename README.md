@@ -258,6 +258,8 @@ Here's an overview of the different options:
   ```
 
   This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
+  
+  Also, if a wildcard (*) is included alongside explicit queue names, for example: `queues: [default, backend, *]`, then it would behave like `queues: *`
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 
@@ -338,20 +340,6 @@ queues: [ background, backend ]
 instead of this:
 ```yml
 queues: back*
-```
-
-Also, if a wildcard (*) is included alongside explicit queue names, Solid Queue treats the configuration as queues: *.
-
-This means that when * appears alongside explicit queue names, the worker uses the unfiltered polling query, ignores the specified queue order, and processes jobs from all queues.
-
-For example, this:
-```yml
-queues: [default, backend, incineration, *]
-```
-
-behaves the same as:
-```yml
-queues: *
 ```
 
 ### Threads, processes, and signals
