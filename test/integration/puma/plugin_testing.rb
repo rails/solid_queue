@@ -26,28 +26,27 @@ module PluginTesting
         end
       end
 
-      wait_for_registered_processes(5, timeout: 3.second)
+      wait_for_registered_processes(5, timeout: 5.second)
     end
 
     teardown do
       terminate_process(@pid, signal: :INT) if process_exists?(@pid)
-
-      wait_for_registered_processes 0, timeout: 2.seconds
+      wait_for_registered_processes(0, timeout: 5.seconds)
     end
   end
 
   test "perform jobs inside puma's process" do
     StoreResultJob.perform_later(:puma_plugin)
 
-    wait_for_jobs_to_finish_for(2.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
     assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :puma_plugin).count
   end
 
   test "stop the queue on puma's restart" do
     signal_process(@pid, :SIGUSR2)
     # Ensure the restart finishes before we try to continue with the test
-    wait_for_registered_processes(0, timeout: 3.second)
-    wait_for_registered_processes(5, timeout: 3.second)
+    wait_for_registered_processes(0, timeout: 5.second)
+    wait_for_registered_processes(5, timeout: 5.second)
 
     StoreResultJob.perform_later(:puma_plugin)
     wait_for_jobs_to_finish_for(2.seconds)

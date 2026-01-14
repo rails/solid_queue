@@ -3,6 +3,8 @@
 require "test_helper"
 
 class JobsLifecycleTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for([ ExpectedTestError, RaisingJob::DefaultError ], @_on_thread_error)
@@ -34,7 +36,6 @@ class JobsLifecycleTest < ActiveSupport::TestCase
   test "enqueue and run jobs that fail without retries" do
     RaisingJob.perform_later(ExpectedTestError, "A")
     RaisingJob.perform_later(ExpectedTestError, "B")
-    jobs = SolidQueue::Job.last(2)
 
     @dispatcher.start
     @worker.start
