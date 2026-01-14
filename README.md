@@ -342,6 +342,7 @@ instead of this:
 queues: back*
 ```
 
+
 ### Threads, processes, and signals
 
 Workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
