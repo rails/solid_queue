@@ -26,8 +26,8 @@ module SolidQueue
         SolidQueue.instrument(:replace_thread, supervisor_pid: ::Process.pid) do |payload|
           payload[:thread] = instance
 
-          error = Processes::ThreadTerminatedError.new(terminated_instance.name)
-          release_claimed_jobs_by(terminated_instance, with_error: error)
+          error = Processes::ThreadTerminatedError.new(instance.name)
+          release_claimed_jobs_by(instance, with_error: error)
 
           start_process(configured_processes.delete(thread_id))
         end
