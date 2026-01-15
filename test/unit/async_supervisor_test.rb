@@ -5,20 +5,19 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   test "start as non-standalone" do
     supervisor = run_supervisor_as_thread
-    wait_for_registered_processes(4, timeout: 10.seconds)
+    wait_for_registered_processes(4, timeout: 3.seconds) # supervisor + dispatcher + 2 workers
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", supervisor_id: supervisor.process_id, count: 2)
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
-
+  ensure
     supervisor.stop
-
     assert_no_registered_processes
   end
 
   test "start standalone" do
     pid = run_supervisor_as_fork(mode: :async)
-    wait_for_registered_processes(4, timeout: 10.seconds)
+    wait_for_registered_processes(4, timeout: 5.seconds) # supervisor + dispatcher + 2 workers
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", supervisor_pid: pid, count: 2)
@@ -29,15 +28,15 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
   end
 
   test "start as non-standalone with provided configuration" do
-    supervisor = run_supervisor_as_thread(workers: [], dispatchers: [ { batch_size: 100 } ])
-    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + dispatcher
+    supervisor = run_supervisor_as_thread(workers: [], dispatchers: [ { batch_size: 100 } ], skip_recurring: false)
+    wait_for_registered_processes(3, timeout: 3.seconds) # supervisor + dispatcher + scheduler
 
     assert_registered_processes(kind: "Supervisor(async)")
     assert_registered_processes(kind: "Worker", count: 0)
     assert_registered_processes(kind: "Dispatcher", supervisor_id: supervisor.process_id)
-
+    assert_registered_processes(kind: "Scheduler", supervisor_id: supervisor.process_id)
+  ensure
     supervisor.stop
-
     assert_no_registered_processes
   end
 
@@ -50,17 +49,17 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     }
 
     supervisor = run_supervisor_as_thread(**config)
-    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + 1 worker
+    wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
     wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
-
-    supervisor.stop
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ClaimedExecution.count
       assert_equal 3, SolidQueue::FailedExecution.count
     end
+  ensure
+    supervisor.stop
   end
 
   test "failed orphaned executions as standalone" do
@@ -72,7 +71,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     }
 
     pid = run_supervisor_as_fork(mode: :async, **config)
-    wait_for_registered_processes(2, timeout: 10.seconds) # supervisor + 1 worker
+    wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
     wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
@@ -87,7 +86,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
 
   private
     def run_supervisor_as_thread(**options)
-      SolidQueue::Supervisor.start(mode: :async, standalone: false, **options)
+      SolidQueue::Supervisor.start(mode: :async, standalone: false, **options.with_defaults(skip_recurring: true))
     end
 
     def simulate_orphaned_executions(count)
