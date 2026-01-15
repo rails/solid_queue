@@ -103,7 +103,10 @@ module SolidQueue
 
     private
       def supported_schedule
-        unless parsed_schedule.instance_of?(Fugit::Cron)
+        if parsed_schedule == :multiple_crons_detected
+          errors.add :schedule, :multiple_crons,
+            message: "generates multiple cron schedules. Please use separate recurring tasks for each schedule, or use explicit cron syntax (e.g., '40 0,15 * * *' for multiple times with the same minutes)"
+        elsif !parsed_schedule.instance_of?(Fugit::Cron)
           errors.add :schedule, :unsupported, message: "is not a supported recurring schedule"
         end
       end
@@ -152,7 +155,15 @@ module SolidQueue
 
 
       def parsed_schedule
-        @parsed_schedule ||= Fugit.parse(schedule)
+        @parsed_schedule ||= begin
+          Fugit::Nat.parse(schedule, multi: :fail) || Fugit.parse(schedule)
+        rescue ArgumentError => e
+          if e.message.include?("multiple crons")
+            :multiple_crons_detected
+          else
+            raise
+          end
+        end
       end
 
       def job_class
