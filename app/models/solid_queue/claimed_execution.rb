@@ -78,7 +78,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   def release
     SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id) do
       transaction do
-        job.dispatch_bypassing_concurrency_limits
+        if other_executions_holding_concurrency_lock?
+          # Another job with same concurrency key is already running.
+          # Go through normal dispatch which respects concurrency limits.
+          job.dispatch
+        else
+          job.dispatch_bypassing_concurrency_limits
+        end
         destroy!
       end
     end
@@ -112,5 +118,14 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         job.finished!
         destroy!
       end
+    end
+
+    def other_executions_holding_concurrency_lock?
+      return false unless job.concurrency_limited?
+
+      SolidQueue::Job.joins(:claimed_execution)
+        .where(concurrency_key: job.concurrency_key)
+        .where.not(id: job.id)
+        .exists?
     end
 end

@@ -36,8 +36,17 @@ module SolidQueue
         def releasable(concurrency_keys)
           semaphores = Semaphore.where(key: concurrency_keys).pluck(:key, :value).to_h
 
+          # Concurrency keys that have jobs currently being executed should not be released,
+          # even if their semaphore expired. This prevents duplicate job execution when
+          # jobs run longer than their concurrency_duration.
+          executing_keys = Job.joins(:claimed_execution)
+                              .where(concurrency_key: concurrency_keys)
+                              .distinct
+                              .pluck(:concurrency_key)
+
           # Concurrency keys without semaphore + concurrency keys with open semaphore
-          (concurrency_keys - semaphores.keys) | semaphores.select { |_key, value| value > 0 }.keys
+          # MINUS keys that have jobs currently executing
+          ((concurrency_keys - semaphores.keys) | semaphores.select { |_key, value| value > 0 }.keys) - executing_keys
         end
     end
 
