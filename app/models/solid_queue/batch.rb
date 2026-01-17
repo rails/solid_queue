@@ -134,7 +134,7 @@ module SolidQueue
       end
 
       def wrap_in_batch_context(batch_id)
-        previous_batch_id = current_batch_id.presence || nil
+        previous_batch_id = current_batch_id.presence
         ActiveSupport::IsolatedExecutionState[:current_batch_id] = batch_id
         yield
       ensure
