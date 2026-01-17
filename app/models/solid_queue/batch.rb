@@ -21,6 +21,33 @@ module SolidQueue
     after_initialize :set_active_job_batch_id
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
+    class << self
+      def enqueue(on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
+        new.tap do |batch|
+          batch.assign_attributes(
+            on_success: on_success,
+            on_failure: on_failure,
+            on_finish: on_finish,
+            metadata: metadata
+          )
+
+          batch.enqueue(&block)
+        end
+      end
+
+      def current_batch_id
+        ActiveSupport::IsolatedExecutionState[:current_batch_id]
+      end
+
+      def wrap_in_batch_context(batch_id)
+        previous_batch_id = current_batch_id.presence
+        ActiveSupport::IsolatedExecutionState[:current_batch_id] = batch_id
+        yield
+      ensure
+        ActiveSupport::IsolatedExecutionState[:current_batch_id] = previous_batch_id
+      end
+    end
+
     def enqueue(&block)
       raise AlreadyFinished, "You cannot enqueue a batch that is already finished" if finished?
 
@@ -114,32 +141,5 @@ module SolidQueue
         enqueue_empty_job if reload.total_jobs == 0
         update!(enqueued_at: Time.current)
       end
-
-    class << self
-      def enqueue(on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
-        new.tap do |batch|
-          batch.assign_attributes(
-            on_success: on_success,
-            on_failure: on_failure,
-            on_finish: on_finish,
-            metadata: metadata
-          )
-
-          batch.enqueue(&block)
-        end
-      end
-
-      def current_batch_id
-        ActiveSupport::IsolatedExecutionState[:current_batch_id]
-      end
-
-      def wrap_in_batch_context(batch_id)
-        previous_batch_id = current_batch_id.presence
-        ActiveSupport::IsolatedExecutionState[:current_batch_id] = batch_id
-        yield
-      ensure
-        ActiveSupport::IsolatedExecutionState[:current_batch_id] = previous_batch_id
-      end
-    end
   end
 end
