@@ -2,24 +2,27 @@
 
 module SolidQueue
   class Batch < Record
+    class AlreadyFinished < StandardError; end
+
     include Trackable
 
     has_many :jobs
     has_many :batch_executions, class_name: "SolidQueue::BatchExecution", dependent: :destroy
 
-    serialize :on_finish, coder: JSON
-    serialize :on_success, coder: JSON
-    serialize :on_failure, coder: JSON
     serialize :metadata, coder: JSON
+    %w[ finish success failure ].each do |callback_type|
+      serialize "on_#{callback_type}", coder: JSON
+
+      define_method("on_#{callback_type}=") do |callback|
+        super serialize_callback(callback)
+      end
+    end
 
     after_initialize :set_active_job_batch_id
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
-    mattr_accessor :maintenance_queue_name
-    self.maintenance_queue_name = "default"
-
     def enqueue(&block)
-      raise "You cannot enqueue a batch that is already finished" if finished?
+      raise AlreadyFinished, "You cannot enqueue a batch that is already finished" if finished?
 
       transaction do
         save! if new_record?
@@ -36,26 +39,13 @@ module SolidQueue
       end
     end
 
-    def on_success=(value)
-      super(serialize_callback(value))
-    end
-
-    def on_failure=(value)
-      super(serialize_callback(value))
-    end
-
-    def on_finish=(value)
-      super(serialize_callback(value))
-    end
-
     def metadata
       (super || {}).with_indifferent_access
     end
 
-    def check_completion!
-      return if finished? || !ready?
-      return if batch_executions.limit(1).exists?
-
+    def check_completion
+      return if finished? || !enqueued?
+      return if batch_executions.any?
       rows = Batch
         .where(id: id)
         .unfinished
@@ -74,7 +64,7 @@ module SolidQueue
         finished_attributes[:completed_jobs] = total_jobs - failed
 
         update!(finished_attributes)
-        execute_callbacks
+        enqueue_callback_jobs
       end
     end
 
@@ -89,36 +79,34 @@ module SolidQueue
       end
 
       def serialize_callback(value)
-        return value if value.blank?
-        active_job = as_active_job(value)
-        # We can pick up batch ids from context, but callbacks should never be considered a part of the batch
-        active_job.batch_id = nil
-        active_job.serialize
+        if value.present?
+          active_job = value.is_a?(ActiveJob::Base) ? value : value.new
+          # We can pick up batch ids from context, but callbacks should never be considered a part of the batch
+          active_job.batch_id = nil
+          active_job.serialize
+        end
       end
 
-      def perform_completion_job(job_field, attrs)
-        active_job = ActiveJob::Base.deserialize(send(job_field))
+      def enqueue_callback_job(callback_name)
+        active_job = ActiveJob::Base.deserialize(send(callback_name))
         active_job.send(:deserialize_arguments_if_needed)
         active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
-        SolidQueue::Job.enqueue_all([ active_job ])
-
-        active_job.provider_job_id = Job.find_by(active_job_id: active_job.job_id).id
-        attrs[job_field] = active_job.serialize
+        active_job.enqueue
       end
 
-      def execute_callbacks
+      def enqueue_callback_jobs
         if failed_at?
-          perform_completion_job(:on_failure, {}) if on_failure.present?
+          enqueue_callback_job(:on_failure) if on_failure.present?
         else
-          perform_completion_job(:on_success, {}) if on_success.present?
+          enqueue_callback_job(:on_success) if on_success.present?
         end
 
-        perform_completion_job(:on_finish, {}) if on_finish.present?
+        enqueue_callback_job(:on_finish) if on_finish.present?
       end
 
       def enqueue_empty_job
         Batch.wrap_in_batch_context(id) do
-          EmptyJob.set(queue: self.class.maintenance_queue_name || "default").perform_later
+          EmptyJob.perform_later
         end
       end
 

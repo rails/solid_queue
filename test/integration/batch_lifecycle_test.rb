@@ -10,7 +10,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     SolidQueue.on_thread_error = silent_on_thread_error_for([ FailingJobError ], @_on_thread_error)
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
     @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
-    SolidQueue::Batch.maintenance_queue_name = "background"
+    SolidQueue::Batch::EmptyJob.queue_as "background"
   end
 
   teardown do
@@ -25,7 +25,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     ApplicationJob.enqueue_after_transaction_commit = false if defined?(ApplicationJob.enqueue_after_transaction_commit)
     SolidQueue.preserve_finished_jobs = true
-    SolidQueue::Batch.maintenance_queue_name = nil
+    SolidQueue::Batch::EmptyJob.queue_as "default"
   end
 
   class BatchOnSuccessJob < ApplicationJob

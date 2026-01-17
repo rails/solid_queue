@@ -657,7 +657,7 @@ By default, this jobs run on the `default` queue. You can specify an alternative
 
 ```rb
 Rails.application.config.after_initialize do # or to_prepare
-  SolidQueue::Batch.maintenance_queue_name = "my_batch_queue"
+  SolidQueue::Batch::EmptyJob.queue_as "my_batch_queue"
 end
 ```
 

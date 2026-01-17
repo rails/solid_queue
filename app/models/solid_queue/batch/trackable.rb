@@ -24,8 +24,8 @@ module SolidQueue
       def status
         if finished?
           failed? ? "failed" : "completed"
-        elsif enqueued_at.present?
-          "processing"
+        elsif enqueued?
+          "enqueued"
         else
           "pending"
         end
@@ -43,7 +43,7 @@ module SolidQueue
         finished_at.present?
       end
 
-      def ready?
+      def enqueued?
         enqueued_at.present?
       end
 

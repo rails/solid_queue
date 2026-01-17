@@ -10,7 +10,7 @@ module SolidQueue
     private
       def check_completion
         batch = Batch.find_by(id: batch_id)
-        batch.check_completion! if batch.present?
+        batch.check_completion if batch.present?
       end
 
     class << self
