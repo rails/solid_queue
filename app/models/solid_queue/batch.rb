@@ -22,9 +22,10 @@ module SolidQueue
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     class << self
-      def enqueue(on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
+      def enqueue(description: nil, on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
         new.tap do |batch|
           batch.assign_attributes(
+            description: description,
             on_success: on_success,
             on_failure: on_failure,
             on_finish: on_finish,

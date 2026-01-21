@@ -78,4 +78,41 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal SolidQueue::Batch.last.metadata["priority"], "high"
     assert_equal SolidQueue::Batch.last.metadata["user_id"], 123
   end
+
+  test "creates batch with description" do
+    SolidQueue::Batch.enqueue(
+      description: "Process user imports for account 123",
+      on_finish: BatchCompletionJob
+    ) do
+      NiceJob.perform_later("world")
+    end
+
+    assert_equal "Process user imports for account 123", SolidQueue::Batch.last.description
+  end
+
+  test "instance enqueue with preset attributes" do
+    batch = SolidQueue::Batch.new
+    batch.description = "My batch"
+    batch.on_finish = BatchCompletionJob
+    batch.enqueue do
+      NiceJob.perform_later("world")
+    end
+
+    assert_equal "My batch", batch.description
+    assert_equal BatchCompletionJob.name, batch.on_finish["job_class"]
+    assert_equal 1, batch.jobs.count
+    assert batch.enqueued?
+  end
+
+  test "cannot enqueue finished batch" do
+    batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) do
+      NiceJob.perform_later("world")
+    end
+
+    batch.update_columns(finished_at: Time.current)
+
+    assert_raises(SolidQueue::Batch::AlreadyFinished) do
+      batch.enqueue { NiceJob.perform_later("another") }
+    end
+  end
 end
