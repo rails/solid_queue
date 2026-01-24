@@ -31,7 +31,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   class BatchOnSuccessJob < ApplicationJob
     queue_as :background
 
-    def perform(batch, custom_message = "")
+    def perform(custom_message = "")
       JobBuffer.add "#{custom_message}: #{batch.completed_jobs} jobs succeeded!"
     end
   end
@@ -39,8 +39,16 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   class BatchOnFailureJob < ApplicationJob
     queue_as :background
 
-    def perform(batch, custom_message = "")
+    def perform(custom_message = "")
       JobBuffer.add "#{custom_message}: #{batch.failed_jobs} jobs failed!"
+    end
+  end
+
+  class FailFastJob < ApplicationJob
+    queue_as :background
+
+    def perform
+      raise FailingJobError, "Failing job"
     end
   end
 
@@ -295,10 +303,38 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 1, batch.total_jobs
   end
 
+  test "clear finished batches after configured period" do
+    5.times { SolidQueue::Batch.enqueue { AddToBufferJob.perform_later "hey" } }
+    5.times { SolidQueue::Batch.enqueue { FailFastJob.perform_later } }
+
+    assert_no_difference -> { SolidQueue::Batch.count } do
+      SolidQueue::Batch.clear_finished_in_batches
+    end
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
+
+    assert_no_difference -> { SolidQueue::Batch.count } do
+      SolidQueue::Batch.clear_finished_in_batches
+    end
+
+    travel_to 3.days.from_now
+
+    assert_difference -> { SolidQueue::Batch.count }, -5 do
+      SolidQueue::Batch.clear_finished_in_batches
+    end
+
+    assert_equal 5, SolidQueue::Batch.count
+    assert_equal 5, SolidQueue::Batch.failed.count
+  end
+
   class OnFinishJob < ApplicationJob
     queue_as :background
 
-    def perform(batch)
+    def perform
       JobBuffer.add "Hi finish #{batch.id}!"
     end
   end
@@ -306,7 +342,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   class OnSuccessJob < ApplicationJob
     queue_as :background
 
-    def perform(batch)
+    def perform
       JobBuffer.add "Hi success #{batch.id}!"
     end
   end
@@ -314,7 +350,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
   class OnFailureJob < ApplicationJob
     queue_as :background
 
-    def perform(batch)
+    def perform
       JobBuffer.add "Hi failure #{batch.id}!"
     end
   end

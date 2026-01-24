@@ -1,7 +1,7 @@
 class BatchCompletionJob < ApplicationJob
   queue_as :background
 
-  def perform(batch)
+  def perform
     Rails.logger.info "#{batch.jobs.size} jobs completed!"
   end
 end

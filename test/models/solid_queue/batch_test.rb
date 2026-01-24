@@ -9,7 +9,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
   end
 
   class BatchWithArgumentsJob < ApplicationJob
-    def perform(batch, arg1, arg2)
+    def perform(arg1, arg2)
       Rails.logger.info "Hi #{batch.batch_id}, #{arg1}, #{arg2}!"
     end
   end
@@ -114,5 +114,21 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_raises(SolidQueue::Batch::AlreadyFinished) do
       batch.enqueue { NiceJob.perform_later("another") }
     end
+  end
+
+  test "can add jobs to running batch" do
+    batch = SolidQueue::Batch.enqueue(description: "Original", on_finish: BatchCompletionJob) do
+      NiceJob.perform_later("first")
+    end
+
+    assert batch.enqueued?
+    assert_equal 1, batch.jobs.count
+
+    # Add more jobs to the running batch
+    batch.enqueue do
+      NiceJob.perform_later("second")
+    end
+
+    assert_equal 2, batch.jobs.count
   end
 end

@@ -8,6 +8,7 @@ module ActiveJob
 
     included do
       attr_accessor :batch_id
+      attr_accessor :callback_batch_id
     end
 
     def initialize(*arguments, **kwargs)
@@ -16,16 +17,17 @@ module ActiveJob
     end
 
     def serialize
-      super.merge("batch_id" => batch_id)
+      super.merge("batch_id" => batch_id, "callback_batch_id" => callback_batch_id)
     end
 
     def deserialize(job_data)
       super
       self.batch_id = job_data["batch_id"]
+      self.callback_batch_id = job_data["callback_batch_id"]
     end
 
     def batch
-      @batch ||= SolidQueue::Batch.find_by(id: batch_id)
+      @batch ||= SolidQueue::Batch.find_by(id: callback_batch_id || batch_id)
     end
 
     private

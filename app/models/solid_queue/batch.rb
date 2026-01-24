@@ -4,7 +4,7 @@ module SolidQueue
   class Batch < Record
     class AlreadyFinished < StandardError; end
 
-    include Trackable
+    include Trackable, Clearable
 
     has_many :jobs
     has_many :batch_executions, class_name: "SolidQueue::BatchExecution", dependent: :destroy
@@ -117,8 +117,7 @@ module SolidQueue
 
       def enqueue_callback_job(callback_name)
         active_job = ActiveJob::Base.deserialize(send(callback_name))
-        active_job.send(:deserialize_arguments_if_needed)
-        active_job.arguments = [ self ] + Array.wrap(active_job.arguments)
+        active_job.callback_batch_id = id
         active_job.enqueue
       end
 
