@@ -87,7 +87,7 @@ class LifecycleHooksTest < ActiveSupport::TestCase
       end
 
       assert_equal %w[
-        supervisor_start supervisor_stop supervisor_exit
+        forksupervisor_start forksupervisor_stop forksupervisor_exit
         worker_first_queue_start worker_first_queue_stop worker_first_queue_exit
         worker_second_queue_start worker_second_queue_stop worker_second_queue_exit
         dispatcher_100_start dispatcher_100_stop dispatcher_100_exit

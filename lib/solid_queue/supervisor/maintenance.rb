@@ -32,5 +32,16 @@ module SolidQueue
           ClaimedExecution.orphaned.fail_all_with(Processes::ProcessMissingError.new)
         end
       end
+
+      # When a supervised process crashes or exits we need to mark all the
+      # executions it had claimed as failed so that they can be retried
+      # by some other worker.
+      def release_claimed_jobs_by(terminated_process, with_error:)
+        wrap_in_app_executor do
+          if registered_process = SolidQueue::Process.find_by(name: terminated_process.name)
+            registered_process.fail_all_claimed_executions_with(with_error)
+          end
+        end
+      end
   end
 end

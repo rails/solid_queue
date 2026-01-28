@@ -24,13 +24,17 @@ class SchedulerTest < ActiveSupport::TestCase
     end
 
     schedulers.each(&:start)
-    sleep 2
+    wait_while_with_timeout(3.seconds) { SolidQueue::RecurringExecution.count < 2 }
     schedulers.each(&:stop)
 
-    assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
-    run_at_times = SolidQueue::RecurringExecution.all.map(&:run_at).sort
-    0.upto(run_at_times.length - 2) do |i|
-      assert_equal 1, run_at_times[i + 1] - run_at_times[i]
+    skip_active_record_query_cache do
+      assert SolidQueue::RecurringExecution.count >= 2, "Expected at least 2 recurring executions, got #{SolidQueue::RecurringExecution.count}"
+      assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
+      run_at_times = SolidQueue::RecurringExecution.all.map(&:run_at).sort
+      0.upto(run_at_times.length - 2) do |i|
+        time_diff = run_at_times[i + 1] - run_at_times[i]
+        assert_in_delta 1, time_diff, 0.001, "Expected run_at times to be 1 second apart, got #{time_diff}. All run_at times: #{run_at_times.inspect}"
+      end
     end
   end
 end

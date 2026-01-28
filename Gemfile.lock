@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    solid_queue (1.2.4)
+    solid_queue (1.3.1)
       activejob (>= 7.1)
       activerecord (>= 7.1)
       concurrent-ruby (>= 1.3.1)
@@ -201,6 +201,7 @@ DEPENDENCIES
   appraisal
   debug (~> 1.9)
   logger
+  minitest (~> 5.0)
   mocha
   mysql2
   pg

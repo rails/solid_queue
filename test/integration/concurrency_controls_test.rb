@@ -178,8 +178,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "verify transactions remain valid after Job creation conflicts via limits_concurrency" do
-    # Doesn't work with enqueue_after_transaction_commit? true on SolidQueueAdapter, but only Rails 7.2 uses this
-    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 2
+    # Doesn't work when enqueue_after_transaction_commit is enabled
+    skip if ActiveJob::Base.respond_to?(:enqueue_after_transaction_commit) &&
+            [ true, :default ].include?(ActiveJob::Base.enqueue_after_transaction_commit)
 
     ActiveRecord::Base.transaction do
       NonOverlappingUpdateResultJob.perform_later(@result, name: "A", pause: 0.2.seconds)
@@ -196,6 +197,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "discard jobs when concurrency limit is reached with on_conflict: :discard" do
     job1 = DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 3)
+    sleep(0.1)
+
     # should be discarded due to concurrency limit
     job2 = DiscardableUpdateResultJob.perform_later(@result, name: "2")
     # should also be discarded
@@ -218,8 +221,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "discard on conflict across different concurrency keys" do
     another_result = JobResult.create!(queue_name: "default", status: "")
-    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 0.2)
-    DiscardableUpdateResultJob.perform_later(another_result, name: "2", pause: 0.2)
+    DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 2)
+    DiscardableUpdateResultJob.perform_later(another_result, name: "2", pause: 2)
+    sleep(0.1)
     DiscardableUpdateResultJob.perform_later(@result, name: "3") # Should be discarded
     DiscardableUpdateResultJob.perform_later(another_result, name: "4") # Should be discarded
 

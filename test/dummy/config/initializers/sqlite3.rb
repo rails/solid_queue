@@ -24,7 +24,10 @@ end
 
 ActiveSupport.on_load :active_record do
   if defined?(ActiveRecord::ConnectionAdapters::SQLite3Adapter)
-    ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SqliteImmediateTransactions
+    # Rails 8.0+ has immediate transactions built-in
+    if Rails::VERSION::MAJOR < 8
+      ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SqliteImmediateTransactions
+    end
     ActiveRecord::ConnectionAdapters::SQLite3Adapter.prepend SQLite3Configuration
   end
 

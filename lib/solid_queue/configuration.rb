@@ -56,6 +56,14 @@ module SolidQueue
       end
     end
 
+    def mode
+      @options[:mode].to_s.inquiry
+    end
+
+    def standalone?
+      mode.fork? || @options[:standalone]
+    end
+
     private
       attr_reader :options
 
@@ -84,6 +92,8 @@ module SolidQueue
 
       def default_options
         {
+          mode: ENV["SOLID_QUEUE_SUPERVISOR_MODE"] || :fork,
+          standalone: true,
           config_file: Rails.root.join(ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH),
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),
           only_work: false,
@@ -110,7 +120,12 @@ module SolidQueue
 
       def workers
         workers_options.flat_map do |worker_options|
-          processes = worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+          processes = if mode.fork?
+            worker_options.fetch(:processes, WORKER_DEFAULTS[:processes])
+          else
+            1
+          end
+
           processes.times.map { Process.new(:worker, worker_options.with_defaults(WORKER_DEFAULTS)) }
         end
       end
