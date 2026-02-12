@@ -80,7 +80,7 @@ class SchedulerTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     # initially there are no recurring_schedule keys
-    assert process.metadata, {}
+    assert_empty process.metadata
 
     # now create a dynamic task after the scheduler has booted
     SolidQueue::RecurringTask.create(
@@ -124,8 +124,8 @@ class SchedulerTest < ActiveSupport::TestCase
 
     process.reload
 
-    # The task is unschedule after it's being removed, and it's reflected in the metadata
-    assert process.metadata, {}
+    # The task is unscheduled after it's been removed, and it's reflected in the metadata
+    assert_empty process.metadata
   ensure
     scheduler&.stop
   end
