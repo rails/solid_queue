@@ -5,16 +5,16 @@ class SolidQueueTest < ActiveSupport::TestCase
     assert SolidQueue::VERSION
   end
 
-  test "creates recurring tasks" do
-    SolidQueue.create_recurring_task("test 1", command: "puts 1", schedule: "every hour")
-    SolidQueue.create_recurring_task("test 2", command: "puts 2", schedule: "every minute", static: true)
+  test "schedules recurring tasks" do
+    SolidQueue.schedule_task("test 1", command: "puts 1", schedule: "every hour")
+    SolidQueue.schedule_task("test 2", command: "puts 2", schedule: "every minute", static: true)
 
     assert SolidQueue::RecurringTask.exists?(key: "test 1", command: "puts 1", schedule: "every hour", static: false)
     assert SolidQueue::RecurringTask.exists?(key: "test 2", command: "puts 2", schedule: "every minute", static: false)
   end
 
-  test "creates recurring tasks with class and args (same keys as YAML config)" do
-    SolidQueue.create_recurring_task("test 3", class: "AddToBufferJob", args: [ 42 ], schedule: "every hour")
+  test "schedules recurring tasks with class and args (same keys as YAML config)" do
+    SolidQueue.schedule_task("test 3", class: "AddToBufferJob", args: [ 42 ], schedule: "every hour")
 
     task = SolidQueue::RecurringTask.find_by!(key: "test 3")
     assert_equal "AddToBufferJob", task.class_name
@@ -22,7 +22,7 @@ class SolidQueueTest < ActiveSupport::TestCase
     assert_equal false, task.static
   end
 
-  test "destroys recurring tasks" do
+  test "unschedules recurring tasks" do
     dynamic_task = SolidQueue::RecurringTask.create!(
       key: "dynamic", command: "puts 'd'", schedule: "every day", static: false
     )
@@ -31,10 +31,10 @@ class SolidQueueTest < ActiveSupport::TestCase
       key: "static", command: "puts 's'", schedule: "every week", static: true
     )
 
-    SolidQueue.destroy_recurring_task(dynamic_task.key)
+    SolidQueue.unschedule_task(dynamic_task.key)
 
     assert_raises(ActiveRecord::RecordNotFound) do
-      SolidQueue.destroy_recurring_task(static_task.key)
+      SolidQueue.unschedule_task(static_task.key)
     end
 
     assert_not SolidQueue::RecurringTask.exists?(key: "dynamic", static: false)

@@ -744,14 +744,14 @@ my_periodic_resque_job:
 and the job will be enqueued via `perform_later` so it'll run in Resque. However, in this case we won't track any `solid_queue_recurring_execution` record for it and there won't be any guarantees that the job is enqueued only once each time.
 
 
-### Creating and Deleting Recurring Tasks Dynamically
+### Scheduling and Unscheduling Recurring Tasks Dynamically
 
-You can create and delete recurring tasks at runtime, without editing the configuration file. Use the following methods:
+You can schedule and unschedule recurring tasks at runtime, without editing the configuration file. Use the following methods:
 
-#### Creating a recurring task
+#### Scheduling a recurring task
 
 ```ruby
-SolidQueue.create_recurring_task(
+SolidQueue.schedule_task(
   "my_dynamic_task",
   class: "MyJob",
   args: [1, 2],
@@ -761,28 +761,28 @@ SolidQueue.create_recurring_task(
 
 This will create a dynamic recurring task with the given key, class, and schedule. The API accepts the same options as the YAML configuration: `class`, `args`, `command`, `schedule`, `queue`, `priority`, and `description`.
 
-#### Deleting a recurring task
+#### Unscheduling a recurring task
 
 ```ruby
-SolidQueue.destroy_recurring_task(key)
+SolidQueue.unschedule_task(key)
 ```
 
-This will delete a dynamically scheduled recurring task by its key. If you attempt to delete a static (configuration-defined) recurring task, an error will be raised.
+This will delete a dynamically scheduled recurring task by its key. If you attempt to unschedule a static (configuration-defined) recurring task, an error will be raised.
 
-> **Note:** Static recurring tasks (those defined in `config/recurring.yml`) cannot be deleted at runtime. Attempting to do so will raise an error.
+> **Note:** Static recurring tasks (those defined in `config/recurring.yml`) cannot be unscheduled at runtime. Attempting to do so will raise an error.
 
-#### Example: Creating and deleting a recurring task
+#### Example: Scheduling and unscheduling a recurring task
 
 ```ruby
-# Create a new dynamic recurring task
-SolidQueue.create_recurring_task(
+# Schedule a new dynamic recurring task
+SolidQueue.schedule_task(
   "cleanup_temp_files",
   class: "TempFileCleanerJob",
   schedule: "every day at 2am"
 )
 
-# Delete the task later by key
-SolidQueue.destroy_recurring_task("cleanup_temp_files")
+# Unschedule the task later by key
+SolidQueue.unschedule_task("cleanup_temp_files")
 ```
 
 ## Inspiration
