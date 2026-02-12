@@ -42,12 +42,14 @@ module SolidQueue
     end
 
     def reload!
-      { added_tasks: schedule_new_dynamic_tasks,
-        removed_tasks: unschedule_old_dynamic_tasks }.each do |key, values|
-        if values.any?
-          changes[key] = values
-        else
-          changes.delete(key)
+      wrap_in_app_executor do
+        { added_tasks: schedule_new_dynamic_tasks,
+          removed_tasks: unschedule_old_dynamic_tasks }.each do |key, values|
+          if values.any?
+            @changes[key] = values
+          else
+            @changes.delete(key)
+          end
         end
       end
     end
