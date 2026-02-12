@@ -14,7 +14,7 @@ module SolidQueue
     end
 
     def empty?
-      configured_tasks.empty?
+      scheduled_tasks.empty? && dynamic_tasks.none?
     end
 
     def schedule_tasks
