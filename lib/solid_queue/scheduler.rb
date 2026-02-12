@@ -31,7 +31,11 @@ module SolidQueue
           break if shutting_down?
 
           recurring_schedule.reload!
-          refresh_registered_process if recurring_schedule.changed?
+
+          if recurring_schedule.changed?
+            refresh_registered_process
+            recurring_schedule.clear_changes
+          end
 
           interruptible_sleep(polling_interval)
         end

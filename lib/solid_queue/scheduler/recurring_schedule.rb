@@ -58,6 +58,10 @@ module SolidQueue
       @changes.any?
     end
 
+    def clear_changes
+      @changes.clear
+    end
+
     private
       attr_reader :static_tasks
 
