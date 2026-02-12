@@ -282,6 +282,8 @@ scheduler:
 
 This controls how frequently the scheduler wakes up to enqueue due recurring jobs and reload dynamic tasks.
 
+> **Note:** The scheduler process always starts by default to support dynamic recurring tasks, even if no static tasks are configured in `config/recurring.yml`. If you don't use recurring tasks at all, you can disable the scheduler by setting `SOLID_QUEUE_SKIP_RECURRING=true` or passing `skip_recurring: true` in the configuration.
+
 ### Queue order and priorities
 
 As mentioned above, if you specify a list of queues for a worker, these will be polled in the order given, such as for the list `real_time,background`, no jobs will be taken from `background` unless there aren't any more jobs waiting in `real_time`.

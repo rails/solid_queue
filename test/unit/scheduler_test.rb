@@ -81,10 +81,12 @@ class SchedulerTest < ActiveSupport::TestCase
     scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
 
     wait_for_registered_processes(1, timeout: 1.second)
-    sleep 2
+    wait_while_with_timeout(3.seconds) { SolidQueue::Job.count < 1 }
 
-    assert SolidQueue::Job.count >= 1, "Expected at least one job to be enqueued by the dynamic task"
-    assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
+    skip_active_record_query_cache do
+      assert SolidQueue::Job.count >= 1, "Expected at least one job to be enqueued by the dynamic task"
+      assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
+    end
   ensure
     scheduler&.stop
   end
@@ -94,54 +96,54 @@ class SchedulerTest < ActiveSupport::TestCase
 
     wait_for_registered_processes(1, timeout: 1.second)
 
-    process = SolidQueue::Process.first
-    # initially there are no recurring_schedule keys
-    assert_empty process.metadata
+    skip_active_record_query_cache do
+      process = SolidQueue::Process.first
+      # initially there are no recurring_schedule keys
+      assert_empty process.metadata
 
-    # now create a dynamic task after the scheduler has booted
-    SolidQueue::RecurringTask.create(
-      key:       "new_dynamic_task",
-      static:    false,
-      class_name: "AddToBufferJob",
-      schedule:  "every second",
-      arguments: [ 42 ]
-    )
+      # now create a dynamic task after the scheduler has booted
+      SolidQueue::RecurringTask.create!(
+        key:        "new_dynamic_task",
+        static:     false,
+        class_name: "AddToBufferJob",
+        schedule:   "every second",
+        arguments:  [ 42 ]
+      )
 
-    sleep 1
+      wait_while_with_timeout(3.seconds) { process.reload.metadata.empty? }
 
-    process.reload
-
-    # metadata should now include the new key
-    assert_metadata process, recurring_schedule: [ "new_dynamic_task" ]
+      # metadata should now include the new key
+      assert_metadata process, recurring_schedule: [ "new_dynamic_task" ]
+    end
   ensure
     scheduler&.stop
   end
 
   test "updates metadata after removing dynamic task post-start" do
-    old_dynamic_task = SolidQueue::RecurringTask.create(
-      key:       "old_dynamic_task",
-      static:    false,
+    old_dynamic_task = SolidQueue::RecurringTask.create!(
+      key:        "old_dynamic_task",
+      static:     false,
       class_name: "AddToBufferJob",
-      schedule:  "every second",
-      arguments: [ 42 ]
+      schedule:   "every second",
+      arguments:  [ 42 ]
     )
 
     scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
 
     wait_for_registered_processes(1, timeout: 1.second)
 
-    process = SolidQueue::Process.first
-    # initially there is one recurring_schedule key
-    assert_metadata process, recurring_schedule: [ "old_dynamic_task" ]
+    skip_active_record_query_cache do
+      process = SolidQueue::Process.first
+      # initially there is one recurring_schedule key
+      assert_metadata process, recurring_schedule: [ "old_dynamic_task" ]
 
-    old_dynamic_task.destroy
+      old_dynamic_task.destroy
 
-    sleep 1
+      wait_while_with_timeout(3.seconds) { process.reload.metadata.present? }
 
-    process.reload
-
-    # The task is unscheduled after it's been removed, and it's reflected in the metadata
-    assert_empty process.metadata
+      # The task is unscheduled after it's been removed, and it's reflected in the metadata
+      assert_empty process.metadata
+    end
   ensure
     scheduler&.stop
   end

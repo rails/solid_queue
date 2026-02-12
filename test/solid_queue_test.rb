@@ -40,4 +40,18 @@ class SolidQueueTest < ActiveSupport::TestCase
     assert_not SolidQueue::RecurringTask.exists?(key: "dynamic", static: false)
     assert SolidQueue::RecurringTask.exists?(key: "static", static: true)
   end
+
+  test "schedule_task with duplicate key raises error" do
+    SolidQueue.schedule_task("duplicate_test", command: "puts 1", schedule: "every hour")
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      SolidQueue.schedule_task("duplicate_test", command: "puts 2", schedule: "every minute")
+    end
+  end
+
+  test "unschedule_task with nonexistent key raises RecordNotFound" do
+    assert_raises(ActiveRecord::RecordNotFound) do
+      SolidQueue.unschedule_task("nonexistent_key")
+    end
+  end
 end

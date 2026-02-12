@@ -143,6 +143,9 @@ module SolidQueue
       def schedulers
         return [] if skip_recurring_tasks?
 
+        # Always start a scheduler (even with no static recurring tasks) to support
+        # dynamic tasks that may be added at runtime via SolidQueue.schedule_task.
+        # Use skip_recurring: true or SOLID_QUEUE_SKIP_RECURRING=true to disable.
         [ Process.new(:scheduler, { recurring_tasks:, **scheduler_options.with_defaults(SCHEDULER_DEFAULTS) }) ]
       end
 
