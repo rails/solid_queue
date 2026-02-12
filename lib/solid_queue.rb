@@ -44,8 +44,11 @@ module SolidQueue
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
 
-  def create_recurring_task(key, **attributes)
-    RecurringTask.create!(**attributes, key:, static: false)
+  def create_recurring_task(key, **options)
+    RecurringTask.from_configuration(key, **options).tap do |task|
+      task.static = false
+      task.save!
+    end
   end
 
   def destroy_recurring_task(key)

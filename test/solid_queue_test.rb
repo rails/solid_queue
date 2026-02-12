@@ -13,6 +13,15 @@ class SolidQueueTest < ActiveSupport::TestCase
     assert SolidQueue::RecurringTask.exists?(key: "test 2", command: "puts 2", schedule: "every minute", static: false)
   end
 
+  test "creates recurring tasks with class and args (same keys as YAML config)" do
+    SolidQueue.create_recurring_task("test 3", class: "AddToBufferJob", args: [ 42 ], schedule: "every hour")
+
+    task = SolidQueue::RecurringTask.find_by!(key: "test 3")
+    assert_equal "AddToBufferJob", task.class_name
+    assert_equal [ 42 ], task.arguments
+    assert_equal false, task.static
+  end
+
   test "destroys recurring tasks" do
     dynamic_task = SolidQueue::RecurringTask.create!(
       key: "dynamic", command: "puts 'd'", schedule: "every day", static: false

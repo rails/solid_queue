@@ -753,12 +753,13 @@ You can create and delete recurring tasks at runtime, without editing the config
 ```ruby
 SolidQueue.create_recurring_task(
   "my_dynamic_task",
-  command: "puts 'Hello from a dynamic task!'",
+  class: "MyJob",
+  args: [1, 2],
   schedule: "every 10 minutes"
 )
 ```
 
-This will create a dynamic recurring task with the given key, command, and schedule. You can also use the `class` and `args` options as in the configuration file.
+This will create a dynamic recurring task with the given key, class, and schedule. The API accepts the same options as the YAML configuration: `class`, `args`, `command`, `schedule`, `queue`, `priority`, and `description`.
 
 #### Deleting a recurring task
 
@@ -774,9 +775,9 @@ This will delete a dynamically scheduled recurring task by its key. If you attem
 
 ```ruby
 # Create a new dynamic recurring task
-recurring_task = SolidQueue.create_recurring_task(
+SolidQueue.create_recurring_task(
   "cleanup_temp_files",
-  command: "TempFileCleaner.clean!",
+  class: "TempFileCleanerJob",
   schedule: "every day at 2am"
 )
 
