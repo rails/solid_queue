@@ -73,6 +73,22 @@ class SchedulerTest < ActiveSupport::TestCase
     end
   end
 
+  test "dynamic task actually enqueues jobs" do
+    SolidQueue::RecurringTask.create!(
+      key: "dynamic_enqueue_task", static: false, class_name: "AddToBufferJob", schedule: "every second", arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+    sleep 2
+
+    assert SolidQueue::Job.count >= 1, "Expected at least one job to be enqueued by the dynamic task"
+    assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count
+  ensure
+    scheduler&.stop
+  end
+
   test "updates metadata after adding dynamic task post-start" do
     scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, polling_interval: 0.1).tap(&:start)
 
