@@ -8,4 +8,9 @@ namespace :solid_queue do
   task start: :environment do
     SolidQueue::Supervisor.start
   end
+
+  desc "Validates the recurring jobs config"
+  task validate_recurring_config: :environment do
+    SolidQueue::Configuration.new.validate_recurring_config
+  end
 end

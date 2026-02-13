@@ -69,6 +69,21 @@ module SolidQueue
       mode.fork? || @options[:standalone]
     end
 
+    def validate_recurring_config
+      valid = true
+      load_config_from(options[:recurring_schedule_file]).each do |env, tasks|
+        tasks.each do |id, options|
+          if options&.has_key?(:schedule) && RecurringTask.from_configuration(id, **options).invalid?
+            STDERR.puts "Invalid recurring task #{id} in #{env}: #{options[:schedule]}"
+            valid = false
+          end
+        end
+      end
+
+      puts "All recurring tasks are valid" if valid
+      valid
+    end
+
     private
       attr_reader :options
 
