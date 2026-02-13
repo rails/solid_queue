@@ -40,7 +40,7 @@ module SolidQueue
       end
 
       def wait
-        if semaphore = Semaphore.find_by(key: key)
+        if semaphore = Semaphore.lock.find_by(key: key)
           semaphore.value > 0 && attempt_decrement
         else
           attempt_creation
