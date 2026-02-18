@@ -142,25 +142,25 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
 
     # Empty schedule
     assert_not SolidQueue::RecurringTask.new(key: "task-id", class_name: "SolidQueue::RecurringTaskTest::JobWithoutArguments").valid?
-  end
 
-  test "schedules with multiple cron detection" do
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 00:40")
     assert task.valid?
     assert task.to_s.ends_with? "[ 40 0 * * * ]"
 
+    task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "40 0 * * *")
+    assert task.valid?
+
+    # Single cron to represent both hours, as it's the same minute
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 00:40 and 15:40")
     assert task.valid?
     assert task.to_s.ends_with? "[ 40 0,15 * * * ]"
 
+    # Would need two cron tabs to reprenset the different hours and minutes
     task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 00:40 and 15:20")
     assert_not task.valid?
     error_message = task.errors[:schedule].first
     assert_includes error_message, "generates multiple cron schedules"
     assert_includes error_message, "Please use separate recurring tasks"
-
-    task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "40 0 * * *")
-    assert task.valid?
   end
 
   test "valid and invalid job class and command" do

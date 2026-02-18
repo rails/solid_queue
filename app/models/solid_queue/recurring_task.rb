@@ -6,9 +6,9 @@ module SolidQueue
   class RecurringTask < Record
     serialize :arguments, coder: Arguments, default: []
 
-    validate :supported_schedule
+    validate :ensure_schedule_supported
     validate :ensure_command_or_class_present
-    validate :existing_job_class
+    validate :ensure_existing_job_class
 
     scope :static, -> { where(static: true) }
 
@@ -102,13 +102,19 @@ module SolidQueue
     end
 
     private
-      def supported_schedule
-        if parsed_schedule == :multiple_crons_detected
-          errors.add :schedule, :multiple_crons,
-            message: "generates multiple cron schedules. Please use separate recurring tasks for each schedule, or use explicit cron syntax (e.g., '40 0,15 * * *' for multiple times with the same minutes)"
-        elsif !parsed_schedule.instance_of?(Fugit::Cron)
+      def ensure_schedule_supported
+        unless parsed_schedule.instance_of?(Fugit::Cron)
           errors.add :schedule, :unsupported, message: "is not a supported recurring schedule"
         end
+      rescue ArgumentError => error
+        message = if error.message.include?("multiple crons")
+          "generates multiple cron schedules. Please use separate recurring tasks for each schedule, " +
+          "or use explicit cron syntax (e.g., '40 0,15 * * *' for multiple times with the same minutes)"
+        else
+          error.message
+        end
+
+        errors.add :schedule, :unsupported, message: message
       end
 
       def ensure_command_or_class_present
@@ -117,7 +123,7 @@ module SolidQueue
         end
       end
 
-      def existing_job_class
+      def ensure_existing_job_class
         if class_name.present? && job_class.nil?
           errors.add :class_name, :undefined, message: "doesn't correspond to an existing class"
         end
@@ -155,15 +161,7 @@ module SolidQueue
 
 
       def parsed_schedule
-        @parsed_schedule ||= begin
-          Fugit::Nat.parse(schedule, multi: :fail) || Fugit.parse(schedule)
-        rescue ArgumentError => e
-          if e.message.include?("multiple crons")
-            :multiple_crons_detected
-          else
-            raise
-          end
-        end
+        @parsed_schedule ||= Fugit.parse(schedule, multi: :fail)
       end
 
       def job_class
