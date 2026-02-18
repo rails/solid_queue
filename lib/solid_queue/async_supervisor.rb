@@ -19,17 +19,19 @@ module SolidQueue
 
       def check_and_replace_terminated_processes
         terminated_threads = process_instances.select { |thread_id, instance| !instance.alive? }
-        terminated_threads.each { |thread_id, instance| replace_thread(thread_id, instance) }
+        terminated_threads.each { |thread_id, _| replace_thread(thread_id) }
       end
 
-      def replace_thread(thread_id, instance)
+      def replace_thread(thread_id)
         SolidQueue.instrument(:replace_thread, supervisor_pid: ::Process.pid) do |payload|
-          payload[:thread] = instance
+          if (instance = process_instances.delete(thread_id))
+            payload[:thread] = instance
 
-          error = Processes::ThreadTerminatedError.new(instance.name)
-          release_claimed_jobs_by(instance, with_error: error)
+            error = Processes::ThreadTerminatedError.new(instance.name)
+            release_claimed_jobs_by(instance, with_error: error)
 
-          start_process(configured_processes.delete(thread_id))
+            start_process(configured_processes.delete(thread_id))
+          end
         end
       end
 
