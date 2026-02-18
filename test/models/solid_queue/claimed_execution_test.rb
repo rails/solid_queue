@@ -73,6 +73,23 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.failed?
   end
 
+  test "fail with error when a failed execution already exists updates the existing one" do
+    claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
+    job = claimed_execution.job
+
+    # Simulate corrupted state: a failed execution already exists for this job
+    SolidQueue::FailedExecution.create!(job_id: job.id, exception: RuntimeError.new("old error"))
+
+    assert_no_difference -> { SolidQueue::FailedExecution.count } do
+      assert_difference -> { SolidQueue::ClaimedExecution.count }, -1 do
+        claimed_execution.failed_with(RuntimeError.new("new error"))
+      end
+    end
+
+    assert job.reload.failed?
+    assert_equal "new error", job.failed_execution.message
+  end
+
   test "provider_job_id is available within job execution" do
     job = ProviderJobIdJob.perform_later
     claimed_execution = prepare_and_claim_job job
