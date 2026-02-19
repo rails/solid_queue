@@ -5,7 +5,7 @@ module SolidQueue
     include Processes::Runnable
     include LifecycleHooks
 
-    attr_reader :recurring_schedule
+    attr_reader :recurring_schedule, :polling_interval
 
     after_boot :run_start_hooks
     after_boot :schedule_recurring_tasks
@@ -15,6 +15,8 @@ module SolidQueue
 
     def initialize(recurring_tasks:, **options)
       @recurring_schedule = RecurringSchedule.new(recurring_tasks)
+      options = options.dup.with_defaults(SolidQueue::Configuration::SCHEDULER_DEFAULTS)
+      @polling_interval = options[:polling_interval]
 
       super(**options)
     end
@@ -24,13 +26,18 @@ module SolidQueue
     end
 
     private
-      SLEEP_INTERVAL = 60 # Right now it doesn't matter, can be set to 1 in the future for dynamic tasks
-
       def run
         loop do
           break if shutting_down?
 
-          interruptible_sleep(SLEEP_INTERVAL)
+          recurring_schedule.reload!
+
+          if recurring_schedule.changed?
+            refresh_registered_process
+            recurring_schedule.clear_changes
+          end
+
+          interruptible_sleep(polling_interval)
         end
       ensure
         SolidQueue.instrument(:shutdown_process, process: self) do

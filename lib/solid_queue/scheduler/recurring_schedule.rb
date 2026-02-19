@@ -4,21 +4,26 @@ module SolidQueue
   class Scheduler::RecurringSchedule
     include AppExecutor
 
-    attr_reader :configured_tasks, :scheduled_tasks
+    attr_reader :scheduled_tasks
 
     def initialize(tasks)
-      @configured_tasks = Array(tasks).map { |task| SolidQueue::RecurringTask.wrap(task) }.select(&:valid?)
+      @static_tasks = Array(tasks).map { |task| SolidQueue::RecurringTask.wrap(task) }.select(&:valid?)
       @scheduled_tasks = Concurrent::Hash.new
+      @changes = Concurrent::Hash.new
+    end
+
+    def configured_tasks
+      static_tasks + dynamic_tasks.to_a
     end
 
     def empty?
-      configured_tasks.empty?
+      scheduled_tasks.empty? && dynamic_tasks.none?
     end
 
     def schedule_tasks
       wrap_in_app_executor do
-        persist_tasks
-        reload_tasks
+        persist_static_tasks
+        reload_static_tasks
       end
 
       configured_tasks.each do |task|
@@ -36,17 +41,61 @@ module SolidQueue
     end
 
     def task_keys
-      configured_tasks.map(&:key)
+      static_task_keys + dynamic_tasks.pluck(:key)
+    end
+
+    def reload!
+      wrap_in_app_executor do
+        { added_tasks: schedule_new_dynamic_tasks,
+          removed_tasks: unschedule_old_dynamic_tasks }.each do |key, values|
+          if values.any?
+            @changes[key] = values
+          else
+            @changes.delete(key)
+          end
+        end
+      end
+    end
+
+    def changed?
+      @changes.any?
+    end
+
+    def clear_changes
+      @changes.clear
     end
 
     private
-      def persist_tasks
-        SolidQueue::RecurringTask.static.where.not(key: task_keys).delete_all
-        SolidQueue::RecurringTask.create_or_update_all configured_tasks
+      attr_reader :static_tasks
+
+      def dynamic_tasks
+        SolidQueue::RecurringTask.dynamic
       end
 
-      def reload_tasks
-        @configured_tasks = SolidQueue::RecurringTask.where(key: task_keys).to_a
+      def static_task_keys
+        static_tasks.map(&:key)
+      end
+
+      def schedule_new_dynamic_tasks
+        dynamic_tasks.where.not(key: scheduled_tasks.keys).each do |task|
+          schedule_task(task)
+        end
+      end
+
+      def unschedule_old_dynamic_tasks
+        (scheduled_tasks.keys - SolidQueue::RecurringTask.pluck(:key)).each do |key|
+          scheduled_tasks[key].cancel
+          scheduled_tasks.delete(key)
+        end
+      end
+
+      def persist_static_tasks
+        SolidQueue::RecurringTask.static.where.not(key: static_task_keys).delete_all
+        SolidQueue::RecurringTask.create_or_update_all static_tasks
+      end
+
+      def reload_static_tasks
+        @static_tasks = SolidQueue::RecurringTask.static.where(key: static_task_keys).to_a
       end
 
       def schedule(task)

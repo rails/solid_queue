@@ -4,4 +4,54 @@ class SolidQueueTest < ActiveSupport::TestCase
   test "it has a version number" do
     assert SolidQueue::VERSION
   end
+
+  test "schedules recurring tasks" do
+    SolidQueue.schedule_task("test 1", command: "puts 1", schedule: "every hour")
+    SolidQueue.schedule_task("test 2", command: "puts 2", schedule: "every minute", static: true)
+
+    assert SolidQueue::RecurringTask.exists?(key: "test 1", command: "puts 1", schedule: "every hour", static: false)
+    assert SolidQueue::RecurringTask.exists?(key: "test 2", command: "puts 2", schedule: "every minute", static: false)
+  end
+
+  test "schedules recurring tasks with class and args (same keys as YAML config)" do
+    SolidQueue.schedule_task("test 3", class: "AddToBufferJob", args: [ 42 ], schedule: "every hour")
+
+    task = SolidQueue::RecurringTask.find_by!(key: "test 3")
+    assert_equal "AddToBufferJob", task.class_name
+    assert_equal [ 42 ], task.arguments
+    assert_equal false, task.static
+  end
+
+  test "unschedules recurring tasks" do
+    dynamic_task = SolidQueue::RecurringTask.create!(
+      key: "dynamic", command: "puts 'd'", schedule: "every day", static: false
+    )
+
+    static_task = SolidQueue::RecurringTask.create!(
+      key: "static", command: "puts 's'", schedule: "every week", static: true
+    )
+
+    SolidQueue.unschedule_task(dynamic_task.key)
+
+    assert_raises(ActiveRecord::RecordNotFound) do
+      SolidQueue.unschedule_task(static_task.key)
+    end
+
+    assert_not SolidQueue::RecurringTask.exists?(key: "dynamic", static: false)
+    assert SolidQueue::RecurringTask.exists?(key: "static", static: true)
+  end
+
+  test "schedule_task with duplicate key raises error" do
+    SolidQueue.schedule_task("duplicate_test", command: "puts 1", schedule: "every hour")
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      SolidQueue.schedule_task("duplicate_test", command: "puts 2", schedule: "every minute")
+    end
+  end
+
+  test "unschedule_task with nonexistent key raises RecordNotFound" do
+    assert_raises(ActiveRecord::RecordNotFound) do
+      SolidQueue.unschedule_task("nonexistent_key")
+    end
+  end
 end

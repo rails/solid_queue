@@ -11,6 +11,7 @@ module SolidQueue
     validate :ensure_existing_job_class
 
     scope :static, -> { where(static: true) }
+    scope :dynamic, -> { where(static: false) }
 
     has_many :recurring_executions, foreign_key: :task_key, primary_key: :key
 

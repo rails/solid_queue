@@ -59,5 +59,9 @@ module SolidQueue::Processes
         self.process = nil
         wake_up
       end
+
+      def refresh_registered_process
+        wrap_in_app_executor { process&.update_columns(metadata: metadata.compact) }
+      end
   end
 end

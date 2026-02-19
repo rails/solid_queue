@@ -43,6 +43,18 @@ module SolidQueue
 
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
+
+  def schedule_task(key, **options)
+    RecurringTask.from_configuration(key, **options).tap do |task|
+      task.static = false
+      task.save!
+    end
+  end
+
+  def unschedule_task(key)
+    RecurringTask.dynamic.find_by!(key:).destroy
+  end
+
   [ Dispatcher, Scheduler, Worker ].each do |process|
     define_singleton_method(:"on_#{process.name.demodulize.downcase}_start") do |&block|
       process.on_start(&block)
