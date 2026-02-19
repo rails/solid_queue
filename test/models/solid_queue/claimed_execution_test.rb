@@ -86,8 +86,45 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
       end
     end
 
-    assert job.reload.failed?
     assert_equal "new error", job.failed_execution.message
+  end
+
+  test "perform job with missing class fails gracefully" do
+    job = create_job_with_missing_class
+    claimed_execution = claim_job(job)
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
+      assert_raises NameError do
+        claimed_execution.perform
+      end
+    end
+
+    assert job.reload.failed?
+  end
+
+  test "perform concurrency-controlled job with missing class fails gracefully" do
+    job = create_job_with_missing_class(concurrency_key: "test_key")
+    claimed_execution = claim_job(job)
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
+      assert_raises NameError do
+        claimed_execution.perform
+      end
+    end
+
+    assert job.reload.failed?
+  end
+
+  test "dispatch job with missing class and concurrency key skips concurrency controls" do
+    job = create_job_with_missing_class(concurrency_key: "test_key")
+
+    assert_not job.concurrency_limited?
+
+    job.prepare_for_execution
+
+    assert job.reload.ready?
+    assert_equal 0, SolidQueue::BlockedExecution.where(job_id: job.id).count
+    assert_equal 0, SolidQueue::Semaphore.where(key: "test_key").count
   end
 
   test "provider_job_id is available within job execution" do
@@ -101,8 +138,22 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   private
     def prepare_and_claim_job(active_job, process: @process)
       job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
-
       job.prepare_for_execution
+      claim_job(job, process: process)
+    end
+
+    def create_job_with_missing_class(concurrency_key: nil)
+      SolidQueue::Job.create!(
+        queue_name: "background",
+        class_name: "RemovedJobClass",
+        active_job_id: SecureRandom.uuid,
+        arguments: { "job_class" => "RemovedJobClass", "arguments" => [] },
+        concurrency_key: concurrency_key,
+        scheduled_at: Time.current
+      )
+    end
+
+    def claim_job(job, process: @process)
       assert_difference -> { SolidQueue::ClaimedExecution.count } => +1 do
         SolidQueue::ReadyExecution.claim(job.queue_name, 1, process.id)
       end
