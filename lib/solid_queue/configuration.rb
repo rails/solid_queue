@@ -169,7 +169,15 @@ module SolidQueue
 
       def recurring_tasks_config
         @recurring_tasks_config ||= begin
-          config_from options[:recurring_schedule_file]
+            if options.key?(:recurring_schedule_config_pattern)
+          matching_configurations = Dir.glob(Rails.root.join(options[:recurring_schedule_config_pattern]))
+            matching_configurations
+               .each_with_object({}) do |config_file, recurring_configuration|
+                recurring_configuration.merge!(config_from config_file)
+              end
+            else
+              config_from options[:recurring_schedule_file]
+            end
         end
       end
 

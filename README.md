@@ -669,6 +669,8 @@ Solid Queue supports defining recurring tasks that run at specific times in the 
 bin/jobs --recurring_schedule_file=config/schedule.yml
 ```
 
+It's also possible to define recurring tasks in several configuration files, for that specify a pattern of recurring tasks via `SolidQueue.recurring_config_file_pattern`.
+
 You can completely disable recurring tasks by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true` or by using the `--skip-recurring` option with `bin/jobs`.
 
 The configuration itself looks like this:

@@ -1,0 +1,5 @@
+periodic_store_result_a:
+  class: StoreResultJob
+  queue: default
+  args: [ 42, { status: "custom_status" } ]
+  schedule: every second
