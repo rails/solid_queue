@@ -28,6 +28,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Performance considerations](#performance-considerations)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
+- [Batch jobs](#batch-jobs)
 - [Puma plugin](#puma-plugin)
 - [Jobs and transactional integrity](#jobs-and-transactional-integrity)
 - [Recurring tasks](#recurring-tasks)
@@ -597,6 +598,66 @@ class ApplicationMailer < ActionMailer::Base
     Rails.error.report(exception)
     raise exception
   end
+```
+
+## Batch jobs
+
+SolidQueue offers support for batching jobs. This allows you to track progress of a set of jobs,
+and optionally trigger callbacks based on their status. It supports the following:
+
+- Relating jobs to a batch, to track their status
+- Three available callbacks to fire:
+  - `on_finish`: Fired when all jobs have finished, including retries. Fires even when some jobs have failed.
+  - `on_success`: Fired when all jobs have succeeded, including retries. Will not fire if any jobs have failed, but will fire if jobs have been discarded using `discard_on`
+  - `on_failure`: Fired when all jobs have finished, including retries. Will only fire if one or more jobs have failed.
+- If a job is part of a batch, it can enqueue more jobs for that batch using `batch#enqueue`
+- Attaching arbitrary metadata to a batch
+
+```rb
+class SleepyJob < ApplicationJob
+  def perform(seconds_to_sleep)
+    Rails.logger.info "Feeling #{seconds_to_sleep} seconds sleepy..."
+    sleep seconds_to_sleep
+  end
+end
+
+class BatchFinishJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "Good job finishing all jobs"
+  end
+end
+
+class BatchSuccessJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "Good job finishing all jobs, and all of them worked!"
+  end
+end
+
+class BatchFailureJob < ApplicationJob
+  def perform(batch) # batch is always the default first argument
+    Rails.logger.info "At least one job failed, sorry!"
+  end
+end
+
+SolidQueue::Batch.enqueue(
+  on_finish: BatchFinishJob,
+  on_success: BatchSuccessJob,
+  on_failure: BatchFailureJob,
+  user_id: 123
+) do
+  5.times.map { |i| SleepyJob.perform_later(i) }
+end
+```
+
+### Batch options
+
+In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued.
+
+By default, this jobs run on the `default` queue. You can specify an alternative queue for it in an initializer:
+
+```rb
+Rails.application.config.after_initialize do # or to_prepare
+  SolidQueue::Batch::EmptyJob.queue_as "my_batch_queue"
 end
 ```
 

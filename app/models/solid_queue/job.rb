@@ -4,7 +4,7 @@ module SolidQueue
   class Job < Record
     class EnqueueError < StandardError; end
 
-    include Executable, Clearable, Recurrable
+    include Executable, Clearable, Recurrable, Batchable
 
     serialize :arguments, coder: JSON
 
@@ -62,7 +62,8 @@ module SolidQueue
             scheduled_at: active_job.scheduled_at,
             class_name: active_job.class.name,
             arguments: active_job.serialize,
-            concurrency_key: active_job.concurrency_key
+            concurrency_key: active_job.concurrency_key,
+            batch_id: active_job.batch_id
           }
         end
     end
