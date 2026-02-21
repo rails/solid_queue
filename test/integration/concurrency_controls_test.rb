@@ -162,6 +162,49 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     assert_stored_sequence @result, ("A".."K").to_a
   end
 
+  test "don't unblock jobs when semaphore expires but job is still executing" do
+    # This tests a race condition where a job runs longer than concurrency_duration,
+    # causing the semaphore to expire while the job is still running. Without the fix,
+    # blocked jobs would be released, causing duplicate concurrent executions.
+
+    # Start a long-running job
+    NonOverlappingUpdateResultJob.perform_later(@result, name: "A", pause: 3.seconds)
+
+    # Wait for it to be claimed
+    wait_while_with_timeout(2.seconds) { SolidQueue::ClaimedExecution.count == 0 }
+    first_job = SolidQueue::Job.last
+    assert first_job.claimed?, "First job should be claimed"
+
+    # Enqueue more jobs with the same concurrency key - they'll be blocked
+    assert_difference -> { SolidQueue::BlockedExecution.count }, +3 do
+      ("B".."D").each do |name|
+        NonOverlappingUpdateResultJob.perform_later(@result, name: name)
+      end
+    end
+
+    # Simulate the semaphore and blocked executions expiring while job A is still running
+    skip_active_record_query_cache do
+      SolidQueue::Semaphore.where(key: first_job.concurrency_key).update_all(expires_at: 15.minutes.ago)
+      SolidQueue::BlockedExecution.update_all(expires_at: 15.minutes.ago)
+    end
+
+    # Give the dispatcher time to run concurrency maintenance
+    sleep(1.5)
+
+    # The blocked jobs should NOT have been released because job A is still executing
+    skip_active_record_query_cache do
+      assert first_job.reload.claimed?, "First job should still be claimed"
+      assert_equal 3, SolidQueue::BlockedExecution.count, "Blocked jobs should not be released while job is executing"
+    end
+
+    # Now wait for everything to complete normally
+    wait_for_jobs_to_finish_for(10.seconds)
+    assert_no_unfinished_jobs
+
+    # All jobs should have executed in sequence
+    assert_stored_sequence @result, ("A".."D").to_a
+  end
+
   test "don't block claimed executions that get released" do
     NonOverlappingUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
