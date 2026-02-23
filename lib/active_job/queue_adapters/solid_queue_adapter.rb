@@ -16,16 +16,25 @@ module ActiveJob
       end
 
       def enqueue(active_job) # :nodoc:
-        SolidQueue::Job.enqueue(active_job)
+        silence_queries { SolidQueue::Job.enqueue(active_job) }
       end
 
       def enqueue_at(active_job, timestamp) # :nodoc:
-        SolidQueue::Job.enqueue(active_job, scheduled_at: Time.at(timestamp))
+        silence_queries { SolidQueue::Job.enqueue(active_job, scheduled_at: Time.at(timestamp)) }
       end
 
       def enqueue_all(active_jobs) # :nodoc:
-        SolidQueue::Job.enqueue_all(active_jobs)
+        silence_queries { SolidQueue::Job.enqueue_all(active_jobs) }
       end
+
+      private
+        def silence_queries(&block)
+          if SolidQueue.silence_queries? && ActiveRecord::Base.logger
+            ActiveRecord::Base.logger.silence(&block)
+          else
+            yield
+          end
+        end
     end
   end
 end

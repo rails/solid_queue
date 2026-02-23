@@ -40,9 +40,5 @@ module SolidQueue::Processes
       def poll
         raise NotImplementedError
       end
-
-      def with_polling_volume(&block)
-        SolidQueue.instrument(:polling, &block)
-      end
   end
 end
