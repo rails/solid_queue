@@ -2,11 +2,16 @@
 
 module SolidQueue
   module AppExecutor
-    def wrap_in_app_executor(&block)
+    def wrap_in_app_executor(silence: true, &block)
+      if silence && SolidQueue.silence_queries? && ActiveRecord::Base.logger
+        original = block
+        block = proc { ActiveRecord::Base.logger.silence(&original) }
+      end
+
       if SolidQueue.app_executor
         SolidQueue.app_executor.wrap(source: "application.solid_queue", &block)
       else
-        yield
+        block.call
       end
     end
 

@@ -36,7 +36,7 @@ class DispatcherTest < ActiveSupport::TestCase
     no_concurrency_maintenance_dispatcher.stop
   end
 
-  test "polling queries are logged" do
+  test "internal queries are logged" do
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: false) do
@@ -49,7 +49,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
   end
 
-  test "polling queries can be silenced" do
+  test "internal queries can be silenced" do
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: true) do
@@ -62,7 +62,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_no_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
   end
 
-  test "silencing polling queries when there's no Active Record logger" do
+  test "silencing internal queries when there's no Active Record logger" do
     with_active_record_logger(nil) do
       with_polling(silence: true) do
         @dispatcher.start
@@ -132,10 +132,10 @@ class DispatcherTest < ActiveSupport::TestCase
 
   private
     def with_polling(silence:)
-      old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
+      old_silence_queries, SolidQueue.silence_queries = SolidQueue.silence_queries, silence
       yield
     ensure
-      SolidQueue.silence_polling = old_silence_polling
+      SolidQueue.silence_queries = old_silence_queries
     end
 
     def with_active_record_logger(logger)

@@ -32,7 +32,7 @@ module SolidQueue
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
 
-  mattr_accessor :silence_polling, default: true
+  mattr_accessor :silence_queries, default: true
 
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
@@ -61,12 +61,31 @@ module SolidQueue
     supervisor
   end
 
+  def silence_queries?
+    silence_queries
+  end
+
+  def silence_polling=(value)
+    SolidQueue.deprecator.warn("use silence_queries instead of silence_polling")
+    self.silence_queries = value
+  end
+
+  def silence_polling
+    SolidQueue.deprecator.warn("use silence_queries instead of silence_polling")
+    silence_queries
+  end
+
   def silence_polling?
-    silence_polling
+    SolidQueue.deprecator.warn("use silence_queries? instead of silence_polling?")
+    silence_queries?
   end
 
   def preserve_finished_jobs?
     preserve_finished_jobs
+  end
+
+  def deprecator
+    @deprecator ||= ActiveSupport::Deprecation.new(next_major_version, "SolidQueue")
   end
 
   def instrument(channel, **options, &block)
