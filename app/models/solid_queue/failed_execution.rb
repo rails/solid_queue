@@ -6,7 +6,7 @@ module SolidQueue
 
     serialize :error, coder: JSON
 
-    before_create :expand_error_details_from_exception
+    before_save :expand_error_details_from_exception, if: :exception
 
     attr_accessor :exception
 

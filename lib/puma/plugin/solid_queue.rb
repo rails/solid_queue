@@ -82,9 +82,11 @@ Puma::Plugin.create do
     end
 
     def stop_solid_queue_fork
+      return unless solid_queue_pid
+
       Process.waitpid(solid_queue_pid, Process::WNOHANG)
       log "Stopping Solid Queue..."
-      Process.kill(:INT, solid_queue_pid) if solid_queue_pid
+      Process.kill(:INT, solid_queue_pid)
       Process.wait(solid_queue_pid)
     rescue Errno::ECHILD, Errno::ESRCH
     end
