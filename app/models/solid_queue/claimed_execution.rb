@@ -89,14 +89,16 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   def failed_with(error)
-    transaction do
-      job.failed_with(error)
-      destroy!
+    silencing_sql_logs do
+      transaction do
+        job.failed_with(error)
+        destroy!
+      end
     end
   end
 
   def unblock_next_job
-    job.unblock_next_blocked_job
+    silencing_sql_logs { job.unblock_next_blocked_job }
   end
 
   private
@@ -108,9 +110,11 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
 
     def finished
-      transaction do
-        job.finished!
-        destroy!
+      silencing_sql_logs do
+        transaction do
+          job.finished!
+          destroy!
+        end
       end
     end
 end

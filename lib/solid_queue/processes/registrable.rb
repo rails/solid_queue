@@ -19,18 +19,22 @@ module SolidQueue::Processes
 
       def register
         wrap_in_app_executor do
-          @process = SolidQueue::Process.register \
-            kind: kind,
-            name: name,
-            pid: pid,
-            hostname: hostname,
-            supervisor: try(:supervisor),
-            metadata: metadata.compact
+          silencing_sql_logs do
+            @process = SolidQueue::Process.register \
+              kind: kind,
+              name: name,
+              pid: pid,
+              hostname: hostname,
+              supervisor: try(:supervisor),
+              metadata: metadata.compact
+          end
         end
       end
 
       def deregister
-        wrap_in_app_executor { process&.deregister }
+        wrap_in_app_executor do
+          silencing_sql_logs { process&.deregister }
+        end
       end
 
       def registered?
@@ -54,7 +58,7 @@ module SolidQueue::Processes
       end
 
       def heartbeat
-        process&.heartbeat
+        silencing_sql_logs { process&.heartbeat }
       rescue ActiveRecord::RecordNotFound
         self.process = nil
         wake_up

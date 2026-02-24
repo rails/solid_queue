@@ -25,9 +25,7 @@ module SolidQueue::Processes
         loop do
           break if shutting_down?
 
-          delay = wrap_in_app_executor do
-            poll
-          end
+          delay = wrap_in_app_executor { poll }
 
           interruptible_sleep(delay)
         end

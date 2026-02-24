@@ -38,7 +38,9 @@ module SolidQueue
 
       def claim_executions
         SolidQueue.instrument(:polling) do
-          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process_id)
+          silencing_sql_logs do
+            SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process_id)
+          end
         end
       end
 
@@ -50,7 +52,9 @@ module SolidQueue
       end
 
       def all_work_completed?
-        SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
+        silencing_sql_logs do
+          SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
+        end
       end
 
       def set_procline

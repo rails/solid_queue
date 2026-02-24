@@ -32,7 +32,7 @@ module SolidQueue
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
 
-  mattr_accessor :silence_queries, default: true
+  mattr_accessor :silence_sql_logs, default: true
 
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
@@ -61,23 +61,31 @@ module SolidQueue
     supervisor
   end
 
-  def silence_queries?
-    silence_queries
+  def silencing_sql_logs(&block)
+    if silence_sql_logs? && ActiveRecord::Base.logger
+      ActiveRecord::Base.logger.silence(&block)
+    else
+      yield
+    end
+  end
+
+  def silence_sql_logs?
+    silence_sql_logs
   end
 
   def silence_polling=(value)
-    SolidQueue.deprecator.warn("use silence_queries instead of silence_polling")
-    self.silence_queries = value
+    SolidQueue.deprecator.warn("use silence_sql_logs instead of silence_polling")
+    self.silence_sql_logs = value
   end
 
   def silence_polling
-    SolidQueue.deprecator.warn("use silence_queries instead of silence_polling")
-    silence_queries
+    SolidQueue.deprecator.warn("use silence_sql_logs instead of silence_polling")
+    silence_sql_logs
   end
 
   def silence_polling?
-    SolidQueue.deprecator.warn("use silence_queries? instead of silence_polling?")
-    silence_queries?
+    SolidQueue.deprecator.warn("use silence_sql_logs? instead of silence_polling?")
+    silence_sql_logs?
   end
 
   def preserve_finished_jobs?

@@ -13,8 +13,12 @@ module SolidQueue
 
     def start
       @concurrency_maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: interval) do
-        expire_semaphores
-        unblock_blocked_executions
+        wrap_in_app_executor do
+          silencing_sql_logs do
+            expire_semaphores
+            unblock_blocked_executions
+          end
+        end
       end
 
       @concurrency_maintenance_task.add_observer do |_, _, error|
@@ -30,15 +34,11 @@ module SolidQueue
 
     private
       def expire_semaphores
-        wrap_in_app_executor do
-          Semaphore.expired.in_batches(of: batch_size, &:delete_all)
-        end
+        Semaphore.expired.in_batches(of: batch_size, &:delete_all)
       end
 
       def unblock_blocked_executions
-        wrap_in_app_executor do
-          BlockedExecution.unblock(batch_size)
-        end
+        BlockedExecution.unblock(batch_size)
       end
   end
 end

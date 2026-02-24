@@ -17,8 +17,10 @@ module SolidQueue
 
     def schedule_tasks
       wrap_in_app_executor do
-        persist_tasks
-        reload_tasks
+        silencing_sql_logs do
+          persist_tasks
+          reload_tasks
+        end
       end
 
       configured_tasks.each do |task|
@@ -54,7 +56,7 @@ module SolidQueue
           thread_schedule.schedule_task(thread_task)
 
           wrap_in_app_executor do
-            thread_task.enqueue(at: thread_task_run_at)
+            silencing_sql_logs { thread_task.enqueue(at: thread_task_run_at) }
           end
         end
 

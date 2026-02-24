@@ -24,12 +24,16 @@ module SolidQueue
       end
 
       def prune_dead_processes
-        wrap_in_app_executor { SolidQueue::Process.prune(excluding: process) }
+        wrap_in_app_executor do
+          silencing_sql_logs { SolidQueue::Process.prune(excluding: process) }
+        end
       end
 
       def fail_orphaned_executions
         wrap_in_app_executor do
-          ClaimedExecution.orphaned.fail_all_with(Processes::ProcessMissingError.new)
+          silencing_sql_logs do
+            ClaimedExecution.orphaned.fail_all_with(Processes::ProcessMissingError.new)
+          end
         end
       end
 
@@ -38,8 +42,10 @@ module SolidQueue
       # by some other worker.
       def release_claimed_jobs_by(terminated_process, with_error:)
         wrap_in_app_executor do
-          if registered_process = SolidQueue::Process.find_by(name: terminated_process.name)
-            registered_process.fail_all_claimed_executions_with(with_error)
+          silencing_sql_logs do
+            if registered_process = SolidQueue::Process.find_by(name: terminated_process.name)
+              registered_process.fail_all_claimed_executions_with(with_error)
+            end
           end
         end
       end

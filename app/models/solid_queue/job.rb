@@ -13,12 +13,14 @@ module SolidQueue
         active_jobs.each { |job| job.scheduled_at ||= Time.current }
         active_jobs_by_job_id = active_jobs.index_by(&:job_id)
 
-        transaction do
-          jobs = create_all_from_active_jobs(active_jobs)
-          prepare_all_for_execution(jobs).tap do |enqueued_jobs|
-            enqueued_jobs.each do |enqueued_job|
-              active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
-              active_jobs_by_job_id[enqueued_job.active_job_id].successfully_enqueued = true
+        silencing_sql_logs do
+          transaction do
+            jobs = create_all_from_active_jobs(active_jobs)
+            prepare_all_for_execution(jobs).tap do |enqueued_jobs|
+              enqueued_jobs.each do |enqueued_job|
+                active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
+                active_jobs_by_job_id[enqueued_job.active_job_id].successfully_enqueued = true
+              end
             end
           end
         end
@@ -29,9 +31,11 @@ module SolidQueue
       def enqueue(active_job, scheduled_at: Time.current)
         active_job.scheduled_at = scheduled_at
 
-        create_from_active_job(active_job).tap do |enqueued_job|
-          active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
-          active_job.successfully_enqueued = enqueued_job.persisted?
+        silencing_sql_logs do
+          create_from_active_job(active_job).tap do |enqueued_job|
+            active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
+            active_job.successfully_enqueued = enqueued_job.persisted?
+          end
         end
       end
 

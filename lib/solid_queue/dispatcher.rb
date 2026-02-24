@@ -37,7 +37,9 @@ module SolidQueue
 
       def dispatch_next_batch
         SolidQueue.instrument(:polling) do
-          ScheduledExecution.dispatch_next_batch(batch_size)
+          silencing_sql_logs do
+            ScheduledExecution.dispatch_next_batch(batch_size)
+          end
         end
       end
 
@@ -50,7 +52,9 @@ module SolidQueue
       end
 
       def all_work_completed?
-        SolidQueue::ScheduledExecution.none?
+        silencing_sql_logs do
+          SolidQueue::ScheduledExecution.none?
+        end
       end
 
       def set_procline

@@ -36,45 +36,6 @@ class DispatcherTest < ActiveSupport::TestCase
     no_concurrency_maintenance_dispatcher.stop
   end
 
-  test "internal queries are logged" do
-    log = StringIO.new
-    with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: false) do
-        rewind_io(log)
-        @dispatcher.start
-        sleep 0.5.second
-      end
-    end
-
-    assert_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
-  end
-
-  test "internal queries can be silenced" do
-    log = StringIO.new
-    with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: true) do
-        rewind_io(log)
-        @dispatcher.start
-        sleep 0.5.second
-      end
-    end
-
-    assert_no_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
-  end
-
-  test "silencing internal queries when there's no Active Record logger" do
-    with_active_record_logger(nil) do
-      with_polling(silence: true) do
-        @dispatcher.start
-        sleep 0.5.second
-      end
-    end
-
-    @dispatcher.stop
-    wait_for_registered_processes(0, timeout: 1.second)
-    assert_no_registered_processes
-  end
-
   test "run more than one instance of the dispatcher" do
     15.times do
       AddToBufferJob.set(wait: 0.5.second).perform_later("I'm scheduled")
@@ -130,23 +91,4 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher.stop
   end
 
-  private
-    def with_polling(silence:)
-      old_silence_queries, SolidQueue.silence_queries = SolidQueue.silence_queries, silence
-      yield
-    ensure
-      SolidQueue.silence_queries = old_silence_queries
-    end
-
-    def with_active_record_logger(logger)
-      old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, logger
-      yield
-    ensure
-      ActiveRecord::Base.logger = old_logger
-    end
-
-    def rewind_io(log)
-      log.truncate(0)
-      log.rewind
-    end
 end

@@ -19,7 +19,7 @@ module SolidQueue
       available_threads.decrement
 
       Concurrent::Promises.future_on(executor, execution) do |thread_execution|
-        wrap_in_app_executor(silence: false) do
+        wrap_in_app_executor do
           thread_execution.perform
         ensure
           available_threads.increment

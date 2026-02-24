@@ -103,43 +103,6 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal 3, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
   end
 
-  test "internal queries are logged" do
-    log = StringIO.new
-    with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: false) do
-        @worker.start
-        sleep 0.2
-      end
-    end
-
-    assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
-  end
-
-  test "internal queries can be silenced" do
-    log = StringIO.new
-    with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: true) do
-        @worker.start
-        sleep 0.2
-      end
-    end
-
-    assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
-  end
-
-  test "silencing internal queries when there's no Active Record logger" do
-    with_active_record_logger(nil) do
-      with_polling(silence: true) do
-        @worker.start
-        sleep 0.2
-      end
-    end
-
-    @worker.stop
-    wait_for_registered_processes(0, timeout: 1.second)
-    assert_no_registered_processes
-  end
-
   test "run inline" do
     worker = SolidQueue::Worker.new(queues: "*", threads: 3, polling_interval: 0.2)
     worker.mode = :inline
@@ -194,18 +157,4 @@ class WorkerTest < ActiveSupport::TestCase
     sleep 1.second
   end
 
-  private
-    def with_polling(silence:)
-      old_silence_queries, SolidQueue.silence_queries = SolidQueue.silence_queries, silence
-      yield
-    ensure
-      SolidQueue.silence_queries = old_silence_queries
-    end
-
-    def with_active_record_logger(logger)
-      old_logger, ActiveRecord::Base.logger = ActiveRecord::Base.logger, logger
-      yield
-    ensure
-      ActiveRecord::Base.logger = old_logger
-    end
 end

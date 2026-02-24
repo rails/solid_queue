@@ -27,6 +27,14 @@ module SolidQueue
       def use_index(*indexes)
         optimizer_hints "INDEX(#{quoted_table_name} #{indexes.join(', ')})"
       end
+
+      def silencing_sql_logs(&block)
+        SolidQueue.silencing_sql_logs(&block)
+      end
+    end
+
+    def silencing_sql_logs(&block)
+      self.class.silencing_sql_logs(&block)
     end
   end
 end

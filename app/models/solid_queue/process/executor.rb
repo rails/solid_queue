@@ -13,13 +13,13 @@ module SolidQueue
 
       def fail_all_claimed_executions_with(error)
         if claims_executions?
-          claimed_executions.fail_all_with(error)
+          silencing_sql_logs { claimed_executions.fail_all_with(error) }
         end
       end
 
       def release_all_claimed_executions
         if claims_executions?
-          claimed_executions.release_all
+          silencing_sql_logs { claimed_executions.release_all }
         end
       end
 
