@@ -17,6 +17,28 @@ class SchedulerTest < ActiveSupport::TestCase
     scheduler.stop
   end
 
+  test "single scheduler does not double-enqueue recurring tasks" do
+    recurring_tasks = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: recurring_tasks)
+    scheduler.start
+
+    wait_while_with_timeout(4.seconds) { SolidQueue::RecurringExecution.count < 3 }
+    scheduler.stop
+
+    skip_active_record_query_cache do
+      # Each run_at should appear exactly once — no duplicates
+      run_at_counts = SolidQueue::RecurringExecution.group(:run_at).count
+      duplicates = run_at_counts.select { |_, count| count > 1 }
+      assert_empty duplicates, "Expected no duplicate run_at values, but found: #{duplicates.inspect}"
+
+      # Number of jobs should match number of recurring executions (no extra jobs)
+      assert_equal SolidQueue::Job.count, SolidQueue::RecurringExecution.count,
+        "Expected one job per recurring execution, got #{SolidQueue::Job.count} jobs for #{SolidQueue::RecurringExecution.count} executions"
+    end
+  ensure
+    scheduler&.stop
+  end
+
   test "run more than one instance of the scheduler with recurring tasks" do
     recurring_tasks = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
     schedulers = 2.times.collect do

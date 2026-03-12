@@ -51,6 +51,10 @@ module SolidQueue
       [ (next_time - Time.current).to_f, 0.1 ].max
     end
 
+    def next_time_after(time)
+      parsed_schedule.next_time(time).utc
+    end
+
     def next_time
       parsed_schedule.next_time.utc
     end
