@@ -87,6 +87,24 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
   end
 
+  test "scheduler starts with dynamic_tasks_enabled even without static tasks" do
+    configuration = SolidQueue::Configuration.new(
+      recurring_schedule_file: config_file_path(:empty_configuration),
+      scheduler: { dynamic_tasks_enabled: true }
+    )
+
+    assert_processes configuration, :scheduler, 1, dynamic_tasks_enabled: true
+  end
+
+  test "no scheduler without static tasks or dynamic_tasks_enabled" do
+    configuration = SolidQueue::Configuration.new(
+      recurring_schedule_file: config_file_path(:empty_configuration),
+      scheduler: { dynamic_tasks_enabled: false }
+    )
+
+    assert_processes configuration, :scheduler, 0
+  end
+
   test "no recurring tasks configuration when explicitly excluded" do
     configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ], skip_recurring: true)
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1, recurring_tasks: nil

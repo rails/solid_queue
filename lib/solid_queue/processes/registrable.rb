@@ -59,5 +59,9 @@ module SolidQueue::Processes
         self.process = nil
         wake_up
       end
+
+      def reload_metadata
+        wrap_in_app_executor { process&.update(metadata: metadata.compact) }
+      end
   end
 end
