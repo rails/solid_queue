@@ -385,7 +385,7 @@ All the options available to Active Record for multiple databases can be used he
 
 ### Other configuration settings
 
-_Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
+_Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_queries = true`
 
 There are several settings that control how Solid Queue works that you can set as well:
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
@@ -402,7 +402,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `process_heartbeat_interval`: the heartbeat interval that all processes will follow—defaults to 60 seconds.
 - `process_alive_threshold`: how long to wait until a process is considered dead after its last heartbeat—defaults to 5 minutes.
 - `shutdown_timeout`: time the supervisor will wait since it sent the `TERM` signal to its supervised processes before sending a `QUIT` version to them requesting immediate termination—defaults to 5 seconds.
-- `silence_polling`: whether to silence Active Record logs emitted when polling for both workers and dispatchers—defaults to `true`.
+- `silence_queries`: whether to silence Active Record logs emitted by Solid Queue's internal queries—including polling, heartbeats, concurrency maintenance, and process pruning—defaults to `true`. For backward compatibility, `silence_polling` is still supported as an alias.
 - `supervisor_pidfile`: path to a pidfile that the supervisor will create when booting to prevent running more than one supervisor in the same host, or in case you want to use it for a health check. It's `nil` by default.
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.

@@ -48,9 +48,11 @@ module SolidQueue
 
     def reschedule_dynamic_tasks
       wrap_in_app_executor do
-        reload_dynamic_tasks
-        schedule_created_dynamic_tasks
-        unschedule_deleted_dynamic_tasks
+        with_silenced_queries do
+          reload_dynamic_tasks
+          schedule_created_dynamic_tasks
+          unschedule_deleted_dynamic_tasks
+        end
       end
     end
 

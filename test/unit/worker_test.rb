@@ -106,7 +106,7 @@ class WorkerTest < ActiveSupport::TestCase
   test "polling queries are logged" do
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: false) do
+      with_silence_queries(false) do
         @worker.start
         sleep 0.2
       end
@@ -118,7 +118,7 @@ class WorkerTest < ActiveSupport::TestCase
   test "polling queries can be silenced" do
     log = StringIO.new
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
-      with_polling(silence: true) do
+      with_silence_queries(true) do
         @worker.start
         sleep 0.2
       end
@@ -127,9 +127,9 @@ class WorkerTest < ActiveSupport::TestCase
     assert_no_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
   end
 
-  test "silencing polling queries when there's no Active Record logger" do
+  test "silencing queries when there's no Active Record logger" do
     with_active_record_logger(nil) do
-      with_polling(silence: true) do
+      with_silence_queries(true) do
         @worker.start
         sleep 0.2
       end
@@ -138,6 +138,54 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.stop
     wait_for_registered_processes(0, timeout: 1.second)
     assert_no_registered_processes
+  end
+
+  test "heartbeat queries can be silenced" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.2.second
+
+    log = StringIO.new
+    with_active_record_logger(ActiveSupport::Logger.new(log)) do
+      with_silence_queries(true) do
+        @worker.start
+        wait_for_registered_processes(1, timeout: 1.second)
+        sleep 0.5
+      end
+    end
+
+    assert_no_match /UPDATE .solid_queue_processes. SET .last_heartbeat_at./, log.string
+  ensure
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+  end
+
+  test "heartbeat queries are logged when silence_queries is false" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.2.second
+
+    log = StringIO.new
+    with_active_record_logger(ActiveSupport::Logger.new(log)) do
+      with_silence_queries(false) do
+        @worker.start
+        wait_for_registered_processes(1, timeout: 1.second)
+        sleep 0.5
+      end
+    end
+
+    assert_match /UPDATE .solid_queue_processes. SET .last_heartbeat_at./, log.string
+  ensure
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+  end
+
+  test "silence_polling is backward compatible with silence_queries" do
+    old_value = SolidQueue.silence_queries
+
+    SolidQueue.silence_polling = false
+    assert_not SolidQueue.silence_queries?
+    assert_not SolidQueue.silence_polling?
+
+    SolidQueue.silence_polling = true
+    assert SolidQueue.silence_queries?
+    assert SolidQueue.silence_polling?
+  ensure
+    SolidQueue.silence_queries = old_value
   end
 
   test "run inline" do
@@ -195,11 +243,11 @@ class WorkerTest < ActiveSupport::TestCase
   end
 
   private
-    def with_polling(silence:)
-      old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
+    def with_silence_queries(silence)
+      old_silence_queries, SolidQueue.silence_queries = SolidQueue.silence_queries, silence
       yield
     ensure
-      SolidQueue.silence_polling = old_silence_polling
+      SolidQueue.silence_queries = old_silence_queries
     end
 
     def with_active_record_logger(logger)

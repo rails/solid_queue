@@ -32,7 +32,7 @@ module SolidQueue
 
   mattr_accessor :shutdown_timeout, default: 5.seconds
 
-  mattr_accessor :silence_polling, default: true
+  mattr_accessor :silence_queries, default: true
 
   mattr_accessor :supervisor_pidfile
   mattr_accessor :supervisor, default: false
@@ -69,8 +69,21 @@ module SolidQueue
     supervisor
   end
 
+  def silence_queries?
+    silence_queries
+  end
+
+  # Backward compatibility: silence_polling is now an alias for silence_queries
+  def silence_polling=(value)
+    self.silence_queries = value
+  end
+
+  def silence_polling
+    silence_queries
+  end
+
   def silence_polling?
-    silence_polling
+    silence_queries?
   end
 
   def preserve_finished_jobs?
