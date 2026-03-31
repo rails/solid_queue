@@ -77,7 +77,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       transaction do
         if other_executions_holding_concurrency_lock?
           # Another job with same concurrency key is already running.
-          # Go through normal dispatch which respects concurrency limits.
+          # Return our semaphore slot before re-dispatching so the slot
+          # count stays accurate. dispatch will re-acquire or block as
+          # appropriate based on current concurrency state.
+          SolidQueue::Semaphore.signal(job)
           job.dispatch
         else
           job.dispatch_bypassing_concurrency_limits
