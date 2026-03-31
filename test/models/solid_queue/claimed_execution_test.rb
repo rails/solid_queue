@@ -62,6 +62,64 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.ready?
   end
 
+  test "perform unblocks next job atomically with finish" do
+    self.class.use_transactional_tests = false
+    destroy_records
+
+    job_result = JobResult.create!(queue_name: "default", status: "")
+
+    # Create two sequential jobs - first one will run, second will be blocked
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "A")
+    job_a = SolidQueue::Job.last
+    assert job_a.reload.ready?
+
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "B")
+    job_b = SolidQueue::Job.last
+    assert job_b.reload.blocked?
+
+    # Claim and perform job A
+    SolidQueue::ReadyExecution.claim(job_a.queue_name, 1, @process.id)
+    claimed = SolidQueue::ClaimedExecution.find_by(job_id: job_a.id)
+    assert claimed
+
+    claimed.perform
+
+    # After A finishes, B should have been unblocked atomically
+    assert job_a.reload.finished?
+    assert job_b.reload.ready?, "Blocked job B should be unblocked after job A finishes"
+  ensure
+    destroy_records
+    self.class.use_transactional_tests = true
+  end
+
+  test "failed_with unblocks next job atomically" do
+    self.class.use_transactional_tests = false
+    destroy_records
+
+    job_result = JobResult.create!(queue_name: "default", status: "")
+
+    # Create two sequential jobs
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "A")
+    job_a = SolidQueue::Job.last
+
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "B")
+    job_b = SolidQueue::Job.last
+    assert job_b.reload.blocked?
+
+    # Claim job A and simulate failure
+    SolidQueue::ReadyExecution.claim(job_a.queue_name, 1, @process.id)
+    claimed = SolidQueue::ClaimedExecution.find_by(job_id: job_a.id)
+
+    claimed.failed_with(RuntimeError.new("test error"))
+
+    # B should be unblocked even though A failed
+    assert job_a.reload.failed?
+    assert job_b.reload.ready?, "Blocked job B should be unblocked after job A fails"
+  ensure
+    destroy_records
+    self.class.use_transactional_tests = true
+  end
+
   test "release bypasses concurrency limits when no other job with same key is executing" do
     job_result = JobResult.create!(queue_name: "default", status: "")
 
