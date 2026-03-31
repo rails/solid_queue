@@ -1,6 +1,9 @@
 # Configure Rails Environment
 ENV["RAILS_ENV"] = "test"
 
+# Ensure minitest gem is loaded before Rails tries to use minitest/mock
+require "minitest"
+
 require_relative "../test/dummy/config/environment"
 ActiveRecord::Migrator.migrations_paths = [ File.expand_path("../test/dummy/db/migrate", __dir__) ]
 require "rails/test_help"
@@ -30,10 +33,26 @@ class ExpectedTestError < RuntimeError; end
 class ActiveSupport::TestCase
   include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper
 
+  def destroy_records
+    SolidQueue::Job.destroy_all
+    SolidQueue::Process.destroy_all
+    SolidQueue::Semaphore.delete_all
+    SolidQueue::RecurringTask.delete_all
+    SolidQueue::ScheduledExecution.delete_all
+    SolidQueue::ReadyExecution.delete_all
+    SolidQueue::ClaimedExecution.delete_all
+    SolidQueue::FailedExecution.delete_all
+    JobResult.delete_all
+  end
+
   setup do
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for(ExpectedTestError, @_on_thread_error)
     ActiveJob::QueueAdapters::SolidQueueAdapter.stopping = false
+
+    unless self.class.use_transactional_tests
+      destroy_records
+    end
   end
 
   teardown do
@@ -45,11 +64,7 @@ class ActiveSupport::TestCase
     end
 
     unless self.class.use_transactional_tests
-      SolidQueue::Job.destroy_all
-      SolidQueue::Process.destroy_all
-      SolidQueue::Semaphore.delete_all
-      SolidQueue::RecurringTask.delete_all
-      JobResult.delete_all
+      destroy_records
     end
   end
 

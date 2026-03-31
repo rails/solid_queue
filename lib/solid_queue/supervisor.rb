@@ -13,17 +13,21 @@ module SolidQueue
         configuration = Configuration.new(**options)
 
         if configuration.valid?
-          new(configuration).tap(&:start)
+          klass = configuration.mode.fork? ? ForkSupervisor : AsyncSupervisor
+          klass.new(configuration).tap(&:start)
         else
           abort configuration.errors.full_messages.join("\n") + "\nExiting..."
         end
       end
     end
 
+    delegate :mode, :standalone?, to: :configuration
+
     def initialize(configuration)
       @configuration = configuration
-      @forks = {}
+
       @configured_processes = {}
+      @process_instances = {}
 
       super
     end
@@ -43,8 +47,12 @@ module SolidQueue
       run_stop_hooks
     end
 
+    def kind
+      "Supervisor(#{mode})"
+    end
+
     private
-      attr_reader :configuration, :forks, :configured_processes
+      attr_reader :configuration, :configured_processes, :process_instances
 
       def boot
         SolidQueue.instrument(:start_process, process: self) do
@@ -62,11 +70,13 @@ module SolidQueue
         loop do
           break if stopped?
 
-          set_procline
-          process_signal_queue
+          if standalone?
+            set_procline
+            process_signal_queue
+          end
 
           unless stopped?
-            reap_and_replace_terminated_forks
+            check_and_replace_terminated_processes
             interruptible_sleep(1.second)
           end
         end
@@ -77,30 +87,23 @@ module SolidQueue
       def start_process(configured_process)
         process_instance = configured_process.instantiate.tap do |instance|
           instance.supervised_by process
-          instance.mode = :fork
+          instance.mode = mode
         end
 
-        pid = fork do
-          process_instance.start
-        end
+        process_id = process_instance.start
 
-        configured_processes[pid] = configured_process
-        forks[pid] = process_instance
+        configured_processes[process_id] = configured_process
+        process_instances[process_id] = process_instance
       end
 
-      def set_procline
-        procline "supervising #{supervised_processes.join(", ")}"
+      def check_and_replace_terminated_processes
       end
 
       def terminate_gracefully
-        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do |payload|
-          term_forks
+        SolidQueue.instrument(:graceful_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: configured_processes.keys) do |payload|
+          perform_graceful_termination
 
-          Timer.wait_until(SolidQueue.shutdown_timeout, -> { all_forks_terminated? }) do
-            reap_terminated_forks
-          end
-
-          unless all_forks_terminated?
+          unless all_processes_terminated?
             payload[:shutdown_timeout_exceeded] = true
             terminate_immediately
           end
@@ -108,9 +111,21 @@ module SolidQueue
       end
 
       def terminate_immediately
-        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: supervised_processes) do
-          quit_forks
+        SolidQueue.instrument(:immediate_termination, process_id: process_id, supervisor_pid: ::Process.pid, supervised_processes: configured_processes.keys) do
+          perform_immediate_termination
         end
+      end
+
+      def perform_graceful_termination
+        raise NotImplementedError
+      end
+
+      def perform_immediate_termination
+        raise NotImplementedError
+      end
+
+      def all_processes_terminated?
+        raise NotImplementedError
       end
 
       def shutdown
@@ -121,71 +136,12 @@ module SolidQueue
         end
       end
 
+      def set_procline
+        procline "supervising #{configured_processes.keys.join(", ")}"
+      end
+
       def sync_std_streams
         STDOUT.sync = STDERR.sync = true
-      end
-
-      def supervised_processes
-        forks.keys
-      end
-
-      def term_forks
-        signal_processes(forks.keys, :TERM)
-      end
-
-      def quit_forks
-        signal_processes(forks.keys, :QUIT)
-      end
-
-      def reap_and_replace_terminated_forks
-        loop do
-          pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
-          break unless pid
-
-          replace_fork(pid, status)
-        end
-      end
-
-      def reap_terminated_forks
-        loop do
-          pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
-          break unless pid
-
-          if (terminated_fork = forks.delete(pid)) && (!status.exited? || status.exitstatus > 0)
-            handle_claimed_jobs_by(terminated_fork, status)
-          end
-
-          configured_processes.delete(pid)
-        end
-      rescue SystemCallError
-        # All children already reaped
-      end
-
-      def replace_fork(pid, status)
-        SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
-          if terminated_fork = forks.delete(pid)
-            payload[:fork] = terminated_fork
-            handle_claimed_jobs_by(terminated_fork, status)
-
-            start_process(configured_processes.delete(pid))
-          end
-        end
-      end
-
-      # When a supervised fork crashes or exits we need to mark all the
-      # executions it had claimed as failed so that they can be retried
-      # by some other worker.
-      def handle_claimed_jobs_by(terminated_fork, status)
-        wrap_in_app_executor do
-          if registered_process = SolidQueue::Process.find_by(name: terminated_fork.name)
-            error = Processes::ProcessExitError.new(status)
-            registered_process.fail_all_claimed_executions_with(error)
-          end
-        end
-      end
-
-      def all_forks_terminated?
-        forks.empty?
       end
   end
 end

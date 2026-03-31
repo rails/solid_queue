@@ -17,5 +17,15 @@ module SolidQueue
         SolidQueue.on_thread_error.call(error)
       end
     end
+
+    def create_thread(&block)
+      Thread.new do
+        Thread.current.name = name
+        block.call
+      rescue Exception => exception
+        handle_thread_error(exception)
+        raise
+      end
+    end
   end
 end

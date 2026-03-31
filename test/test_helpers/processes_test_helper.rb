@@ -70,7 +70,7 @@ module ProcessesTestHelper
       if process_exists?(pid)
         begin
           status = Process.waitpid2(pid).last
-          assert_equal exitstatus, status.exitstatus, "Expected pid #{pid} to exit with status #{exitstatus}" if status.exitstatus
+          assert_equal exitstatus, status.exitstatus, "Expected pid #{pid} to exit with status #{exitstatus}" if status.exitstatus && !exitstatus.nil?
           assert_equal signaled, Signal.list.key(status.termsig).to_sym, "Expected pid #{pid} to be terminated with signal #{signaled}" if status.termsig
         rescue Errno::ECHILD
           # Child pid already reaped

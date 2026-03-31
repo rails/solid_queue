@@ -35,6 +35,7 @@ class WorkerTest < ActiveSupport::TestCase
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2).tap(&:start)
     sleep(1)
 
+    # stop calls join internally when not supervised, which re-raises the error
     assert_raises ExpectedTestError do
       worker.stop
     end

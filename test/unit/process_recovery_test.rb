@@ -20,10 +20,11 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
     @pid = run_supervisor_as_fork(workers: [ { queues: "*", polling_interval: 0.1, processes: 1 } ])
     wait_for_registered_processes(2, timeout: 1.second) # Supervisor + 1 worker
 
-    supervisor_process = SolidQueue::Process.find_by(kind: "Supervisor", pid: @pid)
+    supervisor_process = SolidQueue::Process.find_by(kind: "Supervisor(fork)", pid: @pid)
     assert supervisor_process
 
-    worker_process = SolidQueue::Process.find_by(kind: "Worker")
+    # Find the worker supervised by this specific supervisor to avoid interference from other tests
+    worker_process = SolidQueue::Process.find_by(kind: "Worker", supervisor_id: supervisor_process.id)
     assert worker_process
 
     # Enqueue a job and wait for it to be claimed

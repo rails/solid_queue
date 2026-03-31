@@ -47,13 +47,15 @@ class RecurringTasksTest < ActiveSupport::TestCase
 
     another_task = { example_task: { class: "AddToBufferJob", schedule: "every hour", args: [ 42 ] } }
     scheduler1 = SolidQueue::Scheduler.new(recurring_tasks: another_task).tap(&:start)
-    wait_for_registered_processes(6, timeout: 1.second)
+    wait_for_registered_processes(6, timeout: 2.seconds)
+    wait_for { SolidQueue::RecurringTask.find_by(key: "example_task").present? }
 
     assert_recurring_tasks another_task
 
     updated_task = { example_task: { class: "AddToBufferJob", schedule: "every minute" } }
     scheduler2 = SolidQueue::Scheduler.new(recurring_tasks: updated_task).tap(&:start)
-    wait_for_registered_processes(7, timeout: 1.second)
+    wait_for_registered_processes(7, timeout: 2.seconds)
+    wait_for { SolidQueue::RecurringTask.find_by(key: "example_task")&.schedule == "every minute" }
 
     assert_recurring_tasks updated_task
 

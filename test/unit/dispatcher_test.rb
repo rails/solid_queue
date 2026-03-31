@@ -89,8 +89,10 @@ class DispatcherTest < ActiveSupport::TestCase
 
     wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
 
-    assert_equal 0, SolidQueue::ScheduledExecution.count
-    assert_equal 15, SolidQueue::ReadyExecution.count
+    skip_active_record_query_cache do
+      assert_equal 0, SolidQueue::ScheduledExecution.count
+      assert_equal 15, SolidQueue::ReadyExecution.count
+    end
   ensure
     another_dispatcher&.stop
   end
@@ -108,8 +110,10 @@ class DispatcherTest < ActiveSupport::TestCase
     dispatcher.start
     wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
 
-    assert_equal 0, SolidQueue::ScheduledExecution.count
-    assert_equal 3, SolidQueue::ReadyExecution.count
+    skip_active_record_query_cache do
+      assert_equal 0, SolidQueue::ScheduledExecution.count
+      assert_equal 3, SolidQueue::ReadyExecution.count
+    end
   ensure
     dispatcher.stop
   end

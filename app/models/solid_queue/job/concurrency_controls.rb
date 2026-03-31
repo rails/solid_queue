@@ -26,7 +26,7 @@ module SolidQueue
       end
 
       def concurrency_limited?
-        concurrency_key.present?
+        concurrency_key.present? && job_class.present?
       end
 
       def blocked?
