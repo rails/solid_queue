@@ -126,6 +126,9 @@ module SolidQueue
 
         def perform_execution(execution)
           wrap_in_app_executor { execution.perform }
+        rescue Async::Cancel => error
+          handle_thread_error(error)
+          register_fatal_error(error)
         rescue Exception => error
           handle_thread_error(error)
         ensure

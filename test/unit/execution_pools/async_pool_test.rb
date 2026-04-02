@@ -9,6 +9,13 @@ class AsyncPoolTest < Minitest::Test
     end
   end
 
+  CancelledExecution = Struct.new(:started) do
+    def perform
+      started << true if started
+      raise Async::Cancel.new
+    end
+  end
+
   def test_raises_a_clear_error_when_the_async_gem_is_unavailable
     load_error = LoadError.new("cannot load such file -- async")
 
@@ -58,5 +65,28 @@ class AsyncPoolTest < Minitest::Test
 
     assert_nil pool.wait_for_termination(0.01)
     assert pool.wait_for_termination(1.second)
+  end
+
+  def test_marks_the_pool_as_fatal_when_an_execution_is_cancelled
+    notifications = Thread::Queue.new
+    started = Thread::Queue.new
+    reported_errors = []
+    original_on_thread_error = SolidQueue.on_thread_error
+    SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
+
+    pool = SolidQueue::ExecutionPools::AsyncPool.new(1, on_state_change: -> { notifications << :changed })
+
+    pool.post CancelledExecution.new(started)
+    Timeout.timeout(1.second) { started.pop }
+    Timeout.timeout(1.second) { notifications.pop }
+
+    error = assert_raises(Async::Cancel) { pool.available_capacity }
+    assert_equal "Task was cancelled", error.message
+    assert_equal [ "Async::Cancel" ], reported_errors
+    assert_raises(Async::Cancel) { pool.metadata }
+  ensure
+    SolidQueue.on_thread_error = original_on_thread_error
+    pool&.shutdown
+    pool&.wait_for_termination(1.second)
   end
 end
