@@ -30,6 +30,26 @@ class WorkerTest < ActiveSupport::TestCase
     }
   end
 
+  test "builds the execution pool on boot instead of initialize" do
+    pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
+
+    SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
+      options[:mode] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
+    end.returns(pool)
+
+    worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
+
+    assert_nil worker.pool
+
+    worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_equal pool, worker.pool
+  ensure
+    worker&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+  end
+
   test "errors on polling are passed to on_thread_error and re-raised" do
     errors = Concurrent::Array.new
 

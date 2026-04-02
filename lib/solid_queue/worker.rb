@@ -18,11 +18,11 @@ module SolidQueue
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
 
-      @pool = ExecutionPools.build(
+      @pool_options = {
         mode: options[:execution_mode],
         size: options[:threads],
         on_state_change: -> { wake_up }
-      )
+      }
 
       super(**options)
     end
@@ -50,6 +50,11 @@ module SolidQueue
         end
       end
 
+      def boot
+        build_pool
+        super
+      end
+
       def shutdown
         pool.shutdown
         pool.wait_for_termination(SolidQueue.shutdown_timeout)
@@ -68,6 +73,10 @@ module SolidQueue
 
       def set_procline
         procline "waiting for jobs in #{queues.join(",")}"
+      end
+
+      def build_pool
+        @pool ||= ExecutionPools.build(**@pool_options)
       end
   end
 end
