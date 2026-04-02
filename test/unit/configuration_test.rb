@@ -65,14 +65,24 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(
       workers: [
         { queues: "llm*", execution_mode: :async, capacity: 10 },
-        { queues: "*", execution_mode: :fiber, threads: 3 }
+        { queues: "*", execution_mode: :fiber, fibers: 3 }
       ],
       dispatchers: [],
       skip_recurring: true
     )
 
     assert configuration.valid?
-    assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], threads: [ 10, 3 ], capacity: [ 10, nil ]
+    assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], capacity: [ 10, 3 ], threads: [ nil, nil ]
+  end
+
+  test "async worker capacity does not inflate required database pool size" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert configuration.valid?
   end
 
   test "mulitple workers with the same configuration" do

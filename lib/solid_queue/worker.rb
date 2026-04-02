@@ -12,7 +12,7 @@ module SolidQueue
 
     def initialize(**options)
       options = options.dup
-      options[:threads] = options[:capacity] || options[:threads]
+      options[:threads] = options[:capacity] || options[:fibers] || options[:threads]
       options = options.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
       # Ensure that the queues array is deep frozen to prevent accidental modification

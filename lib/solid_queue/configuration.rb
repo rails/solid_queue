@@ -141,7 +141,8 @@ module SolidQueue
             1
           end
 
-          processes.times.map { Process.new(:worker, worker_options.with_defaults(WORKER_DEFAULTS)) }
+          defaults = worker_defaults_for(worker_options)
+          processes.times.map { Process.new(:worker, worker_options.with_defaults(defaults)) }
         end
       end
 
@@ -237,27 +238,44 @@ module SolidQueue
       end
 
       def estimated_number_of_threads
-        # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
-        thread_count = workers_options.map { |options| worker_capacity(options) }.max
+        # At most one execution thread for async workers, or "threads" for thread workers,
+        # plus 1 thread for the worker loop and 1 thread for the heartbeat task.
+        thread_count = workers_options.map { |options| execution_threads_for_pool(options) }.max
         (thread_count || 1) + 2
       end
 
       def normalize_worker_options(options)
         options = options.dup.symbolize_keys
-        options[:threads] = worker_capacity(options)
-        options[:capacity] = options[:threads] if options.key?(:capacity)
         options[:execution_mode] = normalized_worker_execution_mode(options)
+        options[:capacity] = worker_capacity(options) if options.key?(:capacity) || options.key?(:fibers)
+        options[:threads] = worker_capacity(options) unless async_worker?(options) && !options.key?(:threads)
         options
       end
 
       def worker_capacity(options)
-        options[:capacity] || options[:threads] || WORKER_DEFAULTS[:threads]
+        options[:capacity] || options[:fibers] || options[:threads] || WORKER_DEFAULTS[:threads]
       end
 
       def normalized_worker_execution_mode(options)
         SolidQueue::ExecutionPools.normalize_mode(options[:execution_mode] || WORKER_DEFAULTS[:execution_mode])
       rescue ArgumentError
         options[:execution_mode] || WORKER_DEFAULTS[:execution_mode]
+      end
+
+      def execution_threads_for_pool(options)
+        async_worker?(options) ? 1 : worker_capacity(options)
+      end
+
+      def async_worker?(options)
+        normalized_worker_execution_mode(options) == :async
+      end
+
+      def worker_defaults_for(options)
+        if async_worker?(options)
+          WORKER_DEFAULTS.except(:threads).merge(capacity: WORKER_DEFAULTS[:threads])
+        else
+          WORKER_DEFAULTS
+        end
       end
   end
 end

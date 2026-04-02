@@ -278,9 +278,10 @@ Here's an overview of the different options:
   Check the sections below on [how queue order behaves combined with priorities](#queue-order-and-priorities), and [how the way you specify the queues per worker might affect performance](#queues-specification-and-performance).
 
 - `execution_mode`: controls how a worker executes claimed jobs. `thread` is the default and uses the existing thread pool behavior. `async` executes jobs as fibers on a single reactor thread. `fiber` is accepted as an alias for `async`.
-- `threads`: this is the execution capacity for a worker, and remains the backward-compatible configuration name. In `thread` mode, it is the max size of the thread pool. In `async` mode, it is the max number of in-flight jobs/fibers. By default, this is `3`. Only workers have this setting.
+- `threads`: this is the execution capacity for a worker in `thread` mode. It is the max size of the thread pool. By default, this is `3`. Only workers have this setting.
 It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker uses connections for polling and heartbeat and thread mode may use additional connections for job execution.
-- `capacity`: an alias for `threads`. This is the clearer name when `execution_mode: async`, because it refers to in-flight execution capacity rather than operating system threads.
+- `capacity`: an alias for worker execution capacity. This is the clearer name when `execution_mode: async`, because it refers to in-flight execution capacity rather than operating system threads.
+- `fibers`: an alias for `capacity` when `execution_mode: async`.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. This works with both `execution_mode: thread` and `execution_mode: async` as long as the supervisor is running in the default `fork` mode. **Note**: this option is ignored only when the supervisor itself is [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 
