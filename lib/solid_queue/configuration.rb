@@ -7,6 +7,7 @@ module SolidQueue
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
     validate :ensure_correctly_sized_thread_pool
+    validate :ensure_valid_worker_execution_modes
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -18,7 +19,8 @@ module SolidQueue
       queues: "*",
       threads: 3,
       processes: 1,
-      polling_interval: 0.1
+      polling_interval: 0.1,
+      execution_mode: :thread
     }
 
     DISPATCHER_DEFAULTS = {
@@ -95,6 +97,14 @@ module SolidQueue
         end
       end
 
+      def ensure_valid_worker_execution_modes
+        workers_options.each do |options|
+          SolidQueue::ExecutionPools.normalize_mode(options[:execution_mode] || WORKER_DEFAULTS[:execution_mode])
+        rescue ArgumentError => error
+          errors.add(:base, error.message)
+        end
+      end
+
       def default_options
         {
           mode: ENV["SOLID_QUEUE_SUPERVISOR_MODE"] || :fork,
@@ -153,7 +163,7 @@ module SolidQueue
 
       def workers_options
         @workers_options ||= processes_config.fetch(:workers, [])
-          .map { |options| options.dup.symbolize_keys }
+          .map { |options| normalize_worker_options(options) }
       end
 
       def dispatchers_options
@@ -228,8 +238,26 @@ module SolidQueue
 
       def estimated_number_of_threads
         # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
-        thread_count = workers_options.map { |options| options.fetch(:threads, WORKER_DEFAULTS[:threads]) }.max
+        thread_count = workers_options.map { |options| worker_capacity(options) }.max
         (thread_count || 1) + 2
+      end
+
+      def normalize_worker_options(options)
+        options = options.dup.symbolize_keys
+        options[:threads] = worker_capacity(options)
+        options[:capacity] = options[:threads] if options.key?(:capacity)
+        options[:execution_mode] = normalized_worker_execution_mode(options)
+        options
+      end
+
+      def worker_capacity(options)
+        options[:capacity] || options[:threads] || WORKER_DEFAULTS[:threads]
+      end
+
+      def normalized_worker_execution_mode(options)
+        SolidQueue::ExecutionPools.normalize_mode(options[:execution_mode] || WORKER_DEFAULTS[:execution_mode])
+      rescue ArgumentError
+        options[:execution_mode] || WORKER_DEFAULTS[:execution_mode]
       end
   end
 end

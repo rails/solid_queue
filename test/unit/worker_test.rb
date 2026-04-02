@@ -3,6 +3,7 @@ require "active_support/testing/method_call_assertions"
 
 class WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
+  self.use_transactional_tests = false
 
   setup do
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
@@ -19,7 +20,14 @@ class WorkerTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Worker", process.kind
-    assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3 }
+    assert_metadata process, {
+      queues: "background",
+      polling_interval: 0.2,
+      execution_mode: "thread",
+      capacity: 3,
+      inflight: 0,
+      thread_pool_size: 3
+    }
   end
 
   test "errors on polling are passed to on_thread_error and re-raised" do

@@ -11,18 +11,24 @@ module SolidQueue
     attr_reader :queues, :pool
 
     def initialize(**options)
-      options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
+      options = options.dup
+      options[:threads] = options[:capacity] || options[:threads]
+      options = options.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
 
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
 
-      @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
+      @pool = ExecutionPools.build(
+        mode: options[:execution_mode],
+        size: options[:threads],
+        on_state_change: -> { wake_up }
+      )
 
       super(**options)
     end
 
     def metadata
-      super.merge(queues: queues.join(","), thread_pool_size: pool.size)
+      super.merge(queues: queues.join(",")).merge(pool.metadata)
     end
 
     private
@@ -32,13 +38,15 @@ module SolidQueue
             pool.post(execution)
           end
 
+          reload_metadata if executions.any?
+
           pool.idle? ? polling_interval : 10.minutes
         end
       end
 
       def claim_executions
         with_polling_volume do
-          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process_id)
+          SolidQueue::ReadyExecution.claim(queues, pool.available_capacity, process_id)
         end
       end
 
@@ -51,6 +59,11 @@ module SolidQueue
 
       def all_work_completed?
         SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
+      end
+
+      def heartbeat
+        super
+        reload_metadata
       end
 
       def set_procline

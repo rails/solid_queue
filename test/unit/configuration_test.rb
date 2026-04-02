@@ -61,6 +61,20 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 2
   end
 
+  test "normalize worker execution modes and capacity aliases" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [
+        { queues: "llm*", execution_mode: :async, capacity: 10 },
+        { queues: "*", execution_mode: :fiber, threads: 3 }
+      ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert configuration.valid?
+    assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], threads: [ 10, 3 ], capacity: [ 10, nil ]
+  end
+
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     configuration = SolidQueue::Configuration.new(workers: [ background_worker ])
@@ -164,6 +178,10 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [])
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
+
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :invalid } ])
+    assert_not configuration.valid?
+    assert_match /Unknown execution mode/, configuration.errors.full_messages.first
 
     # Not enough DB connections
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
