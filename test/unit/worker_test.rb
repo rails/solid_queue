@@ -123,6 +123,19 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_registered_processes(0, timeout: 1.second)
   end
 
+  test "defaults thread workers to the configured thread pool size" do
+    worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2)
+
+    worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_equal 3, worker.pool.size
+    assert_metadata SolidQueue::Process.first, thread_pool_size: 3, capacity: 3, execution_mode: "thread"
+  ensure
+    worker&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+  end
+
   test "errors on polling are passed to on_thread_error and re-raised" do
     errors = Concurrent::Array.new
 

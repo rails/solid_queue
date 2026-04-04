@@ -5,6 +5,8 @@ module SolidQueue
     class AsyncPool
       include AppExecutor
 
+      SHUTDOWN_SENTINEL = Object.new
+
       class MissingDependencyError < LoadError
         def initialize(error)
           super(
@@ -91,13 +93,13 @@ module SolidQueue
       end
 
       def shutdown
-        should_close = state_mutex.synchronize do
+        should_enqueue_shutdown = state_mutex.synchronize do
           next false if @shutdown
 
           @shutdown = true
         end
 
-        queue.close if should_close
+        queue.enqueue(SHUTDOWN_SENTINEL) if should_enqueue_shutdown
       end
 
       def shutdown?
@@ -141,6 +143,8 @@ module SolidQueue
         def drain_queue(task, semaphore)
           task.async do
             while execution = queue.dequeue
+              break if execution.equal?(SHUTDOWN_SENTINEL)
+
               semaphore.async(execution) do |_execution_task, scheduled_execution|
                 perform_execution(scheduled_execution)
               end

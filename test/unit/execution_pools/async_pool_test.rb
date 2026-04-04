@@ -82,6 +82,21 @@ class AsyncPoolTest < Minitest::Test
     end
   end
 
+  def test_shutdown_does_not_depend_on_async_queue_close
+    with_execution_isolation(:fiber) do
+      pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
+      queue = pool.instance_variable_get(:@queue)
+      queue.define_singleton_method(:close) { raise "should not be called" }
+
+      pool.shutdown
+
+      assert pool.wait_for_termination(1.second)
+    ensure
+      pool&.shutdown
+      pool&.wait_for_termination(1.second)
+    end
+  end
+
   def test_marks_the_pool_as_fatal_when_an_execution_is_cancelled
     with_execution_isolation(:fiber) do
       notifications = Thread::Queue.new
