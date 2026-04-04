@@ -8,6 +8,8 @@ module SolidQueue
     validate :ensure_valid_recurring_tasks
     validate :ensure_correctly_sized_thread_pool
     validate :ensure_valid_worker_execution_modes
+    validate :ensure_async_workers_use_capacity_aliases
+    validate :ensure_async_workers_have_required_dependency
     validate :ensure_async_workers_use_supported_isolation_level
 
     class Process < Struct.new(:kind, :attributes)
@@ -104,6 +106,22 @@ module SolidQueue
         rescue ArgumentError => error
           errors.add(:base, error.message)
         end
+      end
+
+      def ensure_async_workers_use_capacity_aliases
+        workers_options.each do |options|
+          if async_worker?(options) && options.key?(:threads)
+            errors.add(:base, "Async workers do not accept `threads`. Use `capacity` or `fibers` instead.")
+          end
+        end
+      end
+
+      def ensure_async_workers_have_required_dependency
+        return unless workers_options.any? { |options| async_worker?(options) }
+
+        SolidQueue::ExecutionPools::AsyncPool.ensure_dependency!
+      rescue LoadError => error
+        errors.add(:base, error.message)
       end
 
       def ensure_async_workers_use_supported_isolation_level
@@ -281,7 +299,9 @@ module SolidQueue
 
       def worker_defaults_for(options)
         if async_worker?(options)
-          WORKER_DEFAULTS.except(:threads).merge(capacity: WORKER_DEFAULTS[:threads])
+          WORKER_DEFAULTS.except(:threads).tap do |defaults|
+            defaults[:capacity] = WORKER_DEFAULTS[:threads] unless options.key?(:threads)
+          end
         else
           WORKER_DEFAULTS
         end

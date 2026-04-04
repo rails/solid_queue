@@ -27,6 +27,14 @@ module SolidQueue
       end
 
       class << self
+        def ensure_dependency!
+          require "async"
+          require "async/queue"
+          require "async/semaphore"
+        rescue LoadError => error
+          raise MissingDependencyError.new(error)
+        end
+
         def ensure_supported_isolation_level!
           return if supported_isolation_level?
 
@@ -50,7 +58,7 @@ module SolidQueue
         @fatal_error = nil
         @boot_queue = Thread::Queue.new
 
-        load_dependency!
+        self.class.ensure_dependency!
         self.class.ensure_supported_isolation_level!
 
         @queue = Async::Queue.new
@@ -113,14 +121,6 @@ module SolidQueue
 
         def name
           @name ||= "solid_queue-async-pool-#{object_id}"
-        end
-
-        def load_dependency!
-          require "async"
-          require "async/queue"
-          require "async/semaphore"
-        rescue LoadError => error
-          raise MissingDependencyError.new(error)
         end
 
         def start_reactor

@@ -19,7 +19,7 @@ class AsyncPoolTest < Minitest::Test
   def test_raises_a_clear_error_when_the_async_gem_is_unavailable
     load_error = LoadError.new("cannot load such file -- async")
 
-    SolidQueue::ExecutionPools::AsyncPool.any_instance.expects(:require).with("async").raises(load_error)
+    SolidQueue::ExecutionPools::AsyncPool.expects(:require).with("async").raises(load_error)
 
     error = assert_raises SolidQueue::ExecutionPools::AsyncPool::MissingDependencyError do
       SolidQueue::ExecutionPools::AsyncPool.new(3)
