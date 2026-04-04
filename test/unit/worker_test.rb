@@ -22,6 +22,13 @@ class WorkerTest < ActiveSupport::TestCase
     assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3, concurrency_model: "thread" }
   end
 
+  test "worker exposes a generic execution backend" do
+    assert_equal @worker.pool, @worker.execution_backend
+    assert_equal 3, @worker.execution_backend.capacity
+    assert_equal 3, @worker.execution_backend.available_capacity
+    assert @worker.execution_backend.available?
+  end
+
   test "errors on polling are passed to on_thread_error and re-raised" do
     errors = Concurrent::Array.new
 

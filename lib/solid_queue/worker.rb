@@ -10,7 +10,9 @@ module SolidQueue
     before_shutdown :run_stop_hooks
     after_shutdown :run_exit_hooks
 
-    attr_reader :queues, :pool, :concurrency_model, :fibers
+    attr_reader :queues, :execution_backend, :concurrency_model, :fibers
+
+    alias pool execution_backend
 
     def initialize(**options)
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
@@ -22,13 +24,13 @@ module SolidQueue
 
       ensure_supported_concurrency_model!
 
-      @pool = Pool.new(options[:threads], on_idle: -> { wake_up })
+      @execution_backend = build_execution_backend(options)
 
       super(**options)
     end
 
     def metadata
-      super.merge(queues: queues.join(","), thread_pool_size: pool.size, concurrency_model: concurrency_model.to_s).tap do |metadata|
+      super.merge(queues: queues.join(","), thread_pool_size: execution_backend.capacity, concurrency_model: concurrency_model.to_s).tap do |metadata|
         metadata[:fiber_pool_size] = fibers if fibers.present?
       end
     end
@@ -38,25 +40,29 @@ module SolidQueue
         raise NotImplementedError, CONCURRENCY_MODE_NOT_IMPLEMENTED_MESSAGE if concurrency_model.fiber?
       end
 
+      def build_execution_backend(options)
+        Pool.new(options[:threads], on_available: -> { wake_up })
+      end
+
       def poll
         claim_executions.then do |executions|
           executions.each do |execution|
-            pool.post(execution)
+            execution_backend.post(execution)
           end
 
-          pool.idle? ? polling_interval : 10.minutes
+          execution_backend.available? ? polling_interval : 10.minutes
         end
       end
 
       def claim_executions
         with_polling_volume do
-          SolidQueue::ReadyExecution.claim(queues, pool.idle_threads, process_id)
+          SolidQueue::ReadyExecution.claim(queues, execution_backend.available_capacity, process_id)
         end
       end
 
       def shutdown
-        pool.shutdown
-        pool.wait_for_termination(SolidQueue.shutdown_timeout)
+        execution_backend.shutdown
+        execution_backend.wait_for_termination(SolidQueue.shutdown_timeout)
 
         super
       end
