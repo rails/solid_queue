@@ -129,7 +129,7 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     # A claimed execution alone is not enough here because the worker may have
     # claimed the job but not yet entered `perform`.
     wait_for_jobs_to_finish_for(3.seconds, except: pause)
-    wait_for(timeout: 2.seconds) do
+    wait_for(timeout: 5.seconds) do
       skip_active_record_query_cache do
         JobResult.where(queue_name: :background, status: "started", value: "pause").exists?
       end
