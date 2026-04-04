@@ -1,17 +1,15 @@
 # frozen_string_literal: true
 
 module SolidQueue
-  class Pool
-    include AppExecutor
-
-    attr_reader :size
+  class Pool < Worker::ExecutionBackend
+    alias size capacity
 
     delegate :shutdown, :shutdown?, :wait_for_termination, to: :executor
 
-    def initialize(size, on_idle: nil)
-      @size = size
-      @on_idle = on_idle
-      @available_threads = Concurrent::AtomicFixnum.new(size)
+    def initialize(capacity, on_available: nil, on_idle: nil)
+      super(capacity, on_available: on_available || on_idle)
+
+      @available_threads = Concurrent::AtomicFixnum.new(capacity)
       @mutex = Mutex.new
     end
 
@@ -19,27 +17,24 @@ module SolidQueue
       available_threads.decrement
 
       Concurrent::Promises.future_on(executor, execution) do |thread_execution|
-        wrap_in_app_executor do
-          thread_execution.perform
-        ensure
+        perform(thread_execution)
+      ensure
           available_threads.increment
-          mutex.synchronize { on_idle.try(:call) if idle? }
-        end
+          mutex.synchronize { notify_available }
       end.on_rejection! do |e|
         handle_thread_error(e)
       end
     end
 
-    def idle_threads
+    def available_capacity
       available_threads.value
     end
 
-    def idle?
-      idle_threads > 0
-    end
+    alias idle_threads available_capacity
+    alias idle? available?
 
     private
-      attr_reader :available_threads, :on_idle, :mutex
+      attr_reader :available_threads, :mutex
 
       DEFAULT_OPTIONS = {
         min_threads: 0,
@@ -48,7 +43,7 @@ module SolidQueue
       }
 
       def executor
-        @executor ||= Concurrent::ThreadPoolExecutor.new DEFAULT_OPTIONS.merge(max_threads: size, max_queue: size)
+        @executor ||= Concurrent::ThreadPoolExecutor.new DEFAULT_OPTIONS.merge(max_threads: capacity, max_queue: capacity)
       end
   end
 end
