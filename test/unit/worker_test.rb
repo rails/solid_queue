@@ -19,7 +19,7 @@ class WorkerTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Worker", process.kind
-    assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3 }
+    assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3, concurrency_model: "thread" }
   end
 
   test "errors on polling are passed to on_thread_error and re-raised" do
@@ -149,6 +149,14 @@ class WorkerTest < ActiveSupport::TestCase
     worker.start
 
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
+  end
+
+  test "reject fiber concurrency model until backend support is implemented" do
+    error = assert_raises(NotImplementedError) do
+      SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2, concurrency_model: :fiber, fibers: 10)
+    end
+
+    assert_equal SolidQueue::Worker::CONCURRENCY_MODE_NOT_IMPLEMENTED_MESSAGE, error.message
   end
 
   test "terminate on heartbeat when unregistered" do

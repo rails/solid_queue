@@ -6,6 +6,7 @@ module SolidQueue
 
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
+    validate :ensure_valid_worker_concurrency_settings
     validate :ensure_correctly_sized_thread_pool
 
     class Process < Struct.new(:kind, :attributes)
@@ -18,8 +19,11 @@ module SolidQueue
       queues: "*",
       threads: 3,
       processes: 1,
+      concurrency_model: :thread,
       polling_interval: 0.1
     }
+
+    WORKER_CONCURRENCY_MODELS = %w[ thread fiber ].freeze
 
     DISPATCHER_DEFAULTS = {
       batch_size: 500,
@@ -85,6 +89,33 @@ module SolidQueue
           end
 
           errors.add(:base, "Invalid recurring tasks:\n#{error_messages.join("\n")}")
+        end
+      end
+
+      def ensure_valid_worker_concurrency_settings
+        workers_options.each_with_index do |worker_options, index|
+          worker_label = "Worker #{index + 1}"
+          concurrency_model = worker_concurrency_model_for(worker_options)
+
+          unless WORKER_CONCURRENCY_MODELS.include?(concurrency_model)
+            errors.add(:base, "#{worker_label} has unsupported `concurrency_model: #{concurrency_model}`. Valid options are: thread, fiber")
+            next
+          end
+
+          if concurrency_model == "thread"
+            if worker_options.key?(:fibers) && !worker_options[:fibers].nil?
+              errors.add(:base, "#{worker_label} cannot set `fibers` unless `concurrency_model` is `fiber`")
+            end
+
+            next
+          end
+
+          fibers = Integer(worker_options[:fibers], exception: false)
+          unless fibers&.positive?
+            errors.add(:base, "#{worker_label} with `concurrency_model: fiber` must set a positive integer `fibers` value")
+          end
+
+          errors.add(:base, "#{worker_label} uses `concurrency_model: fiber`, but fiber worker execution is not implemented yet")
         end
       end
 
@@ -154,6 +185,10 @@ module SolidQueue
       def workers_options
         @workers_options ||= processes_config.fetch(:workers, [])
           .map { |options| options.dup.symbolize_keys }
+      end
+
+      def worker_concurrency_model_for(worker_options)
+        worker_options.fetch(:concurrency_model, WORKER_DEFAULTS[:concurrency_model]).to_s
       end
 
       def dispatchers_options
