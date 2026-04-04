@@ -90,7 +90,24 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
   end
 
-  test "async worker capacity does not inflate required database pool size" do
+  test "async worker capacity inflates required database pool size on Rails 7.1" do
+    skip if async_workers_release_connections_between_queries?
+
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert_not configuration.valid?
+      assert_match /requires at least 1002 database connections/, configuration.errors.full_messages.first
+    end
+  end
+
+  test "async worker capacity does not inflate required database pool size on Rails 7.2+" do
+    skip unless async_workers_release_connections_between_queries?
+
     with_execution_isolation(:fiber) do
       configuration = SolidQueue::Configuration.new(
         workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
@@ -227,11 +244,15 @@ class ConfigurationTest < ActiveSupport::TestCase
     # Not enough DB connections
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
     assert_not configuration.valid?
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+. Increase it in `config\/database.yml`/,
+    assert_match /Solid Queue requires at least \d+ database connections for the configured workers, but the queue database connection pool is \d+. Increase it in `config\/database.yml`/,
       configuration.errors.full_messages.first
   end
 
   private
+    def async_workers_release_connections_between_queries?
+      ActiveRecord.gem_version >= SolidQueue::Configuration::ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION
+    end
+
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
       assert_equal count, processes.size

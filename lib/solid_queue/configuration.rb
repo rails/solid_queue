@@ -6,7 +6,7 @@ module SolidQueue
 
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
-    validate :ensure_correctly_sized_thread_pool
+    validate :ensure_correctly_sized_database_pool
     validate :ensure_valid_worker_execution_modes
     validate :ensure_async_workers_use_capacity_aliases
     validate :ensure_async_workers_have_required_dependency
@@ -40,6 +40,7 @@ module SolidQueue
 
     DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
+    ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION = Gem::Version.new("7.2.0")
 
     def initialize(**options)
       @options = options.with_defaults(default_options)
@@ -93,10 +94,11 @@ module SolidQueue
         end
       end
 
-      def ensure_correctly_sized_thread_pool
-        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
-          errors.add(:base, "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
-            "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`")
+      def ensure_correctly_sized_database_pool
+        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_database_pool_size
+          errors.add(:base, "Solid Queue requires at least #{estimated_database_pool_size} database connections " +
+            "for the configured workers, but the queue database connection pool is #{db_pool_size}. " +
+            "Increase it in `config/database.yml`")
         end
       end
 
@@ -264,11 +266,13 @@ module SolidQueue
         end
       end
 
-      def estimated_number_of_threads
-        # At most one execution thread for async workers, or "threads" for thread workers,
-        # plus 1 thread for the worker loop and 1 thread for the heartbeat task.
-        thread_count = workers_options.map { |options| execution_threads_for_pool(options) }.max
-        (thread_count || 1) + 2
+      def estimated_database_pool_size
+        worker_pool_size = workers_options.map { |options| estimated_database_pool_size_for_worker(options) }.max
+        worker_pool_size || 1
+      end
+
+      def estimated_database_pool_size_for_worker(options)
+        estimated_execution_connections_for_worker(options) + 2
       end
 
       def normalize_worker_options(options)
@@ -289,8 +293,16 @@ module SolidQueue
         options[:execution_mode] || WORKER_DEFAULTS[:execution_mode]
       end
 
-      def execution_threads_for_pool(options)
-        async_worker?(options) ? 1 : worker_capacity(options)
+      def estimated_execution_connections_for_worker(options)
+        async_worker?(options) ? async_execution_connections_for_worker(options) : worker_capacity(options)
+      end
+
+      def async_execution_connections_for_worker(options)
+        async_jobs_release_connections_between_queries? ? 1 : worker_capacity(options)
+      end
+
+      def async_jobs_release_connections_between_queries?
+        ActiveRecord.gem_version >= ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION
       end
 
       def async_worker?(options)
