@@ -61,6 +61,64 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 2
   end
 
+  test "normalize worker execution modes and capacity aliases" do
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [
+          { queues: "llm*", execution_mode: :async, capacity: 10 },
+          { queues: "*", execution_mode: :fiber, fibers: 3 }
+        ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert configuration.valid?
+      assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], capacity: [ 10, 3 ], threads: [ nil, nil ]
+    end
+  end
+
+  test "async workers reject threads in favor of capacity aliases" do
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", execution_mode: :async, threads: 10 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert_not configuration.valid?
+      assert_match /Async workers do not accept `threads`/, configuration.errors.full_messages.first
+    end
+  end
+
+  test "async worker capacity inflates required database pool size on Rails 7.1" do
+    skip if async_workers_release_connections_between_queries?
+
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert_not configuration.valid?
+      assert_match /requires at least 1002 database connections/, configuration.errors.full_messages.first
+    end
+  end
+
+  test "async worker capacity does not inflate required database pool size on Rails 7.2+" do
+    skip unless async_workers_release_connections_between_queries?
+
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert configuration.valid?
+    end
+  end
+
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     configuration = SolidQueue::Configuration.new(workers: [ background_worker ])
@@ -165,14 +223,36 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
 
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :invalid } ])
+    assert_not configuration.valid?
+    assert_match /Unknown execution mode/, configuration.errors.full_messages.first
+
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :async } ])
+    assert_not configuration.valid?
+    assert_match /requires fiber-scoped isolated execution state/, configuration.errors.full_messages.first
+
+    with_execution_isolation(:fiber) do
+      load_error = LoadError.new("cannot load such file -- async")
+      missing_dependency_error = SolidQueue::ExecutionPools::AsyncPool::MissingDependencyError.new(load_error)
+      SolidQueue::ExecutionPools::AsyncPool.expects(:ensure_dependency!).raises(missing_dependency_error)
+
+      configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :async } ])
+      assert_not configuration.valid?
+      assert_match /gem "async"/, configuration.errors.full_messages.first
+    end
+
     # Not enough DB connections
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
     assert_not configuration.valid?
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+. Increase it in `config\/database.yml`/,
+    assert_match /Solid Queue requires at least \d+ database connections for the configured workers, but the queue database connection pool is \d+. Increase it in `config\/database.yml`/,
       configuration.errors.full_messages.first
   end
 
   private
+    def async_workers_release_connections_between_queries?
+      ActiveRecord.gem_version >= SolidQueue::Configuration::ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION
+    end
+
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
       assert_equal count, processes.size
