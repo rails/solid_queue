@@ -5,7 +5,7 @@ module SolidQueue
     class AsyncPool
       include AppExecutor
 
-      WAKEUP_SIGNAL = ".".b
+      IDLE_WAIT_INTERVAL = 0.01
 
       class MissingDependencyError < LoadError
         def initialize(error)
@@ -59,7 +59,6 @@ module SolidQueue
         @fatal_error = nil
         @boot_queue = Thread::Queue.new
         @pending_executions = Thread::Queue.new
-        @wakeup_reader, @wakeup_writer = IO.pipe
 
         self.class.ensure_dependency!
         self.class.ensure_supported_isolation_level!
@@ -78,7 +77,6 @@ module SolidQueue
         reserve_capacity!
         reserved = true
         pending_executions << execution
-        signal_reactor
       rescue Exception
         restore_capacity if reserved
         raise
@@ -94,13 +92,11 @@ module SolidQueue
       end
 
       def shutdown
-        should_shutdown = state_mutex.synchronize do
+        state_mutex.synchronize do
           next false if @shutdown
 
           @shutdown = true
         end
-
-        signal_reactor if should_shutdown
       end
 
       def shutdown?
@@ -120,7 +116,7 @@ module SolidQueue
       end
 
       private
-        attr_reader :boot_queue, :mutex, :on_state_change, :pending_executions, :reactor_thread, :state_mutex, :wakeup_reader, :wakeup_writer
+        attr_reader :boot_queue, :mutex, :on_state_change, :pending_executions, :reactor_thread, :state_mutex
 
         def name
           @name ||= "solid_queue-async-pool-#{object_id}"
@@ -133,31 +129,23 @@ module SolidQueue
               boot_queue << :ready
 
               wait_for_executions(semaphore)
-              wait_for_child_tasks(task)
+              wait_for_inflight_executions
             end
           rescue Exception => error
             register_fatal_error(error)
             raise
-          ensure
-            close_wakeup_pipe
           end
         end
 
         def wait_for_executions(semaphore)
           loop do
-            wakeup_reader.wait_readable
-            clear_wakeup_signal
             schedule_pending_executions(semaphore)
 
             break if shutdown? && pending_executions.empty?
-          end
-        end
 
-        def clear_wakeup_signal
-          loop do
-            wakeup_reader.read_nonblock(1024)
-          rescue IO::WaitReadable, EOFError
-            break
+            # Older async releases don't support waking the reactor from another
+            # thread reliably, so we cooperatively poll for newly posted work.
+            sleep(IDLE_WAIT_INTERVAL) if pending_executions.empty?
           end
         end
 
@@ -217,25 +205,12 @@ module SolidQueue
           raise error if error
         end
 
-        def signal_reactor
-          wakeup_writer.write_nonblock(WAKEUP_SIGNAL)
-        rescue IO::WaitWritable, Errno::EPIPE, IOError
-          nil
+        def wait_for_inflight_executions
+          sleep(IDLE_WAIT_INTERVAL) while executions_in_flight?
         end
 
-        def wait_for_child_tasks(task)
-          if task.respond_to?(:wait_all)
-            task.wait_all
-          else
-            task.children&.each(&:wait)
-          end
-        end
-
-        def close_wakeup_pipe
-          wakeup_reader.close unless wakeup_reader.closed?
-          wakeup_writer.close unless wakeup_writer.closed?
-        rescue IOError
-          nil
+        def executions_in_flight?
+          mutex.synchronize { @available_capacity < size }
         end
     end
   end

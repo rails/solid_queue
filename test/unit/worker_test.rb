@@ -269,28 +269,42 @@ class WorkerTest < ActiveSupport::TestCase
   end
 
   test "sleeps `10.minutes` if at capacity" do
-    3.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+    3.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 
-    @worker.expects(:interruptible_sleep).with(10.minutes).at_least_once
-    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).never
-    @worker.expects(:handle_thread_error).never
+    delays = stub_interruptible_sleep(@worker)
 
     @worker.start
-    sleep 1.second
+
+    first_delay = Timeout.timeout(1.second) { delays.pop }
+
+    assert_equal 10.minutes, first_delay
   end
 
   test "sleeps `polling_interval` if worker not at capacity" do
-    2.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+    2.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 
-    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).at_least_once
-    @worker.expects(:interruptible_sleep).with(10.minutes).never
-    @worker.expects(:handle_thread_error).never
+    delays = stub_interruptible_sleep(@worker)
 
     @worker.start
-    sleep 1.second
+
+    first_delay = Timeout.timeout(1.second) { delays.pop }
+
+    assert_equal @worker.polling_interval, first_delay
   end
 
   private
+    def stub_interruptible_sleep(worker)
+      delays = Thread::Queue.new
+
+      worker.stubs(:handle_thread_error)
+      worker.define_singleton_method(:interruptible_sleep) do |delay|
+        delays << delay
+        sleep 0.01
+      end
+
+      delays
+    end
+
     def with_worker_execution_support(options, &block)
       if options[:execution_mode] == :async
         with_execution_isolation(:fiber, &block)
