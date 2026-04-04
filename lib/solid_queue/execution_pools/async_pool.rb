@@ -30,6 +30,8 @@ module SolidQueue
 
       class << self
         def ensure_dependency!
+          ensure_io_timeout_compatibility!
+
           require "async"
           require "async/semaphore"
         rescue LoadError => error
@@ -44,6 +46,27 @@ module SolidQueue
 
         def supported_isolation_level?
           ActiveSupport::IsolatedExecutionState.isolation_level == :fiber
+        end
+
+        def ensure_io_timeout_compatibility!(io_class = IO)
+          unless io_class.method_defined?(:timeout) && io_class.method_defined?(:timeout=)
+            # Async 2.24, which Ruby 3.1 resolves to, expects Ruby's newer IO
+            # timeout API to exist on any socket it waits on. Older Rubies don't
+            # provide it, so give async the minimal accessor interface it needs.
+            io_class.class_eval do
+              def timeout
+                @timeout
+              end
+
+              def timeout=(value)
+                @timeout = value
+              end
+            end
+          end
+
+          return if io_class.const_defined?(:TimeoutError, false)
+
+          io_class.const_set(:TimeoutError, Class.new(StandardError))
         end
       end
 
