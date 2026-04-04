@@ -12,7 +12,7 @@ class AsyncPoolTest < Minitest::Test
   CancelledExecution = Struct.new(:started) do
     def perform
       started << true if started
-      raise Async::Cancel.new
+      raise Async::Stop.new
     end
   end
 
@@ -82,11 +82,9 @@ class AsyncPoolTest < Minitest::Test
     end
   end
 
-  def test_shutdown_does_not_depend_on_async_queue_close
+  def test_shutdown_wakes_the_reactor_when_idle
     with_execution_isolation(:fiber) do
       pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
-      queue = pool.instance_variable_get(:@queue)
-      queue.define_singleton_method(:close) { raise "should not be called" }
 
       pool.shutdown
 
@@ -111,10 +109,9 @@ class AsyncPoolTest < Minitest::Test
       Timeout.timeout(1.second) { started.pop }
       Timeout.timeout(1.second) { notifications.pop }
 
-      error = assert_raises(Async::Cancel) { pool.available_capacity }
-      assert_equal "Task was cancelled", error.message
-      assert_equal [ "Async::Cancel" ], reported_errors
-      assert_raises(Async::Cancel) { pool.metadata }
+      error = assert_raises(Async::Stop) { pool.available_capacity }
+      assert_equal [ error.class.name ], reported_errors
+      assert_raises(Async::Stop) { pool.metadata }
     ensure
       SolidQueue.on_thread_error = original_on_thread_error
       pool&.shutdown

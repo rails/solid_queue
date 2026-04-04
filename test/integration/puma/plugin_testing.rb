@@ -11,11 +11,12 @@ module PluginTesting
 
     setup do
       FileUtils.mkdir_p Rails.root.join("tmp", "pids")
+      @port = TCPServer.open("127.0.0.1", 0) { |server| server.addr[1] }
 
       Dir.chdir("test/dummy") do
         cmd = %W[
           bundle exec puma
-            -b tcp://127.0.0.1:9222
+            -b tcp://127.0.0.1:#{@port}
             -C config/puma_#{solid_queue_mode}.rb
             -s
             config.ru
@@ -27,6 +28,7 @@ module PluginTesting
       end
 
       wait_for_registered_processes(5, timeout: 5.second)
+      wait_for(timeout: 5.seconds) { find_processes_registered_as(supervisor_kind).exists? }
     end
 
     teardown do
@@ -47,6 +49,7 @@ module PluginTesting
     # Ensure the restart finishes before we try to continue with the test
     wait_for_registered_processes(0, timeout: 5.second)
     wait_for_registered_processes(5, timeout: 5.second)
+    wait_for(timeout: 5.seconds) { find_processes_registered_as(supervisor_kind).exists? }
 
     StoreResultJob.perform_later(:puma_plugin)
     wait_for_jobs_to_finish_for(2.seconds)
@@ -54,6 +57,10 @@ module PluginTesting
   end
 
   private
+    def supervisor_kind
+      "Supervisor(#{solid_queue_mode})"
+    end
+
     def solid_queue_mode
       raise NotImplementedError
     end
