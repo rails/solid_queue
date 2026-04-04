@@ -17,11 +17,13 @@ module SolidQueue
 
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
+      @metadata_state_mutex = Mutex.new
+      @metadata_dirty = false
 
       @pool_options = {
         mode: options[:execution_mode],
         size: options[:threads],
-        on_state_change: -> { wake_up }
+        on_state_change: -> { mark_metadata_dirty; wake_up }
       }
 
       super(**options)
@@ -38,7 +40,7 @@ module SolidQueue
             pool.post(execution)
           end
 
-          reload_metadata if executions.any?
+          reload_metadata_if_needed(executions.any?)
 
           pool.idle? ? polling_interval : 10.minutes
         end
@@ -77,6 +79,24 @@ module SolidQueue
 
       def build_pool
         @pool ||= ExecutionPools.build(**@pool_options)
+      end
+
+      def mark_metadata_dirty
+        metadata_state_mutex.synchronize { @metadata_dirty = true }
+      end
+
+      def metadata_state_mutex
+        @metadata_state_mutex
+      end
+
+      def reload_metadata_if_needed(executions_claimed)
+        needs_reload = metadata_state_mutex.synchronize do
+          claimed_or_dirty = executions_claimed || @metadata_dirty
+          @metadata_dirty = false
+          claimed_or_dirty
+        end
+
+        reload_metadata if needs_reload
       end
   end
 end

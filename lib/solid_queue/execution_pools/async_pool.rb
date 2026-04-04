@@ -15,6 +15,29 @@ module SolidQueue
         end
       end
 
+      class UnsupportedIsolationLevelError < ArgumentError
+        def initialize(level)
+          super(
+            "Async execution mode requires fiber-scoped isolated execution state. " \
+            "Set `ActiveSupport::IsolatedExecutionState.isolation_level = :fiber` " \
+            "(or `config.active_support.isolation_level = :fiber` in Rails). " \
+            "Current isolation level: #{level.inspect}"
+          )
+        end
+      end
+
+      class << self
+        def ensure_supported_isolation_level!
+          return if supported_isolation_level?
+
+          raise UnsupportedIsolationLevelError.new(ActiveSupport::IsolatedExecutionState.isolation_level)
+        end
+
+        def supported_isolation_level?
+          ActiveSupport::IsolatedExecutionState.isolation_level == :fiber
+        end
+      end
+
       attr_reader :size
 
       def initialize(size, on_state_change: nil)
@@ -28,6 +51,7 @@ module SolidQueue
         @boot_queue = Thread::Queue.new
 
         load_dependency!
+        self.class.ensure_supported_isolation_level!
 
         @queue = Async::Queue.new
         @reactor_thread = start_reactor

@@ -8,6 +8,7 @@ module SolidQueue
     validate :ensure_valid_recurring_tasks
     validate :ensure_correctly_sized_thread_pool
     validate :ensure_valid_worker_execution_modes
+    validate :ensure_async_workers_use_supported_isolation_level
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -103,6 +104,14 @@ module SolidQueue
         rescue ArgumentError => error
           errors.add(:base, error.message)
         end
+      end
+
+      def ensure_async_workers_use_supported_isolation_level
+        return unless workers_options.any? { |options| async_worker?(options) }
+
+        SolidQueue::ExecutionPools::AsyncPool.ensure_supported_isolation_level!
+      rescue ArgumentError => error
+        errors.add(:base, error.message)
       end
 
       def default_options

@@ -36,57 +36,74 @@ class AsyncPoolTest < Minitest::Test
     assert_equal pool, SolidQueue::ExecutionPools.build(mode: :fiber, size: 5)
   end
 
+  def test_raises_a_clear_error_when_isolation_level_is_not_fiber
+    error = assert_raises SolidQueue::ExecutionPools::AsyncPool::UnsupportedIsolationLevelError do
+      SolidQueue::ExecutionPools::AsyncPool.new(3)
+    end
+
+    assert_match /isolation_level = :fiber/, error.message
+  end
+
   def test_executes_jobs_as_fibers_on_a_single_reactor_thread
-    pool = SolidQueue::ExecutionPools::AsyncPool.new(2)
-    results = Thread::Queue.new
+    with_execution_isolation(:fiber) do
+      pool = SolidQueue::ExecutionPools::AsyncPool.new(2)
+      results = Thread::Queue.new
 
-    pool.post Execution.new(nil, results, 0.05)
-    pool.post Execution.new(nil, results, 0.05)
+      pool.post Execution.new(nil, results, 0.05)
+      pool.post Execution.new(nil, results, 0.05)
 
-    entries = 2.times.map { Timeout.timeout(1.second) { results.pop } }
+      entries = 2.times.map { Timeout.timeout(1.second) { results.pop } }
 
-    assert_equal 1, entries.map(&:first).uniq.count
-    assert_equal 2, entries.map(&:last).uniq.count
-    assert_equal 2, pool.available_capacity
-    assert_equal 0, pool.metadata[:inflight]
-  ensure
-    pool&.shutdown
-    pool&.wait_for_termination(1.second)
+      assert_equal 1, entries.map(&:first).uniq.count
+      assert_equal 2, entries.map(&:last).uniq.count
+      assert_equal 2, pool.available_capacity
+      assert_equal 0, pool.metadata[:inflight]
+    ensure
+      pool&.shutdown
+      pool&.wait_for_termination(1.second)
+    end
   end
 
   def test_waits_for_in_flight_executions_during_shutdown
-    pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
-    started = Thread::Queue.new
+    with_execution_isolation(:fiber) do
+      pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
+      started = Thread::Queue.new
 
-    pool.post Execution.new(started, nil, 0.1)
-    Timeout.timeout(1.second) { started.pop }
+      pool.post Execution.new(started, nil, 0.1)
+      Timeout.timeout(1.second) { started.pop }
 
-    pool.shutdown
+      pool.shutdown
 
-    assert_nil pool.wait_for_termination(0.01)
-    assert pool.wait_for_termination(1.second)
+      assert_nil pool.wait_for_termination(0.01)
+      assert pool.wait_for_termination(1.second)
+    ensure
+      pool&.shutdown
+      pool&.wait_for_termination(1.second)
+    end
   end
 
   def test_marks_the_pool_as_fatal_when_an_execution_is_cancelled
-    notifications = Thread::Queue.new
-    started = Thread::Queue.new
-    reported_errors = []
-    original_on_thread_error = SolidQueue.on_thread_error
-    SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
+    with_execution_isolation(:fiber) do
+      notifications = Thread::Queue.new
+      started = Thread::Queue.new
+      reported_errors = []
+      original_on_thread_error = SolidQueue.on_thread_error
+      SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
 
-    pool = SolidQueue::ExecutionPools::AsyncPool.new(1, on_state_change: -> { notifications << :changed })
+      pool = SolidQueue::ExecutionPools::AsyncPool.new(1, on_state_change: -> { notifications << :changed })
 
-    pool.post CancelledExecution.new(started)
-    Timeout.timeout(1.second) { started.pop }
-    Timeout.timeout(1.second) { notifications.pop }
+      pool.post CancelledExecution.new(started)
+      Timeout.timeout(1.second) { started.pop }
+      Timeout.timeout(1.second) { notifications.pop }
 
-    error = assert_raises(Async::Cancel) { pool.available_capacity }
-    assert_equal "Task was cancelled", error.message
-    assert_equal [ "Async::Cancel" ], reported_errors
-    assert_raises(Async::Cancel) { pool.metadata }
-  ensure
-    SolidQueue.on_thread_error = original_on_thread_error
-    pool&.shutdown
-    pool&.wait_for_termination(1.second)
+      error = assert_raises(Async::Cancel) { pool.available_capacity }
+      assert_equal "Task was cancelled", error.message
+      assert_equal [ "Async::Cancel" ], reported_errors
+      assert_raises(Async::Cancel) { pool.metadata }
+    ensure
+      SolidQueue.on_thread_error = original_on_thread_error
+      pool&.shutdown
+      pool&.wait_for_termination(1.second)
+    end
   end
 end

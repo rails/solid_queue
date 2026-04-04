@@ -62,27 +62,31 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "normalize worker execution modes and capacity aliases" do
-    configuration = SolidQueue::Configuration.new(
-      workers: [
-        { queues: "llm*", execution_mode: :async, capacity: 10 },
-        { queues: "*", execution_mode: :fiber, fibers: 3 }
-      ],
-      dispatchers: [],
-      skip_recurring: true
-    )
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [
+          { queues: "llm*", execution_mode: :async, capacity: 10 },
+          { queues: "*", execution_mode: :fiber, fibers: 3 }
+        ],
+        dispatchers: [],
+        skip_recurring: true
+      )
 
-    assert configuration.valid?
-    assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], capacity: [ 10, 3 ], threads: [ nil, nil ]
+      assert configuration.valid?
+      assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], capacity: [ 10, 3 ], threads: [ nil, nil ]
+    end
   end
 
   test "async worker capacity does not inflate required database pool size" do
-    configuration = SolidQueue::Configuration.new(
-      workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
-      dispatchers: [],
-      skip_recurring: true
-    )
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
 
-    assert configuration.valid?
+      assert configuration.valid?
+    end
   end
 
   test "mulitple workers with the same configuration" do
@@ -192,6 +196,10 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :invalid } ])
     assert_not configuration.valid?
     assert_match /Unknown execution mode/, configuration.errors.full_messages.first
+
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :async } ])
+    assert_not configuration.valid?
+    assert_match /requires fiber-scoped isolated execution state/, configuration.errors.full_messages.first
 
     # Not enough DB connections
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
