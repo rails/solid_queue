@@ -125,10 +125,15 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
 
-    # Wait for the "no pause" job to complete and the pause job to be claimed.
-    # This ensures the pause job is actively being processed.
+    # Wait for the "no pause" job to complete and the pause job to start.
+    # A claimed execution alone is not enough here because the worker may have
+    # claimed the job but not yet entered `perform`.
     wait_for_jobs_to_finish_for(3.seconds, except: pause)
-    wait_for(timeout: 2.seconds) { SolidQueue::ClaimedExecution.exists?(job_id: SolidQueue::Job.find_by(active_job_id: pause.job_id)&.id) }
+    wait_for(timeout: 2.seconds) do
+      skip_active_record_query_cache do
+        JobResult.where(queue_name: :background, status: "started", value: "pause").exists?
+      end
+    end
 
     signal_process(@pid, :TERM, wait: 0.2.second)
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
