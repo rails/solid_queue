@@ -114,8 +114,6 @@ module SolidQueue
           unless fibers&.positive?
             errors.add(:base, "#{worker_label} with `concurrency_model: fiber` must set a positive integer `fibers` value")
           end
-
-          errors.add(:base, "#{worker_label} uses `concurrency_model: fiber`, but fiber worker execution is not implemented yet")
         end
       end
 

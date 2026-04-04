@@ -4,13 +4,11 @@ module SolidQueue
   class Worker < Processes::Poller
     include LifecycleHooks
 
-    CONCURRENCY_MODE_NOT_IMPLEMENTED_MESSAGE = "Worker `concurrency_model: fiber` is not implemented yet".freeze
-
     after_boot :run_start_hooks
     before_shutdown :run_stop_hooks
     after_shutdown :run_exit_hooks
 
-    attr_reader :queues, :execution_backend, :concurrency_model, :fibers
+    attr_reader :queues, :execution_backend, :concurrency_model, :fibers, :threads
 
     alias pool execution_backend
 
@@ -19,6 +17,7 @@ module SolidQueue
 
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
+      @threads = options[:threads]
       @concurrency_model = options[:concurrency_model].to_s.inquiry
       @fibers = options[:fibers]
 
@@ -30,18 +29,25 @@ module SolidQueue
     end
 
     def metadata
-      super.merge(queues: queues.join(","), thread_pool_size: execution_backend.capacity, concurrency_model: concurrency_model.to_s).tap do |metadata|
+      super.merge(queues: queues.join(","), thread_pool_size: threads, concurrency_model: concurrency_model.to_s).tap do |metadata|
         metadata[:fiber_pool_size] = fibers if fibers.present?
+        metadata[:execution_capacity] = execution_backend.capacity if concurrency_model.fiber?
       end
     end
 
     private
       def ensure_supported_concurrency_model!
-        raise NotImplementedError, CONCURRENCY_MODE_NOT_IMPLEMENTED_MESSAGE if concurrency_model.fiber?
+        return if concurrency_model.thread? || concurrency_model.fiber?
+
+        raise ArgumentError, "Unsupported worker concurrency model: #{concurrency_model}"
       end
 
       def build_execution_backend(options)
-        Pool.new(options[:threads], on_available: -> { wake_up })
+        if concurrency_model.fiber?
+          FiberPool.new(options[:threads], options[:fibers], on_available: -> { wake_up }, name: name)
+        else
+          Pool.new(options[:threads], on_available: -> { wake_up })
+        end
       end
 
       def poll

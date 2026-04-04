@@ -90,15 +90,15 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_includes configuration.errors.full_messages, "Worker 1 with `concurrency_model: fiber` must set a positive integer `fibers` value"
   end
 
-  test "fiber workers are rejected until runtime support is implemented" do
+  test "fiber workers are valid with a positive fibers value" do
     configuration = SolidQueue::Configuration.new(
       workers: [ { queues: "background", concurrency_model: :fiber, fibers: 10 } ],
       dispatchers: [],
       skip_recurring: true
     )
 
-    assert_not configuration.valid?
-    assert_includes configuration.errors.full_messages, "Worker 1 uses `concurrency_model: fiber`, but fiber worker execution is not implemented yet"
+    assert configuration.valid?
+    assert_processes configuration, :worker, 1, concurrency_model: :fiber, fibers: 10
   end
 
   test "workers require a supported concurrency model" do

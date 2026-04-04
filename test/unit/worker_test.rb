@@ -29,6 +29,24 @@ class WorkerTest < ActiveSupport::TestCase
     assert @worker.execution_backend.available?
   end
 
+  test "fiber workers use a fiber-backed execution backend" do
+    worker = SolidQueue::Worker.new(
+      queues: "background",
+      threads: 2,
+      fibers: 4,
+      concurrency_model: :fiber,
+      polling_interval: 0.2
+    )
+
+    assert_instance_of SolidQueue::FiberPool, worker.execution_backend
+    assert_equal 8, worker.execution_backend.capacity
+    assert_equal 2, worker.metadata[:thread_pool_size]
+    assert_equal 4, worker.metadata[:fiber_pool_size]
+    assert_equal 8, worker.metadata[:execution_capacity]
+  ensure
+    worker&.stop
+  end
+
   test "errors on polling are passed to on_thread_error and re-raised" do
     errors = Concurrent::Array.new
 
@@ -158,12 +176,50 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
   end
 
-  test "reject fiber concurrency model until backend support is implemented" do
-    error = assert_raises(NotImplementedError) do
-      SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2, concurrency_model: :fiber, fibers: 10)
+  test "fiber workers claim one slot per thread-fiber combination" do
+    worker = SolidQueue::Worker.new(
+      queues: "background",
+      threads: 2,
+      fibers: 3,
+      concurrency_model: :fiber,
+      polling_interval: 0.2
+    )
+
+    SolidQueue::ReadyExecution.expects(:claim).with(worker.queues, 6, nil).returns([])
+
+    worker.send(:claim_executions)
+  ensure
+    worker&.stop
+  end
+
+  test "fiber workers can start more than one sleeping job per thread" do
+    worker = SolidQueue::Worker.new(
+      queues: "background",
+      threads: 1,
+      fibers: 2,
+      concurrency_model: :fiber,
+      polling_interval: 0.01
+    )
+
+    2.times { StoreResultJob.perform_later("fiber-overlap", pause: 0.3.seconds) }
+
+    worker.start
+
+    wait_for(timeout: 0.25.second) do
+      skip_active_record_query_cache do
+        JobResult.where(queue_name: :background, status: "started", value: "fiber-overlap").count == 2
+      end
     end
 
-    assert_equal SolidQueue::Worker::CONCURRENCY_MODE_NOT_IMPLEMENTED_MESSAGE, error.message
+    skip_active_record_query_cache do
+      assert_operator JobResult.where(queue_name: :background, status: "completed", value: "fiber-overlap").count, :<, 2
+    end
+
+    wait_for_jobs_to_finish_for(2.seconds)
+
+    assert_equal 2, JobResult.where(queue_name: :background, status: "completed", value: "fiber-overlap").count
+  ensure
+    worker&.stop
   end
 
   test "terminate on heartbeat when unregistered" do
