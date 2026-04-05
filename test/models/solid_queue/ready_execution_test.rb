@@ -168,6 +168,40 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       claimed_jobs.map(&:queue_name)
   end
 
+  test "distinct_values_of returns all distinct queue names" do
+    AddToBufferJob.perform_later("hey") # goes to background queue
+
+    names = SolidQueue::ReadyExecution.distinct_values_of(:queue_name)
+    assert_includes names, "backend"
+    assert_includes names, "background"
+    assert_equal 2, names.size
+  end
+
+  test "distinct_values_of filters by like conditions" do
+    AddToBufferJob.perform_later("hey") # background queue
+
+    names = SolidQueue::ReadyExecution.distinct_values_of(:queue_name, like_conditions: [ "back%" ])
+    assert_includes names, "backend"
+    assert_includes names, "background"
+    assert_equal 2, names.size
+
+    names = SolidQueue::ReadyExecution.distinct_values_of(:queue_name, like_conditions: [ "backe%" ])
+    assert_equal [ "backend" ], names
+  end
+
+  test "distinct_values_of returns empty array for no matches" do
+    names = SolidQueue::ReadyExecution.distinct_values_of(:queue_name, like_conditions: [ "nonexistent%" ])
+    assert_equal [], names
+  end
+
+  test "distinct_values_of returns empty array on empty table" do
+    SolidQueue::ReadyExecution.delete_all
+    SolidQueue::Job.delete_all
+
+    names = SolidQueue::ReadyExecution.distinct_values_of(:queue_name)
+    assert_equal [], names
+  end
+
   test "discard all" do
     3.times { |i| AddToBufferJob.perform_later(i) }
 

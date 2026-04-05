@@ -338,7 +338,7 @@ FROM solid_queue_ready_executions
 WHERE queue_name LIKE 'beta%';
 ```
 
-This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL and SQLite, however, don't implement this technique, which means that if your `solid_queue_ready_executions` table is very big because your queues get very deep, this query will get slow. Normally your `solid_queue_ready_executions` table will be small, but it can happen.
+This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL doesn't implement this technique natively, so Solid Queue uses a [recursive CTE](https://www.postgresql.org/docs/current/queries-with.html#QUERIES-WITH-RECURSIVE) to emulate it, achieving similar performance by walking the B-tree index and jumping between distinct values. SQLite doesn't implement loose index scan either, but this is unlikely to be a problem since SQLite is typically used in development with small datasets.
 
 Similarly to using prefixes, the same will happen if you have paused queues, because we need to get a list of all queues with a query like
 ```sql
