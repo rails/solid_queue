@@ -6,9 +6,7 @@ module SolidQueue
 
     class << self
       def all
-        Job.select(:queue_name).distinct.collect do |job|
-          new(job.queue_name)
-        end
+        Job.distinct_values_of(:queue_name).map { |name| new(name) }
       end
 
       def find_by_name(name)

@@ -43,7 +43,7 @@ module SolidQueue
       end
 
       def all_queues
-        relation.distinct(:queue_name).pluck(:queue_name)
+        relation.distinct_values_of(:queue_name)
       end
 
       def exact_names
@@ -53,7 +53,7 @@ module SolidQueue
       def prefixed_names
         if prefixes.empty? then []
         else
-          relation.where(([ "queue_name LIKE ?" ] * prefixes.count).join(" OR "), *prefixes).distinct(:queue_name).pluck(:queue_name)
+          relation.distinct_values_of(:queue_name, like_conditions: prefixes)
         end
       end
 
