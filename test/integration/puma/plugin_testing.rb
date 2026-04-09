@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "socket"
 
 module PluginTesting
   extend ActiveSupport::Concern
@@ -12,10 +13,12 @@ module PluginTesting
     setup do
       FileUtils.mkdir_p Rails.root.join("tmp", "pids")
 
+      @port = find_available_port
+
       Dir.chdir("test/dummy") do
         cmd = %W[
           bundle exec puma
-            -b tcp://127.0.0.1:9222
+            -b tcp://127.0.0.1:#{@port}
             -C config/puma_#{solid_queue_mode}.rb
             -s
             config.ru
@@ -56,5 +59,12 @@ module PluginTesting
   private
     def solid_queue_mode
       raise NotImplementedError
+    end
+
+    def find_available_port
+      server = TCPServer.new("127.0.0.1", 0)
+      server.addr[1]
+    ensure
+      server&.close
     end
 end
