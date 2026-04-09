@@ -166,12 +166,11 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     NonOverlappingUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
 
-    sleep(0.2)
-    assert job.claimed?
+    wait_for(timeout: 2.seconds) { job.reload.claimed? }
 
-    # This won't leave time to the job to finish
-    signal_process(@pid, :TERM, wait: 0.1.second)
-    sleep(SolidQueue.shutdown_timeout + 0.6.seconds)
+    # This won't leave time to the job to finish, so the worker should
+    # release it back to ready during shutdown.
+    terminate_process(@pid)
 
     assert_not job.reload.finished?
     assert job.reload.ready?
