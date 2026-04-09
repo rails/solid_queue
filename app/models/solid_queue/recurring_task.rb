@@ -56,8 +56,9 @@ module SolidQueue
       end
     end
 
-    def delay_from_now
-      [ (next_time - Time.current).to_f, 0.1 ].max
+
+    def next_time_after(time)
+      parsed_schedule.next_time(time).utc
     end
 
     def next_time
