@@ -152,7 +152,7 @@ class WorkerTest < ActiveSupport::TestCase
       end
     end
 
-    assert_no_match /UPDATE .solid_queue_processes. SET .last_heartbeat_at./, log.string
+    assert_no_match /UPDATE .solid_queue_processes. SET .+last_heartbeat_at/, log.string
   ensure
     SolidQueue.process_heartbeat_interval = old_heartbeat_interval
   end
@@ -169,7 +169,7 @@ class WorkerTest < ActiveSupport::TestCase
       end
     end
 
-    assert_match /UPDATE .solid_queue_processes. SET .last_heartbeat_at./, log.string
+    assert_match /UPDATE .solid_queue_processes. SET .+last_heartbeat_at/, log.string
   ensure
     SolidQueue.process_heartbeat_interval = old_heartbeat_interval
   end
