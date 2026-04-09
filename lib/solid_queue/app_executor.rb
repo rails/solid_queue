@@ -10,6 +10,14 @@ module SolidQueue
       end
     end
 
+    def with_silenced_queries
+      if SolidQueue.silence_queries? && ActiveRecord::Base.logger
+        ActiveRecord::Base.logger.silence { yield }
+      else
+        yield
+      end
+    end
+
     def handle_thread_error(error)
       SolidQueue.instrument(:thread_error, error: error)
 

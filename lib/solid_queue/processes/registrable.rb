@@ -39,7 +39,7 @@ module SolidQueue::Processes
 
       def launch_heartbeat
         @heartbeat_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
-          wrap_in_app_executor { heartbeat }
+          wrap_in_app_executor { with_silenced_queries { heartbeat } }
         end
 
         @heartbeat_task.add_observer do |_, _, error|
@@ -61,7 +61,7 @@ module SolidQueue::Processes
       end
 
       def reload_metadata
-        wrap_in_app_executor { process&.update(metadata: metadata.compact) }
+        wrap_in_app_executor { with_silenced_queries { process&.update(metadata: metadata.compact) } }
       end
   end
 end

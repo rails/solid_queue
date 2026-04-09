@@ -43,11 +43,7 @@ module SolidQueue::Processes
 
       def with_polling_volume
         SolidQueue.instrument(:polling) do
-          if SolidQueue.silence_polling? && ActiveRecord::Base.logger
-            ActiveRecord::Base.logger.silence { yield }
-          else
-            yield
-          end
+          with_silenced_queries { yield }
         end
       end
   end
