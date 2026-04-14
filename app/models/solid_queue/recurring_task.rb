@@ -11,6 +11,7 @@ module SolidQueue
     validate :ensure_existing_job_class
 
     scope :static, -> { where(static: true) }
+    scope :dynamic, -> { where(static: false) }
 
     has_many :recurring_executions, foreign_key: :task_key, primary_key: :key
 
@@ -32,7 +33,15 @@ module SolidQueue
           queue_name: options[:queue].presence,
           priority: options[:priority].presence,
           description: options[:description],
-          static: true
+          static: options.fetch(:static, true)
+      end
+
+      def create_dynamic_task(key, **options)
+        from_configuration(key, **options.merge(static: false)).save!
+      end
+
+      def delete_dynamic_task(key)
+        RecurringTask.dynamic.find_by!(key: key).destroy
       end
 
       def create_or_update_all(tasks)

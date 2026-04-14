@@ -30,7 +30,8 @@ module SolidQueue
         end
 
         def select_candidates(queue_relation, limit)
-          queue_relation.ordered.limit(limit).non_blocking_lock.select(:id, :job_id)
+          # Force query execution here with #to_a to avoid unintended FOR UPDATE query executions
+          queue_relation.ordered.limit(limit).non_blocking_lock.select(:id, :job_id).to_a
         end
 
         def lock_candidates(executions, process_id)

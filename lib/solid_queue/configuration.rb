@@ -28,6 +28,11 @@ module SolidQueue
       concurrency_maintenance_interval: 600
     }
 
+    SCHEDULER_DEFAULTS = {
+      polling_interval: 5,
+      dynamic_tasks_enabled: false
+    }
+
     DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
 
@@ -137,8 +142,10 @@ module SolidQueue
       end
 
       def schedulers
-        if !skip_recurring_tasks? && recurring_tasks.any?
-          [ Process.new(:scheduler, recurring_tasks: recurring_tasks) ]
+        return [] if skip_recurring_tasks?
+
+        if recurring_tasks.any? || dynamic_recurring_tasks_enabled?
+          [ Process.new(:scheduler, { recurring_tasks: recurring_tasks, **scheduler_options.with_defaults(SCHEDULER_DEFAULTS) }) ]
         else
           []
         end
@@ -154,17 +161,29 @@ module SolidQueue
           .map { |options| options.dup.symbolize_keys }
       end
 
+      def scheduler_options
+        @scheduler_options ||= processes_config.fetch(:scheduler, {}).dup.symbolize_keys
+      end
+
+      def dynamic_recurring_tasks_enabled?
+        scheduler_options.fetch(:dynamic_tasks_enabled, SCHEDULER_DEFAULTS[:dynamic_tasks_enabled])
+      end
+
       def recurring_tasks
         @recurring_tasks ||= recurring_tasks_config.map do |id, options|
-          RecurringTask.from_configuration(id, **options) if options&.has_key?(:schedule)
+          RecurringTask.from_configuration(id, **options.merge(static: true)) if options&.has_key?(:schedule)
         end.compact
       end
 
       def processes_config
         @processes_config ||= config_from \
-          options.slice(:workers, :dispatchers).presence || options[:config_file],
-          keys: [ :workers, :dispatchers ],
-          fallback: { workers: [ WORKER_DEFAULTS ], dispatchers: [ DISPATCHER_DEFAULTS ] }
+          options.slice(:workers, :dispatchers, :scheduler).presence || options[:config_file],
+          keys: [ :workers, :dispatchers, :scheduler ],
+          fallback: {
+            workers: [ WORKER_DEFAULTS ],
+            dispatchers: [ DISPATCHER_DEFAULTS ],
+            scheduler: SCHEDULER_DEFAULTS
+          }
       end
 
       def recurring_tasks_config
@@ -172,7 +191,6 @@ module SolidQueue
           config_from options[:recurring_schedule_file]
         end
       end
-
 
       def config_from(file_or_hash, keys: [], fallback: {}, env: Rails.env)
         load_config_from(file_or_hash).then do |config|

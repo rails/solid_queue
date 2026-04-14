@@ -210,6 +210,56 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_equal "SolidQueue::RecurringJob", SolidQueue::Job.last.class_name
   end
 
+  test "schedule recurring tasks dynamically" do
+    SolidQueue::RecurringTask.create_dynamic_task("test 1", command: "puts 1", schedule: "every hour")
+    SolidQueue::RecurringTask.create_dynamic_task("test 2", command: "puts 2", schedule: "every minute", static: true)
+
+    assert SolidQueue::RecurringTask.exists?(key: "test 1", command: "puts 1", schedule: "every hour", static: false)
+    assert SolidQueue::RecurringTask.exists?(key: "test 2", command: "puts 2", schedule: "every minute", static: false)
+  end
+
+  test "schedule recurring tasks dynamically with class and args (same keys as YAML config)" do
+    SolidQueue::RecurringTask.create_dynamic_task("test 3", class: "AddToBufferJob", args: [ 42 ], schedule: "every hour")
+
+    task = SolidQueue::RecurringTask.find_by!(key: "test 3")
+    assert_equal "AddToBufferJob", task.class_name
+    assert_equal [ 42 ], task.arguments
+    assert_not task.static
+  end
+
+  test "unschedule recurring tasks dynamically" do
+    dynamic_task = SolidQueue::RecurringTask.create!(
+      key: "dynamic", command: "puts 'd'", schedule: "every day", static: false
+    )
+
+    static_task = SolidQueue::RecurringTask.create!(
+      key: "static", command: "puts 's'", schedule: "every week", static: true
+    )
+
+    SolidQueue::RecurringTask.delete_dynamic_task(dynamic_task.key)
+
+    assert_raises(ActiveRecord::RecordNotFound) do
+      SolidQueue::RecurringTask.delete_dynamic_task(static_task.key)
+    end
+
+    assert_not SolidQueue::RecurringTask.exists?(key: "dynamic", static: false)
+    assert SolidQueue::RecurringTask.exists?(key: "static", static: true)
+  end
+
+  test "scheduling dynamic recurring task with duplicate key raises error" do
+    SolidQueue::RecurringTask.create_dynamic_task("duplicate_test", command: "puts 1", schedule: "every hour")
+
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      SolidQueue::RecurringTask.create_dynamic_task("duplicate_test", command: "puts 2", schedule: "every minute")
+    end
+  end
+
+  test "unscheduling dynamic recurring task with nonexistent key raises RecordNotFound" do
+    assert_raises(ActiveRecord::RecordNotFound) do
+      SolidQueue::RecurringTask.delete_dynamic_task("nonexistent_key")
+    end
+  end
+
   private
     def enqueue_and_assert_performed_with_result(task, result)
       assert_difference [ -> { SolidQueue::Job.count }, -> { SolidQueue::ReadyExecution.count } ], +1 do
