@@ -20,6 +20,13 @@ module SolidQueue
           connection.supports_insert_conflict_target?
         end
       end
+
+      # Pass index hints to the query optimizer using SQL comment hints.
+      # Uses MySQL 8 optimizer hint query comments, which SQLite and
+      # PostgreSQL ignore.
+      def use_index(*indexes)
+        optimizer_hints "INDEX(#{quoted_table_name} #{indexes.join(', ')})"
+      end
     end
   end
 end

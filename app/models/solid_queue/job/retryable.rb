@@ -16,7 +16,16 @@ module SolidQueue
       end
 
       def failed_with(exception)
-        FailedExecution.create_or_find_by!(job_id: id, exception: exception)
+        FailedExecution.transaction(requires_new: true) do
+          FailedExecution.create!(job_id: id, exception: exception)
+        end
+      rescue ActiveRecord::RecordNotUnique
+        if (failed_execution = FailedExecution.find_by(job_id: id))
+          failed_execution.exception = exception
+          failed_execution.save!
+        else
+          retry
+        end
       end
 
       def reset_execution_counters
