@@ -2,7 +2,7 @@
 
 module SolidQueue
   module ExecutionPools
-    class AsyncPool
+    class FiberPool
       include AppExecutor
 
       IDLE_WAIT_INTERVAL = 0.01
@@ -10,8 +10,8 @@ module SolidQueue
       class MissingDependencyError < LoadError
         def initialize(error)
           super(
-            "Async execution mode requires the `async` gem. " \
-            "Add `gem \"async\"` to your Gemfile to use `execution_mode: async`. " \
+            "Fiber worker execution requires the `async` gem. " \
+            "Add `gem \"async\"` to your Gemfile to configure workers with `fibers`. " \
             "Original error: #{error.message}"
           )
         end
@@ -20,7 +20,7 @@ module SolidQueue
       class UnsupportedIsolationLevelError < ArgumentError
         def initialize(level)
           super(
-            "Async execution mode requires fiber-scoped isolated execution state. " \
+            "Fiber worker execution requires fiber-scoped isolated execution state. " \
             "Set `ActiveSupport::IsolatedExecutionState.isolation_level = :fiber` " \
             "(or `config.active_support.isolation_level = :fiber` in Rails). " \
             "Current isolation level: #{level.inspect}"
@@ -52,7 +52,7 @@ module SolidQueue
           unless io_class.method_defined?(:timeout) && io_class.method_defined?(:timeout=)
             # Async 2.24, which Ruby 3.1 resolves to, expects Ruby's newer IO
             # timeout API to exist on any socket it waits on. Older Rubies don't
-            # provide it, so give async the minimal accessor interface it needs.
+            # provide it, so give the gem the minimal accessor interface it needs.
             io_class.class_eval do
               def timeout
                 @timeout
@@ -132,8 +132,7 @@ module SolidQueue
 
       def metadata
         {
-          execution_mode: "async",
-          capacity: size,
+          fiber_pool_size: size,
           inflight: size - available_capacity
         }
       end
@@ -142,7 +141,7 @@ module SolidQueue
         attr_reader :boot_queue, :mutex, :on_state_change, :pending_executions, :reactor_thread, :state_mutex
 
         def name
-          @name ||= "solid_queue-async-pool-#{object_id}"
+          @name ||= "solid_queue-fiber-pool-#{object_id}"
         end
 
         def start_reactor
@@ -166,7 +165,7 @@ module SolidQueue
 
             break if shutdown? && pending_executions.empty?
 
-            # Older async releases don't support waking the reactor from another
+            # Older versions of the async gem don't support waking the reactor from another
             # thread reliably, so we cooperatively poll for newly posted work.
             sleep(IDLE_WAIT_INTERVAL) if pending_executions.empty?
           end

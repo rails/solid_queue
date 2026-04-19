@@ -43,8 +43,6 @@ module SolidQueue
 
       def metadata
         {
-          execution_mode: "thread",
-          capacity: size,
           inflight: size - available_capacity,
           thread_pool_size: size
         }

@@ -7,10 +7,9 @@ module SolidQueue
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
     validate :ensure_correctly_sized_database_pool
-    validate :ensure_valid_worker_execution_modes
-    validate :ensure_async_workers_use_capacity_aliases
-    validate :ensure_async_workers_have_required_dependency
-    validate :ensure_async_workers_use_supported_isolation_level
+    validate :ensure_valid_worker_execution_options
+    validate :ensure_fiber_workers_have_required_dependency
+    validate :ensure_fiber_workers_use_supported_isolation_level
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -22,8 +21,7 @@ module SolidQueue
       queues: "*",
       threads: 3,
       processes: 1,
-      polling_interval: 0.1,
-      execution_mode: :thread
+      polling_interval: 0.1
     }
 
     DISPATCHER_DEFAULTS = {
@@ -40,7 +38,7 @@ module SolidQueue
 
     DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
-    ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION = Gem::Version.new("7.2.0")
+    FIBER_QUERY_SCOPED_CONNECTIONS_VERSION = Gem::Version.new("7.2.0")
 
     def initialize(**options)
       @options = options.with_defaults(default_options)
@@ -102,34 +100,26 @@ module SolidQueue
         end
       end
 
-      def ensure_valid_worker_execution_modes
+      def ensure_valid_worker_execution_options
         workers_options.each do |options|
-          SolidQueue::ExecutionPools.normalize_mode(options[:execution_mode] || WORKER_DEFAULTS[:execution_mode])
-        rescue ArgumentError => error
-          errors.add(:base, error.message)
-        end
-      end
-
-      def ensure_async_workers_use_capacity_aliases
-        workers_options.each do |options|
-          if async_worker?(options) && options.key?(:threads)
-            errors.add(:base, "Async workers do not accept `threads`. Use `capacity` or `fibers` instead.")
+          if options.key?(:threads) && options.key?(:fibers)
+            errors.add(:base, "Workers can specify either `threads` or `fibers`, but not both.")
           end
         end
       end
 
-      def ensure_async_workers_have_required_dependency
-        return unless workers_options.any? { |options| async_worker?(options) }
+      def ensure_fiber_workers_have_required_dependency
+        return unless workers_options.any? { |options| fiber_worker?(options) }
 
-        SolidQueue::ExecutionPools::AsyncPool.ensure_dependency!
+        SolidQueue::ExecutionPools::FiberPool.ensure_dependency!
       rescue LoadError => error
         errors.add(:base, error.message)
       end
 
-      def ensure_async_workers_use_supported_isolation_level
-        return unless workers_options.any? { |options| async_worker?(options) }
+      def ensure_fiber_workers_use_supported_isolation_level
+        return unless workers_options.any? { |options| fiber_worker?(options) }
 
-        SolidQueue::ExecutionPools::AsyncPool.ensure_supported_isolation_level!
+        SolidQueue::ExecutionPools::FiberPool.ensure_supported_isolation_level!
       rescue ArgumentError => error
         errors.add(:base, error.message)
       end
@@ -193,7 +183,7 @@ module SolidQueue
 
       def workers_options
         @workers_options ||= processes_config.fetch(:workers, [])
-          .map { |options| normalize_worker_options(options) }
+          .map { |options| options.dup.symbolize_keys }
       end
 
       def dispatchers_options
@@ -275,45 +265,29 @@ module SolidQueue
         estimated_execution_connections_for_worker(options) + 2
       end
 
-      def normalize_worker_options(options)
-        options = options.dup.symbolize_keys
-        options[:execution_mode] = normalized_worker_execution_mode(options)
-        options[:capacity] = worker_capacity(options) if options.key?(:capacity) || options.key?(:fibers)
-        options[:threads] = worker_capacity(options) unless async_worker?(options) && !options.key?(:threads)
-        options
-      end
-
       def worker_capacity(options)
-        options[:capacity] || options[:fibers] || options[:threads] || WORKER_DEFAULTS[:threads]
-      end
-
-      def normalized_worker_execution_mode(options)
-        SolidQueue::ExecutionPools.normalize_mode(options[:execution_mode] || WORKER_DEFAULTS[:execution_mode])
-      rescue ArgumentError
-        options[:execution_mode] || WORKER_DEFAULTS[:execution_mode]
+        options[:fibers] || options[:threads] || WORKER_DEFAULTS[:threads]
       end
 
       def estimated_execution_connections_for_worker(options)
-        async_worker?(options) ? async_execution_connections_for_worker(options) : worker_capacity(options)
+        fiber_worker?(options) ? fiber_execution_connections_for_worker(options) : worker_capacity(options)
       end
 
-      def async_execution_connections_for_worker(options)
-        async_jobs_release_connections_between_queries? ? 1 : worker_capacity(options)
+      def fiber_execution_connections_for_worker(options)
+        fiber_jobs_release_connections_between_queries? ? 1 : worker_capacity(options)
       end
 
-      def async_jobs_release_connections_between_queries?
-        ActiveRecord.gem_version >= ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION
+      def fiber_jobs_release_connections_between_queries?
+        ActiveRecord.gem_version >= FIBER_QUERY_SCOPED_CONNECTIONS_VERSION
       end
 
-      def async_worker?(options)
-        normalized_worker_execution_mode(options) == :async
+      def fiber_worker?(options)
+        options.key?(:fibers)
       end
 
       def worker_defaults_for(options)
-        if async_worker?(options)
-          WORKER_DEFAULTS.except(:threads).tap do |defaults|
-            defaults[:capacity] = WORKER_DEFAULTS[:threads] unless options.key?(:threads)
-          end
+        if fiber_worker?(options)
+          WORKER_DEFAULTS.except(:threads)
         else
           WORKER_DEFAULTS
         end

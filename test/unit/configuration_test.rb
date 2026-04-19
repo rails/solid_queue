@@ -61,41 +61,41 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 2
   end
 
-  test "normalize worker execution modes and capacity aliases" do
+  test "fibers configure workers to execute jobs in fibers" do
     with_execution_isolation(:fiber) do
       configuration = SolidQueue::Configuration.new(
         workers: [
-          { queues: "llm*", execution_mode: :async, capacity: 10 },
-          { queues: "*", execution_mode: :fiber, fibers: 3 }
+          { queues: "llm*", fibers: 10 },
+          { queues: "*", threads: 3 }
         ],
         dispatchers: [],
         skip_recurring: true
       )
 
       assert configuration.valid?
-      assert_processes configuration, :worker, 2, execution_mode: [ :async, :async ], capacity: [ 10, 3 ], threads: [ nil, nil ]
+      assert_processes configuration, :worker, 2, fibers: [ 10, nil ], threads: [ nil, 3 ]
     end
   end
 
-  test "async workers reject threads in favor of capacity aliases" do
+  test "workers reject threads and fibers together" do
     with_execution_isolation(:fiber) do
       configuration = SolidQueue::Configuration.new(
-        workers: [ { queues: "llm*", execution_mode: :async, threads: 10 } ],
+        workers: [ { queues: "llm*", threads: 1, fibers: 1 } ],
         dispatchers: [],
         skip_recurring: true
       )
 
       assert_not configuration.valid?
-      assert_match /Async workers do not accept `threads`/, configuration.errors.full_messages.first
+      assert_match /either `threads` or `fibers`/, configuration.errors.full_messages.first
     end
   end
 
-  test "async worker capacity inflates required database pool size on Rails 7.1" do
-    skip if async_workers_release_connections_between_queries?
+  test "fiber worker size inflates required database pool size on Rails 7.1" do
+    skip if fiber_workers_release_connections_between_queries?
 
     with_execution_isolation(:fiber) do
       configuration = SolidQueue::Configuration.new(
-        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        workers: [ { queues: "llm*", fibers: 1000 } ],
         dispatchers: [],
         skip_recurring: true
       )
@@ -105,12 +105,12 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
   end
 
-  test "async worker capacity does not inflate required database pool size on Rails 7.2+" do
-    skip unless async_workers_release_connections_between_queries?
+  test "fiber worker size does not inflate required database pool size on Rails 7.2+" do
+    skip unless fiber_workers_release_connections_between_queries?
 
     with_execution_isolation(:fiber) do
       configuration = SolidQueue::Configuration.new(
-        workers: [ { queues: "llm*", execution_mode: :async, capacity: 1000 } ],
+        workers: [ { queues: "llm*", fibers: 1000 } ],
         dispatchers: [],
         skip_recurring: true
       )
@@ -223,20 +223,16 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
 
-    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :invalid } ])
-    assert_not configuration.valid?
-    assert_match /Unknown execution mode/, configuration.errors.full_messages.first
-
-    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :async } ])
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
     assert_not configuration.valid?
     assert_match /requires fiber-scoped isolated execution state/, configuration.errors.full_messages.first
 
     with_execution_isolation(:fiber) do
       load_error = LoadError.new("cannot load such file -- async")
-      missing_dependency_error = SolidQueue::ExecutionPools::AsyncPool::MissingDependencyError.new(load_error)
-      SolidQueue::ExecutionPools::AsyncPool.expects(:ensure_dependency!).raises(missing_dependency_error)
+      missing_dependency_error = SolidQueue::ExecutionPools::FiberPool::MissingDependencyError.new(load_error)
+      SolidQueue::ExecutionPools::FiberPool.expects(:ensure_dependency!).raises(missing_dependency_error)
 
-      configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { execution_mode: :async } ])
+      configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
       assert_not configuration.valid?
       assert_match /gem "async"/, configuration.errors.full_messages.first
     end
@@ -249,8 +245,8 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   private
-    def async_workers_release_connections_between_queries?
-      ActiveRecord.gem_version >= SolidQueue::Configuration::ASYNC_QUERY_SCOPED_CONNECTIONS_VERSION
+    def fiber_workers_release_connections_between_queries?
+      ActiveRecord.gem_version >= SolidQueue::Configuration::FIBER_QUERY_SCOPED_CONNECTIONS_VERSION
     end
 
     def assert_processes(configuration, kind, count, **attributes)

@@ -10,17 +10,16 @@ class WorkerTest < ActiveSupport::TestCase
       name: "thread",
       options: { threads: 3 },
       expected_metadata: {
-        execution_mode: "thread",
-        capacity: 3,
+        inflight: 0,
         thread_pool_size: 3
       }
     },
     {
-      name: "async",
-      options: { execution_mode: :async, capacity: 3 },
+      name: "fiber",
+      options: { fibers: 3 },
       expected_metadata: {
-        execution_mode: "async",
-        capacity: 3
+        inflight: 0,
+        fiber_pool_size: 3
       }
     }
   ].freeze
@@ -46,8 +45,7 @@ class WorkerTest < ActiveSupport::TestCase
         assert_equal "Worker", process.kind
         assert_metadata process, {
           queues: "background",
-          polling_interval: 0.2,
-          inflight: 0
+          polling_interval: 0.2
         }.merge(mode[:expected_metadata])
       ensure
         worker&.stop
@@ -107,7 +105,7 @@ class WorkerTest < ActiveSupport::TestCase
     pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
 
     SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
-      options[:mode] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
+      options[:type] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
     end.returns(pool)
 
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
@@ -123,6 +121,14 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_registered_processes(0, timeout: 1.second)
   end
 
+  test "rejects multiple worker pool size options" do
+    error = assert_raises ArgumentError do
+      SolidQueue::Worker.new(queues: "background", threads: 3, fibers: 3, polling_interval: 0.2)
+    end
+
+    assert_match /either `threads` or `fibers`/, error.message
+  end
+
   test "defaults thread workers to the configured thread pool size" do
     worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2)
 
@@ -130,7 +136,7 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_registered_processes(1, timeout: 1.second)
 
     assert_equal 3, worker.pool.size
-    assert_metadata SolidQueue::Process.first, thread_pool_size: 3, capacity: 3, execution_mode: "thread"
+    assert_metadata SolidQueue::Process.first, thread_pool_size: 3, inflight: 0
   ensure
     worker&.stop
     wait_for_registered_processes(0, timeout: 1.second)
@@ -306,7 +312,7 @@ class WorkerTest < ActiveSupport::TestCase
     end
 
     def with_worker_execution_support(options, &block)
-      if options[:execution_mode] == :async
+      if options.key?(:fibers)
         with_execution_isolation(:fiber, &block)
       else
         yield

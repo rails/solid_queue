@@ -1,6 +1,6 @@
 require "test_helper"
 
-class AsyncPoolTest < Minitest::Test
+class FiberPoolTest < Minitest::Test
   Execution = Struct.new(:started, :results, :pause) do
     def perform
       started << true if started
@@ -19,26 +19,26 @@ class AsyncPoolTest < Minitest::Test
   def test_raises_a_clear_error_when_the_async_gem_is_unavailable
     load_error = LoadError.new("cannot load such file -- async")
 
-    SolidQueue::ExecutionPools::AsyncPool.expects(:require).with("async").raises(load_error)
+    SolidQueue::ExecutionPools::FiberPool.expects(:require).with("async").raises(load_error)
 
-    error = assert_raises SolidQueue::ExecutionPools::AsyncPool::MissingDependencyError do
-      SolidQueue::ExecutionPools::AsyncPool.new(3)
+    error = assert_raises SolidQueue::ExecutionPools::FiberPool::MissingDependencyError do
+      SolidQueue::ExecutionPools::FiberPool.new(3)
     end
 
     assert_match /gem "async"/, error.message
   end
 
-  def test_build_treats_fiber_as_an_alias_for_async
+  def test_builds_a_fiber_pool
     pool = mock
 
-    SolidQueue::ExecutionPools::AsyncPool.expects(:new).with(5, on_state_change: nil).returns(pool)
+    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_state_change: nil).returns(pool)
 
-    assert_equal pool, SolidQueue::ExecutionPools.build(mode: :fiber, size: 5)
+    assert_equal pool, SolidQueue::ExecutionPools.build(type: :fiber, size: 5)
   end
 
   def test_raises_a_clear_error_when_isolation_level_is_not_fiber
-    error = assert_raises SolidQueue::ExecutionPools::AsyncPool::UnsupportedIsolationLevelError do
-      SolidQueue::ExecutionPools::AsyncPool.new(3)
+    error = assert_raises SolidQueue::ExecutionPools::FiberPool::UnsupportedIsolationLevelError do
+      SolidQueue::ExecutionPools::FiberPool.new(3)
     end
 
     assert_match /isolation_level = :fiber/, error.message
@@ -47,7 +47,7 @@ class AsyncPoolTest < Minitest::Test
   def test_adds_io_timeout_compatibility_for_older_rubies
     io_class = Class.new
 
-    SolidQueue::ExecutionPools::AsyncPool.ensure_io_timeout_compatibility!(io_class)
+    SolidQueue::ExecutionPools::FiberPool.ensure_io_timeout_compatibility!(io_class)
 
     io = io_class.new
     assert_nil io.timeout
@@ -60,7 +60,7 @@ class AsyncPoolTest < Minitest::Test
 
   def test_executes_jobs_as_fibers_on_a_single_reactor_thread
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::AsyncPool.new(2)
+      pool = SolidQueue::ExecutionPools::FiberPool.new(2)
       results = Thread::Queue.new
 
       pool.post Execution.new(nil, results, 0.05)
@@ -80,7 +80,7 @@ class AsyncPoolTest < Minitest::Test
 
   def test_waits_for_in_flight_executions_during_shutdown
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
       started = Thread::Queue.new
 
       pool.post Execution.new(started, nil, 0.1)
@@ -98,7 +98,7 @@ class AsyncPoolTest < Minitest::Test
 
   def test_shutdown_wakes_the_reactor_when_idle
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::AsyncPool.new(1)
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
 
       pool.shutdown
 
@@ -117,7 +117,7 @@ class AsyncPoolTest < Minitest::Test
       original_on_thread_error = SolidQueue.on_thread_error
       SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
 
-      pool = SolidQueue::ExecutionPools::AsyncPool.new(1, on_state_change: -> { notifications << :changed })
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_state_change: -> { notifications << :changed })
 
       pool.post CancelledExecution.new(started)
       Timeout.timeout(1.second) { started.pop }

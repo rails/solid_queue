@@ -3,23 +3,14 @@
 module SolidQueue
   module ExecutionPools
     class << self
-      def build(mode:, size:, on_state_change: nil)
-        case normalize_mode(mode)
+      def build(type:, size:, on_state_change: nil)
+        case type
         when :thread
           ThreadPool.new(size, on_state_change: on_state_change)
-        when :async
-          AsyncPool.new(size, on_state_change: on_state_change)
-        end
-      end
-
-      def normalize_mode(mode)
-        case mode.to_s
-        when "", "thread"
-          :thread
-        when "async", "fiber"
-          :async
+        when :fiber
+          FiberPool.new(size, on_state_change: on_state_change)
         else
-          raise ArgumentError, "Unknown execution mode #{mode.inspect}. Expected one of: :thread, :async, :fiber"
+          raise ArgumentError, "Unknown execution pool type #{type.inspect}. Expected one of: :thread, :fiber"
         end
       end
     end
