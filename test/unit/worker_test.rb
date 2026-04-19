@@ -90,10 +90,14 @@ class WorkerTest < ActiveSupport::TestCase
         process = SolidQueue::Process.first
 
         wait_for(timeout: 2.seconds) { process.reload.metadata["inflight"] == 1 }
+        assert_equal 1, process.reload.metadata["inflight"]
+
         wait_for(timeout: 2.seconds) do
           process.reload.metadata["inflight"] == 0 &&
             JobResult.where(queue_name: :background, status: "completed", value: :slow).count == 1
         end
+        assert_equal 0, process.reload.metadata["inflight"]
+        assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :slow).count
       ensure
         worker&.stop
         wait_for_registered_processes(0, timeout: 1.second)

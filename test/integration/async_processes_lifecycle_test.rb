@@ -134,6 +134,7 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
         JobResult.where(queue_name: :background, status: "started", value: "pause").exists?
       end
     end
+    assert_started_job_result("pause")
 
     signal_process(@pid, :TERM, wait: 0.2.second)
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
@@ -147,8 +148,7 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # The pause job should have started but not completed
-    assert_started_job_result("pause")
+    # The pause job should not have completed
     assert_not_equal "completed", skip_active_record_query_cache { JobResult.find_by(value: "pause")&.status }
 
     # After shutdown, the pause job may be either:
