@@ -166,7 +166,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     NonOverlappingUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
     job = SolidQueue::Job.last
 
-    sleep(0.2)
+    wait_for(timeout: 3.seconds) { job.reload.claimed? }
+
     assert job.claimed?
 
     # This won't leave time to the job to finish
@@ -256,6 +257,12 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   private
     def assert_stored_sequence(result, sequence)
       expected = sequence.sort.map { |name| "s#{name}c#{name}" }.join
+      wait_for(timeout: 1.second) do
+        skip_active_record_query_cache do
+          result.reload.status.split(" + ").sort.join == expected
+        end
+      end
+
       skip_active_record_query_cache do
         assert_equal expected, result.reload.status.split(" + ").sort.join
       end

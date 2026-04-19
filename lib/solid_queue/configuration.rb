@@ -6,7 +6,10 @@ module SolidQueue
 
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
-    validate :ensure_correctly_sized_thread_pool
+    validate :ensure_correctly_sized_database_pool
+    validate :ensure_valid_worker_execution_options
+    validate :ensure_fiber_workers_have_required_dependency
+    validate :ensure_fiber_workers_use_supported_isolation_level
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -35,6 +38,7 @@ module SolidQueue
 
     DEFAULT_CONFIG_FILE_PATH = "config/queue.yml"
     DEFAULT_RECURRING_SCHEDULE_FILE_PATH = "config/recurring.yml"
+    FIBER_QUERY_SCOPED_CONNECTIONS_VERSION = Gem::Version.new("7.2.0")
 
     def initialize(**options)
       @options = options.with_defaults(default_options)
@@ -88,11 +92,36 @@ module SolidQueue
         end
       end
 
-      def ensure_correctly_sized_thread_pool
-        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
-          errors.add(:base, "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
-            "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`")
+      def ensure_correctly_sized_database_pool
+        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_database_pool_size
+          errors.add(:base, "Solid Queue requires at least #{estimated_database_pool_size} database connections " +
+            "for the configured workers, but the queue database connection pool is #{db_pool_size}. " +
+            "Increase it in `config/database.yml`")
         end
+      end
+
+      def ensure_valid_worker_execution_options
+        workers_options.each do |options|
+          if options.key?(:threads) && options.key?(:fibers)
+            errors.add(:base, "Workers can specify either `threads` or `fibers`, but not both.")
+          end
+        end
+      end
+
+      def ensure_fiber_workers_have_required_dependency
+        return unless workers_options.any? { |options| fiber_worker?(options) }
+
+        SolidQueue::ExecutionPools::FiberPool.ensure_dependency!
+      rescue LoadError => error
+        errors.add(:base, error.message)
+      end
+
+      def ensure_fiber_workers_use_supported_isolation_level
+        return unless workers_options.any? { |options| fiber_worker?(options) }
+
+        SolidQueue::ExecutionPools::FiberPool.ensure_supported_isolation_level!
+      rescue ArgumentError => error
+        errors.add(:base, error.message)
       end
 
       def default_options
@@ -131,7 +160,8 @@ module SolidQueue
             1
           end
 
-          processes.times.map { Process.new(:worker, worker_options.with_defaults(WORKER_DEFAULTS)) }
+          defaults = worker_defaults_for(worker_options)
+          processes.times.map { Process.new(:worker, worker_options.with_defaults(defaults)) }
         end
       end
 
@@ -226,10 +256,41 @@ module SolidQueue
         end
       end
 
-      def estimated_number_of_threads
-        # At most "threads" in each worker + 1 thread for the worker + 1 thread for the heartbeat task
-        thread_count = workers_options.map { |options| options.fetch(:threads, WORKER_DEFAULTS[:threads]) }.max
-        (thread_count || 1) + 2
+      def estimated_database_pool_size
+        worker_pool_size = workers_options.map { |options| estimated_database_pool_size_for_worker(options) }.max
+        worker_pool_size || 1
+      end
+
+      def estimated_database_pool_size_for_worker(options)
+        estimated_execution_connections_for_worker(options) + 2
+      end
+
+      def worker_capacity(options)
+        options[:fibers] || options[:threads] || WORKER_DEFAULTS[:threads]
+      end
+
+      def estimated_execution_connections_for_worker(options)
+        fiber_worker?(options) ? fiber_execution_connections_for_worker(options) : worker_capacity(options)
+      end
+
+      def fiber_execution_connections_for_worker(options)
+        fiber_jobs_release_connections_between_queries? ? 1 : worker_capacity(options)
+      end
+
+      def fiber_jobs_release_connections_between_queries?
+        ActiveRecord.gem_version >= FIBER_QUERY_SCOPED_CONNECTIONS_VERSION
+      end
+
+      def fiber_worker?(options)
+        options.key?(:fibers)
+      end
+
+      def worker_defaults_for(options)
+        if fiber_worker?(options)
+          WORKER_DEFAULTS.except(:threads)
+        else
+          WORKER_DEFAULTS
+        end
       end
   end
 end

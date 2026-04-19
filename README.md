@@ -203,6 +203,10 @@ Or you can also set the environment variable `SOLID_QUEUE_SUPERVISOR_MODE` to `a
 
 **The recommended and default mode is `fork`. Only use `async` if you know what you're doing and have strong reasons to**
 
+This supervisor mode is separate from a worker's concurrency model. Supervisor mode decides whether supervised processes live in forks or threads. Worker configuration decides whether claimed jobs run in a thread pool (`threads: N`) or as fibers on a single fiber reactor thread (`fibers: N`).
+
+Because these are separate concerns, you can combine the default `fork` supervisor mode with fiber workers. In that setup, each worker process gets its own fiber reactor and bounded fiber count.
+
 ## Configuration
 
 By default, Solid Queue will try to find your configuration under `config/queue.yml`, but you can set a different path using the environment variable `SOLID_QUEUE_CONFIG` or by using the `-c/--config_file` option with `bin/jobs`, like this:
@@ -222,9 +226,9 @@ production:
       batch_size: 500
       concurrency_maintenance_interval: 300
   workers:
-    - queues: "*"
-      threads: 3
-      polling_interval: 2
+    - queues: "llm*"
+      fibers: 100
+      polling_interval: 0.05
     - queues: [ real_time, background ]
       threads: 5
       polling_interval: 0.1
@@ -271,9 +275,11 @@ Here's an overview of the different options:
 
   Check the sections below on [how queue order behaves combined with priorities](#queue-order-and-priorities), and [how the way you specify the queues per worker might affect performance](#queues-specification-and-performance).
 
-- `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
-It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker thread uses one connection, and two additional connections are reserved for polling and heartbeat.
-- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#fork-vs-async-mode).
+- `threads`: configures a worker to execute jobs in a thread pool of this size. By default, workers use `threads: 3`. Only workers have this setting, and it can't be combined with `fibers`.
+It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker uses connections for polling and heartbeat and thread mode may use additional connections for job execution.
+- `fibers`: configures a worker to execute jobs as fibers on a single fiber reactor thread, with this value as the maximum number of in-flight jobs. It can't be combined with `threads`.
+  Fiber workers require fiber-scoped isolated execution state. In Rails apps, set `config.active_support.isolation_level = :fiber` before using `fibers`. Solid Queue refuses to boot fiber workers when isolation remains thread-scoped. On Rails 7.2 and later, a practical starting point is usually `3-5` queue database connections per worker process rather than matching the `fibers` value, because ordinary Active Record query paths can release connections between non-blocking waits. On Rails 7.1, size the queue database pool more conservatively, as in-flight fiber jobs may still retain connections roughly in proportion to `fibers`.
+- `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. This works with both `threads` and `fibers` workers as long as the supervisor is running in the default `fork` mode. **Note**: this option is ignored only when the supervisor itself is [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 
 
@@ -364,7 +370,15 @@ queues: back*
 
 ### Threads, processes, and signals
 
-Workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
+By default, workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Workers can also be configured with `fibers`, in which case claimed jobs are executed as fibers on a single reactor thread and bounded by the worker's fiber count. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
+
+Fiber worker execution is best suited for cooperative, mostly I/O-bound jobs. Blocking or CPU-heavy work still blocks the single reactor thread, so it should not be expected to outperform thread mode for every workload.
+
+Because fiber workers run multiple fibers on a single thread, Rails must also isolate execution state per fiber rather than per thread. If your app keeps the default thread-scoped isolation level, Solid Queue will raise a boot-time error instead of running fiber workers with shared Active Record state.
+
+On Rails 7.2 and later, fiber workers can often use a much smaller queue database pool than an equivalent thread pool. A practical starting point is `3-5` queue database connections per worker process: one for job execution, one for polling, one for heartbeats, plus some headroom. In the default `fork` supervisor mode, that guidance applies per worker process. In supervisor `async` mode, all workers share one process, so add together the requirements for the workers running there.
+
+That lower-pool guidance depends on job code not holding connections open across non-blocking waits. APIs such as `ActiveRecord::Base.connection`, `lease_connection`, `connection_pool.checkout`, or long-lived `with_connection` / transaction blocks can pin connections and push fiber workers back toward thread-like pool usage. On Rails 7.1, plan conservatively and assume the configured fiber count can still grow queue database connection usage.
 
 The supervisor is in charge of managing these processes, and it responds to the following signals when running in its own process via `bin/jobs` or with [the Puma plugin](#puma-plugin) with the default `fork` mode:
 - `TERM`, `INT`: starts graceful termination. The supervisor will send a `TERM` signal to its supervised processes, and it'll wait up to `SolidQueue.shutdown_timeout` time until they're done. If any supervised processes are still around by then, it'll send a `QUIT` signal to them to indicate they must exit.
@@ -373,6 +387,10 @@ The supervisor is in charge of managing these processes, and it responds to the 
 When receiving a `QUIT` signal, if workers still have jobs in-flight, these will be returned to the queue when the processes are deregistered.
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats. Jobs that were claimed by processes with an expired heartbeat will be marked as failed with a `SolidQueue::Processes::ProcessPrunedError`. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
+
+Worker heartbeats are driven by a separate timer task, not by the worker execution backend itself. This means fiber workers do not rely on the reactor loop to prove liveness. However, liveness is still tracked at the worker-process level, not at the individual thread or fiber level.
+
+This means finished and failed jobs still follow the normal Solid Queue lifecycle, but a single stuck job can remain claimed if the worker process itself is still alive. If you need stronger stuck-job detection, that requires an explicit timeout or watchdog mechanism on top of process heartbeats.
 
 In a similar way, if a worker is terminated in any other way not initiated by the above signals (e.g. a worker is sent a `KILL` signal), jobs in progress will be marked as failed so that they can be inspected, with a `SolidQueue::Processes::ProcessExitError`. Sometimes a job in particular is responsible for this, for example, if it has a memory leak and you have a mechanism to kill processes over a certain memory threshold, so this will help identifying this kind of situation.
 
@@ -389,7 +407,7 @@ _Note_: The settings in this section should be set in your `config/application.r
 
 There are several settings that control how Solid Queue works that you can set as well:
 - `logger`: the logger you want Solid Queue to use. Defaults to the app logger.
-- `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap asynchronous operations, defaults to the app executor
+- `app_executor`: the [Rails executor](https://guides.rubyonrails.org/threading_and_code_execution.html#executor) used to wrap background operations, defaults to the app executor
 - `on_thread_error`: custom lambda/Proc to call when there's an error within a Solid Queue thread that takes the exception raised as argument. Defaults to
 
   ```ruby
