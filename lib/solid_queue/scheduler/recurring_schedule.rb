@@ -4,6 +4,11 @@ module SolidQueue
   class Scheduler::RecurringSchedule
     include AppExecutor
 
+    ScheduledRecurringTask = Struct.new(:task, :handle) do
+      delegate :key, :updated_at, to: :task
+      delegate :cancel, to: :handle
+    end
+
     attr_reader :scheduled_tasks
 
     def initialize(static_tasks, dynamic_tasks_enabled: false)
@@ -34,7 +39,11 @@ module SolidQueue
     end
 
     def schedule_task(task)
-      scheduled_tasks[task.key] = schedule(task)
+      scheduled_tasks[task.key] = ScheduledRecurringTask.new(task, schedule(task))
+    end
+
+    def unschedule_task(key)
+      scheduled_tasks.delete(key)&.cancel
     end
 
     def unschedule_tasks
@@ -49,6 +58,7 @@ module SolidQueue
     def reschedule_dynamic_tasks
       wrap_in_app_executor do
         reload_dynamic_tasks
+        reschedule_changed_dynamic_tasks
         schedule_created_dynamic_tasks
         unschedule_deleted_dynamic_tasks
       end
@@ -69,16 +79,24 @@ module SolidQueue
         @dynamic_tasks_enabled
       end
 
-      def schedule_created_dynamic_tasks
-        RecurringTask.dynamic.where.not(key: scheduled_tasks.keys).each do |task|
+      def reschedule_changed_dynamic_tasks
+        dynamic_tasks.each do |task|
+          next if !scheduled_tasks.key?(task.key) || scheduled_tasks[task.key].updated_at == task.updated_at
+
+          unschedule_task(task.key)
           schedule_task(task)
         end
       end
 
+      def schedule_created_dynamic_tasks
+        dynamic_tasks.each do |task|
+          schedule_task(task) unless scheduled_tasks.key?(task.key)
+        end
+      end
+
       def unschedule_deleted_dynamic_tasks
-        (scheduled_tasks.keys - RecurringTask.pluck(:key)).each do |key|
-          scheduled_tasks[key].cancel
-          scheduled_tasks.delete(key)
+        (scheduled_tasks.keys - dynamic_tasks.map(&:key) - static_task_keys).each do |key|
+          unschedule_task(key)
         end
       end
 
