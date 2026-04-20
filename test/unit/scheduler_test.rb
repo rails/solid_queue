@@ -156,4 +156,81 @@ class SchedulerTest < ActiveSupport::TestCase
   ensure
     scheduler&.stop
   end
+
+  test "picks up schedule updates on existing dynamic tasks post-start" do
+    task = SolidQueue::RecurringTask.create!(
+      key: "updatable_task",
+      static: false,
+      class_name: "AddToBufferJob",
+      schedule: "every hour",
+      arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, dynamic_tasks_enabled: true, polling_interval: 0.1).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    skip_active_record_query_cache do
+      task.update!(schedule: "every second")
+
+      wait_while_with_timeout(3.seconds) { SolidQueue::Job.count < 1 }
+      assert SolidQueue::Job.count >= 1, "Expected jobs to be enqueued after schedule was updated"
+    end
+  ensure
+    scheduler&.stop
+  end
+
+  test "picks up argument updates on existing dynamic tasks post-start" do
+    task = SolidQueue::RecurringTask.create!(
+      key: "updatable_args_task",
+      static: false,
+      class_name: "AddToBufferJob",
+      schedule: "every hour",
+      arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, dynamic_tasks_enabled: true, polling_interval: 0.1).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    skip_active_record_query_cache do
+      previous_scheduled_task = scheduler.recurring_schedule.scheduled_tasks["updatable_args_task"]
+      assert_not_nil previous_scheduled_task
+
+      task.update!(arguments: [ 99 ])
+
+      wait_while_with_timeout(3.seconds) do
+        scheduler.recurring_schedule.scheduled_tasks["updatable_args_task"].equal?(previous_scheduled_task)
+      end
+
+      assert_not_same previous_scheduled_task, scheduler.recurring_schedule.scheduled_tasks["updatable_args_task"]
+    end
+  ensure
+    scheduler&.stop
+  end
+
+  test "does not replace scheduled task when polling finds no updates" do
+    SolidQueue::RecurringTask.create!(
+      key: "stable_task",
+      static: false,
+      class_name: "AddToBufferJob",
+      schedule: "every hour",
+      arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, dynamic_tasks_enabled: true, polling_interval: 0.1).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    skip_active_record_query_cache do
+      scheduled_task = scheduler.recurring_schedule.scheduled_tasks["stable_task"]
+      assert_not_nil scheduled_task
+
+      sleep 0.5
+
+      assert_same scheduled_task, scheduler.recurring_schedule.scheduled_tasks["stable_task"]
+    end
+  ensure
+    scheduler&.stop
+  end
 end
