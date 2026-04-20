@@ -70,7 +70,7 @@ module SolidQueue
     end
 
     def valid_recurring_config?
-      invalid_tasks = Hash.new {|hash, key| hash[key] = [] }
+      invalid_tasks = Hash.new { |hash, key| hash[key] = [] }
       load_config_from(options[:recurring_schedule_file]).each do |env, tasks|
         tasks.each do |id, options|
           task = RecurringTask.from_configuration(id, **options)
