@@ -41,15 +41,16 @@ module SolidQueue
           end
 
           def successfully_dispatched(jobs)
-            dispatched_and_ready(jobs) + dispatched_and_blocked(jobs)
+            jobs_by_id = jobs.index_by(&:id)
+            dispatched_and_ready(jobs_by_id) + dispatched_and_blocked(jobs_by_id)
           end
 
-          def dispatched_and_ready(jobs)
-            where(id: ReadyExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          def dispatched_and_ready(jobs_by_id)
+            ReadyExecution.where(job_id: jobs_by_id.keys).pluck(:job_id).map { |id| jobs_by_id[id] }
           end
 
-          def dispatched_and_blocked(jobs)
-            where(id: BlockedExecution.where(job_id: jobs.map(&:id)).pluck(:job_id))
+          def dispatched_and_blocked(jobs_by_id)
+            BlockedExecution.where(job_id: jobs_by_id.keys).pluck(:job_id).map { |id| jobs_by_id[id] }
           end
       end
 
