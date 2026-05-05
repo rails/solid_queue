@@ -264,7 +264,7 @@ Here's an overview of the different options:
   ```
 
   This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
-  
+
   Also, if a wildcard (*) is included alongside explicit queue names, for example: `queues: [default, backend, *]`, then it would behave like `queues: *`
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
@@ -693,14 +693,13 @@ You can completely disable recurring tasks by setting the environment variable `
 The configuration itself looks like this:
 
 ```yml
-production:
-  a_periodic_job:
-    class: MyJob
-    args: [ 42, { status: "custom_status" } ]
-    schedule: every second
-  a_cleanup_task:
-    command: "DeletedStuff.clear_all"
-    schedule: every day at 9am
+a_periodic_job:
+  class: MyJob
+  args: [ 42, { status: "custom_status" } ]
+  schedule: every second
+a_cleanup_task:
+  command: "DeletedStuff.clear_all"
+  schedule: every day at 9am
 ```
 
 Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
@@ -781,7 +780,7 @@ SolidQueue.unschedule_recurring_task("my_dynamic_task")
 
 Only dynamic tasks can be unscheduled at runtime. Attempting to unschedule a static task (defined in `config/recurring.yml`) will raise an `ActiveRecord::RecordNotFound` error.
 
-Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them. 
+Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them.
 
 ## Inspiration
 
