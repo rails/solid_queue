@@ -69,6 +69,19 @@ module SolidQueue
       mode.fork? || @options[:standalone]
     end
 
+    def check!(out: $stdout, err: $stderr)
+      if valid?
+        out.puts "Solid Queue configuration is valid."
+        return true
+      end
+
+      err.puts "Invalid Solid Queue configuration:"
+      errors.full_messages.each do |message|
+        message.each_line { |line| err.puts "  #{line.chomp}" }
+      end
+      false
+    end
+
     private
       attr_reader :options
 
@@ -89,10 +102,19 @@ module SolidQueue
       end
 
       def ensure_correctly_sized_thread_pool
-        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
+        if (db_pool_size = database_connection_pool_size) && db_pool_size < estimated_number_of_threads
           errors.add(:base, "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
             "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`")
         end
+      end
+
+      # Returns nil instead of raising when skip_db_checks is set, so
+      # `bin/jobs check` works on CI/deploy hosts without DB credentials.
+      def database_connection_pool_size
+        SolidQueue::Record.connection_pool&.size
+      rescue ActiveRecord::ActiveRecordError
+        raise unless options[:skip_db_checks]
+        nil
       end
 
       def default_options

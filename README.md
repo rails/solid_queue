@@ -23,6 +23,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Threads, processes, and signals](#threads-processes-and-signals)
   - [Database configuration](#database-configuration)
   - [Other configuration settings](#other-configuration-settings)
+  - [Validating the configuration](#validating-the-configuration)
 - [Lifecycle hooks](#lifecycle-hooks)
 - [Errors when enqueuing](#errors-when-enqueuing)
 - [Concurrency controls](#concurrency-controls)
@@ -264,7 +265,7 @@ Here's an overview of the different options:
   ```
 
   This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
-  
+
   Also, if a wildcard (*) is included alongside explicit queue names, for example: `queues: [default, backend, *]`, then it would behave like `queues: *`
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
@@ -407,6 +408,22 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+
+### Validating the configuration
+
+You can validate the Solid Queue configuration ahead of time, which is handy in deploy scripts or CI:
+
+```bash
+# Using the bin/jobs binstub
+bin/jobs check
+
+# Or via rake
+bin/rails solid_queue:check
+```
+
+Both commands validate the same configuration for the current Rails environment, exit non-zero on any error, and print `Solid Queue configuration is valid` on success. They are tolerant of a missing database connection so they can run on CI or deploy hosts without DB credentials.
+
+`bin/jobs check` accepts the same flags as `bin/jobs start` (e.g. `--config_file`, `--recurring_schedule_file`, `--skip-recurring`). The rake task is configured via the same environment variables Solid Queue already honors: `SOLID_QUEUE_CONFIG`, `SOLID_QUEUE_RECURRING_SCHEDULE`, and `SOLID_QUEUE_SKIP_RECURRING`. To validate a specific environment's configuration, prefix with `RAILS_ENV`, for example `RAILS_ENV=production bin/jobs check`.
 
 
 ## Lifecycle hooks
@@ -781,7 +798,7 @@ SolidQueue.unschedule_recurring_task("my_dynamic_task")
 
 Only dynamic tasks can be unscheduled at runtime. Attempting to unschedule a static task (defined in `config/recurring.yml`) will raise an `ActiveRecord::RecordNotFound` error.
 
-Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them. 
+Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them.
 
 ## Inspiration
 

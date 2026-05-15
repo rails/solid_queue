@@ -172,6 +172,54 @@ class ConfigurationTest < ActiveSupport::TestCase
       configuration.errors.full_messages.first
   end
 
+  test "skips DB-pool validation gracefully when skip_db_checks is set and the pool is unavailable" do
+    SolidQueue::Record.stubs(:connection_pool).raises(ActiveRecord::ConnectionNotEstablished)
+
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", threads: 50, polling_interval: 10 } ],
+      skip_recurring: true,
+      skip_db_checks: true
+    )
+
+    assert configuration.valid?,
+      "Expected configuration to be valid when DB pool is unavailable, got: #{configuration.errors.full_messages.inspect}"
+  end
+
+  test "still raises DB connection errors during normal validation when skip_db_checks is not set" do
+    SolidQueue::Record.stubs(:connection_pool).raises(ActiveRecord::ConnectionNotEstablished)
+
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", threads: 50, polling_interval: 10 } ],
+      skip_recurring: true
+    )
+
+    assert_raises(ActiveRecord::ConnectionNotEstablished) { configuration.valid? }
+  end
+
+  test "check! prints success message and returns true for a valid configuration" do
+    configuration = SolidQueue::Configuration.new(skip_recurring: true)
+    out = StringIO.new
+    err = StringIO.new
+
+    assert configuration.check!(out: out, err: err)
+    assert_match "Solid Queue configuration is valid.", out.string
+    assert_empty err.string
+  end
+
+  test "check! prints errors to err and returns false for an invalid configuration" do
+    configuration = SolidQueue::Configuration.new(
+      recurring_schedule_file: config_file_path(:recurring_with_invalid),
+      skip_db_checks: true
+    )
+    out = StringIO.new
+    err = StringIO.new
+
+    assert_not configuration.check!(out: out, err: err)
+    assert_empty out.string
+    assert_match "Invalid Solid Queue configuration:", err.string
+    assert_match "periodic_invalid_class", err.string
+  end
+
   private
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
