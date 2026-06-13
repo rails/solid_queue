@@ -471,7 +471,7 @@ Solid Queue extends Active Job with concurrency controls, that allows you to lim
 
 ```ruby
 class MyJob < ApplicationJob
-  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, **) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour
+  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, *) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour
 
   # ...
 ```
