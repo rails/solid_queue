@@ -724,7 +724,9 @@ production:
 
 Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
 
-Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). You can optionally supply the following for each task:
+Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). Schedules can include a time zone (e.g. `0 9 * * * America/New_York` or `every day at 9am America/New_York`). When a schedule doesn't specify one, it's interpreted in the application's configured time zone (`config.time_zone`) by default. You can change or disable this default with `config.solid_queue.time_zone`; setting it to `nil` falls back to the system's local time.
+
+You can optionally supply the following for each task:
 - `args`: the arguments to be passed to the job, as a single argument, a hash, or an array of arguments that can also include kwargs as the last element in the array.
 
 The job in the example configuration above will be enqueued every second as:

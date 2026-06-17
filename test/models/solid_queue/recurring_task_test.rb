@@ -272,7 +272,50 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  test "schedule without a time zone uses the configured default time zone" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * * America/New_York").next_time.utc, task.next_time
+    end
+  end
+
+  test "schedule with an explicit time zone ignores the configured default time zone" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "0 9 * * * Europe/Madrid")
+      assert_equal Fugit.parse("0 9 * * * Europe/Madrid").next_time.utc, task.next_time
+    end
+  end
+
+  test "schedule falls back to local time when no default time zone is configured" do
+    with_time_zone nil do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * *").next_time.utc, task.next_time
+    end
+  end
+
+  test "configured default time zone accepts Rails time zone names" do
+    with_time_zone "Eastern Time (US & Canada)" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * * America/New_York").next_time.utc, task.next_time
+    end
+  end
+
+  test "default time zone doesn't change the displayed schedule" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert task.to_s.ends_with? "[ 0 9 * * * ]"
+    end
+  end
+
   private
+    def with_time_zone(zone)
+      previous = SolidQueue.time_zone
+      SolidQueue.time_zone = zone
+      yield
+    ensure
+      SolidQueue.time_zone = previous
+    end
+
     def enqueue_and_assert_performed_with_result(task, result)
       assert_difference [ -> { SolidQueue::Job.count }, -> { SolidQueue::ReadyExecution.count } ], +1 do
         task.enqueue(at: Time.now)
