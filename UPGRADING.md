@@ -1,3 +1,12 @@
+# Upgrading to version 1.5.x
+Recurring schedules that don't specify a time zone are now interpreted in your application's configured time zone (`config.time_zone`) by default, instead of the system's local time. This only affects schedules without an explicit time zone (e.g. `every day at 9am`); schedules that already include one (e.g. `0 9 * * * America/New_York`) are unaffected.
+
+If your `config.time_zone` differs from the system time where your processes run, recurring jobs may fire at a different wall-clock time than before. To keep the previous behavior, set:
+
+```ruby
+config.solid_queue.time_zone = nil
+```
+
 # Upgrading to version 1.x
 The value returned for `enqueue_after_transaction_commit?` has changed to `true`, and it's no longer configurable. If you want to change this, you need to use Active Job's configuration options.
 

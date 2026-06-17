@@ -41,6 +41,15 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  mattr_reader :time_zone
+
+  def time_zone=(zone)
+    @@time_zone = if zone
+      resolved = zone.respond_to?(:tzinfo) ? zone : ActiveSupport::TimeZone[zone]
+      resolved&.tzinfo&.name || zone.to_s
+    end
+  end
+
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 
   def schedule_recurring_task(key, **options)
