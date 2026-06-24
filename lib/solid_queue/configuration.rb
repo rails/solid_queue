@@ -6,7 +6,6 @@ module SolidQueue
 
     validate :ensure_configured_processes
     validate :ensure_valid_recurring_tasks
-    validate :ensure_correctly_sized_thread_pool
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -69,6 +68,13 @@ module SolidQueue
       mode.fork? || @options[:standalone]
     end
 
+    def warn_about_undersized_thread_pool
+      if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
+        SolidQueue.logger.warn "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
+          "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`"
+      end
+    end
+
     private
       attr_reader :options
 
@@ -85,13 +91,6 @@ module SolidQueue
           end
 
           errors.add(:base, "Invalid recurring tasks:\n#{error_messages.join("\n")}")
-        end
-      end
-
-      def ensure_correctly_sized_thread_pool
-        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
-          errors.add(:base, "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
-            "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`")
         end
       end
 
