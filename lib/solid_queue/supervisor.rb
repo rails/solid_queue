@@ -13,6 +13,8 @@ module SolidQueue
         configuration = Configuration.new(**options)
 
         if configuration.valid?
+          configuration.warn_about_undersized_thread_pool
+
           klass = configuration.mode.fork? ? ForkSupervisor : AsyncSupervisor
           klass.new(configuration).tap(&:start)
         else
