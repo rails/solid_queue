@@ -165,14 +165,29 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
 
-    # Not enough DB connections
+    # Not enough DB connections: still valid so boot is not blocked
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
-    assert_not configuration.valid?
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+. Increase it in `config\/database.yml`/,
-      configuration.errors.full_messages.first
+    assert configuration.valid?
+  end
+
+  test "warns on boot when the database pool is smaller than the thread pool" do
+    log = StringIO.new
+    with_solid_queue_logger(ActiveSupport::Logger.new(log)) do
+      configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
+      configuration.warn_about_undersized_thread_pool
+    end
+
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, log.string
   end
 
   private
+    def with_solid_queue_logger(logger)
+      old_logger, SolidQueue.logger = SolidQueue.logger, logger
+      yield
+    ensure
+      SolidQueue.logger = old_logger
+    end
+
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
       assert_equal count, processes.size
