@@ -58,7 +58,58 @@ class ConfigurationTest < ActiveSupport::TestCase
     configuration = SolidQueue::Configuration.new(workers: [ background_worker, background_worker ], skip_recurring: true)
 
     assert_processes configuration, :dispatcher, 0
-    assert_processes configuration, :worker, 2
+    assert_processes configuration, :worker, 2, concurrency_model: :thread
+  end
+
+  test "workers default to thread concurrency model" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background" } ], dispatchers: [], skip_recurring: true)
+
+    assert configuration.valid?
+    assert_processes configuration, :worker, 1, concurrency_model: :thread
+  end
+
+  test "thread workers reject fibers setting" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", concurrency_model: :thread, fibers: 10 } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert_not configuration.valid?
+    assert_includes configuration.errors.full_messages, "Worker 1 cannot set `fibers` unless `concurrency_model` is `fiber`"
+  end
+
+  test "fiber workers require a positive fibers value" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", concurrency_model: :fiber, fibers: 0 } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert_not configuration.valid?
+    assert_includes configuration.errors.full_messages, "Worker 1 with `concurrency_model: fiber` must set a positive integer `fibers` value"
+  end
+
+  test "fiber workers are valid with a positive fibers value" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", concurrency_model: :fiber, fibers: 10 } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert configuration.valid?
+    assert_processes configuration, :worker, 1, concurrency_model: :fiber, fibers: 10
+  end
+
+  test "workers require a supported concurrency model" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", concurrency_model: :green_threads } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert_not configuration.valid?
+    assert_includes configuration.errors.full_messages, "Worker 1 has unsupported `concurrency_model: green_threads`. Valid options are: thread, fiber"
   end
 
   test "mulitple workers with the same configuration" do

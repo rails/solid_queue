@@ -20,7 +20,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Optional scheduler configuration](#optional-scheduler-configuration)
   - [Queue order and priorities](#queue-order-and-priorities)
   - [Queues specification and performance](#queues-specification-and-performance)
-  - [Threads, processes, and signals](#threads-processes-and-signals)
+  - [Threads, fibers, processes, and signals](#threads-fibers-processes-and-signals)
   - [Database configuration](#database-configuration)
   - [Other configuration settings](#other-configuration-settings)
 - [Lifecycle hooks](#lifecycle-hooks)
@@ -229,6 +229,11 @@ production:
       threads: 5
       polling_interval: 0.1
       processes: 3
+    - queues: llm
+      threads: 2
+      concurrency_model: fiber
+      fibers: 50
+      polling_interval: 0.1
   scheduler:
     dynamic_tasks_enabled: true
     polling_interval: 5
@@ -264,15 +269,18 @@ Here's an overview of the different options:
   ```
 
   This will create a worker fetching jobs from all queues starting with `staging`. The wildcard `*` is only allowed on its own or at the end of a queue name; you can't specify queue names such as `*_some_queue`. These will be ignored.
-  
+
   Also, if a wildcard (*) is included alongside explicit queue names, for example: `queues: [default, backend, *]`, then it would behave like `queues: *`
 
   Finally, you can combine prefixes with exact names, like `[ staging*, background ]`, and the behaviour with respect to order will be the same as with only exact names.
 
   Check the sections below on [how queue order behaves combined with priorities](#queue-order-and-priorities), and [how the way you specify the queues per worker might affect performance](#queues-specification-and-performance).
 
-- `threads`: this is the max size of the thread pool that each worker will have to run jobs. Each worker will fetch this number of jobs from their queue(s), at most and will post them to the thread pool to be run. By default, this is `3`. Only workers have this setting.
-It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker thread uses one connection, and two additional connections are reserved for polling and heartbeat.
+- `threads`: this is the number of worker threads for each worker. In the default `thread` concurrency model, it is also the worker's maximum execution capacity, as each worker will fetch up to this many jobs and post them to the thread pool. In the `fiber` concurrency model, these are the long-lived runner threads that host Async reactors, and total execution capacity becomes `threads * fibers`. By default, this is `3`. Only workers have this setting.
+- `concurrency_model`: the execution strategy for each worker. It can be `thread` or `fiber`, and defaults to `thread`. `thread` preserves the existing thread-pool behaviour. `fiber` runs jobs on Async fibers inside each worker thread and is intended for scheduler-friendly, IO-bound workloads.
+- `fibers`: the maximum number of concurrent fibers per worker thread when `concurrency_model: fiber`. This setting is required when using the `fiber` concurrency model, so a worker configured with `threads: 2` and `fibers: 50` can execute up to `100` jobs concurrently. Please be aware that if you configure a large `capacity = threads * fibers`, you should also check your database server's maximum client connections setting. For example a default MySQL installation set this to 150 concurrent client connections.
+- When you use `concurrency_model: fiber`, Solid Queue switches `ActiveSupport::IsolatedExecutionState.isolation_level` to `:fiber` before the worker runs jobs so Rails execution state remains fiber-local. If your application sets this value manually, keep it at `:fiber` anywhere fiber workers run.
+- Fiber workers can drive much higher job concurrency than thread workers, so review the connection pools for any databases those jobs use. In particular, size the queue and application database pools for the amount of concurrent job work your fiber workers can create.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
 
@@ -362,9 +370,21 @@ queues: back*
 ```
 
 
-### Threads, processes, and signals
+### Threads, fibers, processes, and signals
 
-Workers in Solid Queue use a thread pool to run work in multiple threads, configurable via the `threads` parameter above. Besides this, parallelism can be achieved via multiple processes on one machine (configurable via different workers or the `processes` parameter above) or by horizontal scaling.
+Solid Queue now has three concurrency layers for workers:
+
+- Processes: configured with `processes`, or by running multiple `bin/jobs` instances across machines.
+- Threads: configured with `threads` for each worker.
+- Fibers: enabled per worker with `concurrency_model: fiber` and sized with `fibers`.
+
+In the default `thread` concurrency model, a worker runs jobs directly on its thread pool, so total execution capacity equals `threads`. In the `fiber` concurrency model, each worker thread hosts an Async reactor and can run up to `fibers` jobs concurrently, so total execution capacity equals `threads * fibers`.
+
+Fiber mode is best suited to IO-bound jobs that spend most of their time waiting on network or other scheduler-friendly operations. CPU-bound jobs will not benefit from fiber mode and should continue using the default thread execution model.
+
+This worker-level concurrency model is independent from the supervisor `fork` vs `async` mode described below. `fork` vs `async` decides how Solid Queue process instances are supervised. `thread` vs `fiber` decides how each worker executes jobs locally.
+
+Fiber workers require Rails execution state isolation to be fiber-local. Solid Queue sets `ActiveSupport::IsolatedExecutionState.isolation_level = :fiber` automatically when a fiber worker boots. If your application configures this manually, do not switch it back to `:thread` in processes that run fiber workers.
 
 The supervisor is in charge of managing these processes, and it responds to the following signals when running in its own process via `bin/jobs` or with [the Puma plugin](#puma-plugin) with the default `fork` mode:
 - `TERM`, `INT`: starts graceful termination. The supervisor will send a `TERM` signal to its supervised processes, and it'll wait up to `SolidQueue.shutdown_timeout` time until they're done. If any supervised processes are still around by then, it'll send a `QUIT` signal to them to indicate they must exit.
@@ -781,7 +801,7 @@ SolidQueue.unschedule_recurring_task("my_dynamic_task")
 
 Only dynamic tasks can be unscheduled at runtime. Attempting to unschedule a static task (defined in `config/recurring.yml`) will raise an `ActiveRecord::RecordNotFound` error.
 
-Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them. 
+Tasks scheduled like this persist between Solid Queue's restarts and won't stop running until you manually unschedule them.
 
 ## Inspiration
 

@@ -28,6 +28,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "activerecord", rails_version
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
+  spec.add_dependency "async", ">= 2.24", "< 3"
   spec.add_dependency "concurrent-ruby", ">= 1.3.1"
   spec.add_dependency "fugit", "~> 1.11"
   spec.add_dependency "thor", ">= 1.3.1"
