@@ -134,6 +134,58 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
   end
 
+  test "named workers with multiple processes get sequential names" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", threads: 3, processes: 3, name: "pipeline" } ],
+      skip_recurring: true
+    )
+
+    assert_processes configuration, :worker, 3,
+      queues: "background",
+      name: [ "pipeline-1", "pipeline-2", "pipeline-3" ]
+  end
+
+  test "named worker with single process gets name without suffix" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "default", threads: 1, name: "housekeeping" } ],
+      skip_recurring: true
+    )
+
+    assert_processes configuration, :worker, 1, name: "housekeeping"
+  end
+
+  test "named dispatcher gets name passed through" do
+    configuration = SolidQueue::Configuration.new(
+      dispatchers: [ { batch_size: 500, name: "main-dispatcher" } ],
+      skip_recurring: true
+    )
+
+    assert_processes configuration, :dispatcher, 1, name: "main-dispatcher"
+  end
+
+  test "workers without name still get no name in config attributes" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "background", processes: 2 } ],
+      skip_recurring: true
+    )
+
+    assert_processes configuration, :worker, 2
+    configuration.configured_processes.select { |p| p.kind == :worker }.each do |p|
+      assert_nil p.attributes[:name]
+    end
+  end
+
+  test "read named configuration from provided file" do
+    configuration = SolidQueue::Configuration.new(
+      config_file: config_file_path(:named_workers_configuration),
+      skip_recurring: true
+    )
+
+    assert_processes configuration, :worker, 4,
+      name: [ "pipeline-1", "pipeline-2", "pipeline-3", "housekeeping" ]
+    assert_processes configuration, :dispatcher, 1, name: "main-dispatcher"
+  end
+
   test "validate configuration" do
     # Valid and invalid recurring tasks
     configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))

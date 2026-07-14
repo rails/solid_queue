@@ -23,6 +23,27 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_metadata process, { polling_interval: 0.1, batch_size: 10, concurrency_maintenance_interval: 600 }
   end
 
+  test "dispatcher with custom name registers with that name" do
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, name: "main-dispatcher")
+    assert_equal "main-dispatcher", dispatcher.name
+    assert dispatcher.custom_name?
+
+    dispatcher.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
+    assert_equal "main-dispatcher", process.name
+  ensure
+    dispatcher&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+  end
+
+  test "dispatcher without custom name generates a random name" do
+    assert_match /\Adispatcher-[0-9a-f]{20}\z/, @dispatcher.name
+    assert_not @dispatcher.custom_name?
+  end
+
   test "concurrency maintenance is optional" do
     no_concurrency_maintenance_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, concurrency_maintenance: false)
     no_concurrency_maintenance_dispatcher.start

@@ -29,7 +29,7 @@ module SolidQueue
       @configured_processes = {}
       @process_instances = {}
 
-      super
+      super()
     end
 
     def start

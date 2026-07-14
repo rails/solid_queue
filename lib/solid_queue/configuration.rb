@@ -131,7 +131,17 @@ module SolidQueue
             1
           end
 
-          processes.times.map { Process.new(:worker, worker_options.with_defaults(WORKER_DEFAULTS)) }
+          base_name = worker_options[:name]
+
+          processes.times.map do |index|
+            options = worker_options.with_defaults(WORKER_DEFAULTS)
+
+            if base_name
+              options = options.merge(name: processes > 1 ? "#{base_name}-#{index + 1}" : base_name)
+            end
+
+            Process.new(:worker, options)
+          end
         end
       end
 

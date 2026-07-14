@@ -275,6 +275,23 @@ Here's an overview of the different options:
 It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker thread uses one connection, and two additional connections are reserved for polling and heartbeat.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
+- `name`: an optional, human-readable name for the process. By default, processes are named with their kind and a random hex string, such as `worker-5a3b1c0d9e8f7a6b5c4d`, which makes it hard to tell them apart in `ps` output or in the processes table of the dashboard. Setting a name replaces that random name, and it's also reflected in the process title, for example `solid-queue-worker[pipeline-1](1.3.1): waiting for jobs in background`. When a worker also sets `processes` to a value greater than `1`, each of the forked processes gets a numbered suffix, so `name: pipeline` with `processes: 3` yields `pipeline-1`, `pipeline-2` and `pipeline-3`. With a single process, the name is used as-is. For example:
+
+  ```yml
+  production:
+    dispatchers:
+      - polling_interval: 1
+        batch_size: 500
+        name: main-dispatcher
+    workers:
+      - queues: background
+        threads: 3
+        processes: 3
+        name: pipeline
+      - queues: default
+        threads: 1
+        name: housekeeping
+  ```
 
 
 ### Optional scheduler configuration

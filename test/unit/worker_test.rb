@@ -22,6 +22,27 @@ class WorkerTest < ActiveSupport::TestCase
     assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3 }
   end
 
+  test "worker with custom name registers with that name" do
+    worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2, name: "pipeline-1")
+    assert_equal "pipeline-1", worker.name
+    assert worker.custom_name?
+
+    worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Worker", process.kind
+    assert_equal "pipeline-1", process.name
+  ensure
+    worker&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+  end
+
+  test "worker without custom name generates a random name" do
+    assert_match /\Aworker-[0-9a-f]{20}\z/, @worker.name
+    assert_not @worker.custom_name?
+  end
+
   test "errors on polling are passed to on_thread_error and re-raised" do
     errors = Concurrent::Array.new
 
