@@ -170,24 +170,48 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert configuration.valid?
   end
 
-  test "warns on boot when the database pool is smaller than the thread pool" do
-    log = StringIO.new
-    with_solid_queue_logger(ActiveSupport::Logger.new(log)) do
-      configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
-      configuration.warn_about_undersized_thread_pool
+  test "reports an undersized thread pool as a warning rather than an error" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true)
+
+    assert configuration.valid?
+    assert_equal 1, configuration.warnings.size
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, configuration.warnings.first
+  end
+
+  test "has no warnings when the database connection pool is large enough" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 1, polling_interval: 10 } ], skip_recurring: true)
+
+    assert_empty configuration.warnings
+  end
+
+  test "check prints a success message and returns true for a valid configuration" do
+    out, err = capture_io do
+      assert SolidQueue::Configuration.new(skip_recurring: true).check
     end
 
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, log.string
+    assert_match "Solid Queue configuration is valid.", out
+    assert_empty err
+  end
+
+  test "check prints warnings to stdout on the valid path" do
+    out, _err = capture_io do
+      assert SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true).check
+    end
+
+    assert_match "Solid Queue configuration is valid.", out
+    assert_match /Warning: Solid Queue is configured to use \d+ threads but the database connection pool is \d+/, out
+  end
+
+  test "check prints errors to stderr and returns false for an invalid configuration" do
+    out, err = capture_io do
+      assert_not SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid)).check
+    end
+
+    assert_match "Invalid Solid Queue configuration:", err
+    assert_match "periodic_invalid_class", err
   end
 
   private
-    def with_solid_queue_logger(logger)
-      old_logger, SolidQueue.logger = SolidQueue.logger, logger
-      yield
-    ensure
-      SolidQueue.logger = old_logger
-    end
-
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
       assert_equal count, processes.size

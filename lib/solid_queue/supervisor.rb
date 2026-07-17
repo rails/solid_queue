@@ -13,7 +13,7 @@ module SolidQueue
         configuration = Configuration.new(**options)
 
         if configuration.valid?
-          configuration.warn_about_undersized_thread_pool
+          configuration.warnings.each { |warning| SolidQueue.logger.warn(warning) }
 
           klass = configuration.mode.fork? ? ForkSupervisor : AsyncSupervisor
           klass.new(configuration).tap(&:start)
