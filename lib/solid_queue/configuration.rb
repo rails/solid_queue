@@ -68,15 +68,39 @@ module SolidQueue
       mode.fork? || @options[:standalone]
     end
 
-    def warn_about_undersized_thread_pool
-      if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
-        SolidQueue.logger.warn "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
-          "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`"
+    def warnings
+      @warnings ||= [ undersized_thread_pool_message ].compact
+    end
+
+    def check
+      warnings.each { |warning| $stdout.puts "Warning: #{warning}" }
+
+      if valid?
+        $stdout.puts "Solid Queue configuration is valid."
+        true
+      else
+        $stderr.puts "Invalid Solid Queue configuration:"
+        errors.full_messages.each do |message|
+          message.each_line { |line| $stderr.puts "  #{line.chomp}" }
+        end
+        false
       end
     end
 
     private
       attr_reader :options
+
+      def undersized_thread_pool_message
+        db_pool_size = SolidQueue::Record.connection_pool&.size
+
+        if db_pool_size && db_pool_size < estimated_number_of_threads
+          "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " \
+            "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`"
+        end
+      rescue ActiveRecord::ActiveRecordError
+        # No usable database connection. Skip the pool-size warning in that case.
+        nil
+      end
 
       def ensure_configured_processes
         unless configured_processes.any?
