@@ -13,7 +13,7 @@ module SolidQueue
         configuration = Configuration.new(**options)
 
         if configuration.valid?
-          configuration.warnings.each { |warning| SolidQueue.logger.warn(warning) }
+          configuration.warnings.full_messages.each { |warning| SolidQueue.logger.warn(warning) }
 
           klass = configuration.mode.fork? ? ForkSupervisor : AsyncSupervisor
           klass.new(configuration).tap(&:start)

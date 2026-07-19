@@ -51,7 +51,7 @@ class CliTest < ActiveSupport::TestCase
     )
 
     assert_equal 1, exit_status
-    assert_match "Invalid Solid Queue configuration", err
+    assert_match "Solid Queue configuration is invalid", err
     assert_match "periodic_invalid_class", err
     assert_match "periodic_incorrect_schedule", err
     assert_empty out

@@ -44,7 +44,7 @@ class RakeTasksTest < ActiveSupport::TestCase
 
     assert_equal 1, status
     assert_empty out
-    assert_match "Invalid Solid Queue configuration:", err
+    assert_match "Solid Queue configuration is invalid:", err
     assert_match "broken", err
   end
 end
