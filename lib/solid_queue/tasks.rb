@@ -11,6 +11,7 @@ namespace :solid_queue do
 
   desc "validate the Solid Queue configuration for the current Rails env without starting any process"
   task check: :environment do
-    exit 1 unless SolidQueue::Configuration.new.check
+    configuration = SolidQueue::Configuration.new
+    exit 1 unless configuration.check
   end
 end
