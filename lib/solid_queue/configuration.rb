@@ -3,10 +3,12 @@
 module SolidQueue
   class Configuration
     include ActiveModel::Model
+    include ActiveModel::Validations::Callbacks
 
-    validate :ensure_configured_processes
-    validate :ensure_valid_recurring_tasks
-    validate :ensure_correctly_sized_thread_pool
+    validate :ensure_configured_processes, :ensure_valid_recurring_tasks
+    validate :warn_about_incorrectly_sized_thread_pool, :warn_about_missing_config_files
+
+    before_validation { warnings.clear }
 
     class Process < Struct.new(:kind, :attributes)
       def instantiate
@@ -47,26 +49,32 @@ module SolidQueue
       end
     end
 
-    def error_messages
-      if configured_processes.none?
-        "No workers or processed configured. Exiting..."
-      else
-        error_messages = invalid_tasks.map do |task|
-            all_messages = task.errors.full_messages.map { |msg| "\t#{msg}" }.join("\n")
-            "#{task.key}:\n#{all_messages}"
-          end
-          .join("\n")
-
-        "Invalid processes configured:\n#{error_messages}"
-      end
-    end
-
     def mode
-      @options[:mode].to_s.inquiry
+      options[:mode].to_s.inquiry
     end
 
     def standalone?
-      mode.fork? || @options[:standalone]
+      mode.fork? || options[:standalone]
+    end
+
+    def warnings
+      @warnings ||= ActiveModel::Errors.new(self)
+    end
+
+    def check
+      if valid?
+        warnings.full_messages.each { |warning| $stderr.puts warning }
+        $stdout.puts "Solid Queue configuration is valid."
+
+        true
+      else
+        $stderr.puts "Solid Queue configuration is invalid:"
+        (warnings.full_messages + errors.full_messages).each do |message|
+          message.each_line { |line| $stderr.puts "  #{line.chomp}" }
+        end
+
+        false
+      end
     end
 
     private
@@ -88,10 +96,25 @@ module SolidQueue
         end
       end
 
-      def ensure_correctly_sized_thread_pool
-        if (db_pool_size = SolidQueue::Record.connection_pool&.size) && db_pool_size < estimated_number_of_threads
-          errors.add(:base, "Solid Queue is configured to use #{estimated_number_of_threads} threads but the " +
+      def warn_about_incorrectly_sized_thread_pool
+        db_pool_size = SolidQueue::Record.connection_pool&.size
+
+        if db_pool_size && db_pool_size < estimated_number_of_threads
+          warnings.add(:base, "Warning: Solid Queue is configured to use #{estimated_number_of_threads} threads but the " \
             "database connection pool is #{db_pool_size}. Increase it in `config/database.yml`")
+        end
+      rescue ActiveRecord::ActiveRecordError
+        # No usable database connection. Skip the pool-size warning in that case.
+      end
+
+      def warn_about_missing_config_files
+        files = [ options[:config_file] ]
+        files << options[:recurring_schedule_file] unless skip_recurring_tasks?
+
+        files.compact.each do |file|
+          unless Pathname.new(file).exist?
+            warnings.add(:base, "Warning: provided configuration file '#{file}' does not exist. Falling back to default configuration.")
+          end
         end
       end
 
@@ -221,7 +244,6 @@ module SolidQueue
         if file.exist?
           ActiveSupport::ConfigurationFile.parse(file).deep_symbolize_keys
         else
-          puts "[solid_queue] WARNING: Provided configuration file '#{file}' does not exist. Falling back to default configuration."
           {}
         end
       end

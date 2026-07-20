@@ -27,10 +27,11 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   test "warns if provided configuration file does not exist" do
-    assert_output "[solid_queue] WARNING: Provided configuration file '/path/to/nowhere.yml' does not exist. Falling back to default configuration.\n" do
-      configuration = SolidQueue::Configuration.new(config_file: Pathname.new("/path/to/nowhere.yml"))
-      assert configuration.valid?
-    end
+    configuration = SolidQueue::Configuration.new(config_file: Pathname.new("/path/to/nowhere.yml"))
+
+    assert configuration.valid?
+    assert_includes configuration.warnings.full_messages,
+      "Warning: provided configuration file '/path/to/nowhere.yml' does not exist. Falling back to default configuration."
   end
 
   test "read configuration from default file" do
@@ -145,31 +146,79 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert error.include?("periodic_invalid_class: Class name doesn't correspond to an existing class")
     assert error.include?("periodic_incorrect_schedule: Schedule is not a supported recurring schedule")
 
-    assert_output(/Provided configuration file '[^']+' does not exist\./) do
-      assert SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring)).valid?
-    end
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:empty_recurring))
+    assert configuration.valid?
+    assert_match(/provided configuration file '[^']+' does not exist\./, configuration.warnings.full_messages.join)
+
     assert SolidQueue::Configuration.new(skip_recurring: true).valid?
 
     configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_production_only))
     assert configuration.valid?
     assert_processes configuration, :scheduler, 0
 
-    assert_output(/Provided configuration file '[^']+' does not exist\./) do
-      configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_empty))
-      assert configuration.valid?
-      assert_processes configuration, :scheduler, 0
-    end
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_empty))
+    assert configuration.valid?
+    assert_processes configuration, :scheduler, 0
+    assert_match(/provided configuration file '[^']+' does not exist\./, configuration.warnings.full_messages.join)
 
     # No processes
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [])
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
 
-    # Not enough DB connections
+    # Not enough DB connections: still valid so boot is not blocked
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
-    assert_not configuration.valid?
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+. Increase it in `config\/database.yml`/,
-      configuration.errors.full_messages.first
+    assert configuration.valid?
+  end
+
+  test "reports an undersized thread pool as a warning rather than an error" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true)
+
+    assert configuration.valid?
+    assert_equal 1, configuration.warnings.size
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, configuration.warnings.full_messages.first
+  end
+
+  test "has no warnings when the database connection pool is large enough" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 1, polling_interval: 10 } ], skip_recurring: true)
+
+    assert configuration.valid?
+    assert_empty configuration.warnings
+  end
+
+  test "does not duplicate warnings when validated more than once" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true)
+
+    3.times { configuration.valid? }
+
+    assert_equal 1, configuration.warnings.size
+  end
+
+  test "check prints a success message and returns true for a valid configuration" do
+    out, err = capture_io do
+      assert SolidQueue::Configuration.new(skip_recurring: true).check
+    end
+
+    assert_match "Solid Queue configuration is valid.", out
+    assert_empty err
+  end
+
+  test "check prints warnings to stderr on the valid path" do
+    out, err = capture_io do
+      assert SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true).check
+    end
+
+    assert_match "Solid Queue configuration is valid.", out
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+/, err
+  end
+
+  test "check prints errors to stderr and returns false for an invalid configuration" do
+    out, err = capture_io do
+      assert_not SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid)).check
+    end
+
+    assert_match "Solid Queue configuration is invalid:", err
+    assert_match "periodic_invalid_class", err
   end
 
   private

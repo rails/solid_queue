@@ -33,8 +33,8 @@ module SolidQueue
       end
     end
 
-    def schedule_task(task)
-      scheduled_tasks[task.key] = schedule(task)
+    def schedule_task(task, run_at: task.next_time)
+      scheduled_tasks[task.key] = schedule(task, run_at: run_at)
     end
 
     def unschedule_tasks
@@ -99,9 +99,11 @@ module SolidQueue
         dynamic_tasks_enabled? ? RecurringTask.dynamic.to_a : []
       end
 
-      def schedule(task)
-        scheduled_task = Concurrent::ScheduledTask.new(task.delay_from_now, args: [ self, task, task.next_time ]) do |thread_schedule, thread_task, thread_task_run_at|
-          thread_schedule.schedule_task(thread_task)
+      def schedule(task, run_at: task.next_time)
+        delay = [ (run_at - Time.current).to_f, 0.1 ].max
+
+        scheduled_task = Concurrent::ScheduledTask.new(delay, args: [ self, task, run_at ]) do |thread_schedule, thread_task, thread_task_run_at|
+          thread_schedule.schedule_task(thread_task, run_at: thread_task.next_time_after(thread_task_run_at))
 
           wrap_in_app_executor do
             thread_task.enqueue(at: thread_task_run_at)

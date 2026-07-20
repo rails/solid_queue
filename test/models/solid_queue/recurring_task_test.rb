@@ -203,6 +203,18 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     assert_equal 4, job.priority
   end
 
+  test "next_time_after returns the next occurrence after the given time" do
+    task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every minute")
+
+    # next_time_after a time exactly on the minute boundary should return the following minute
+    time = Time.utc(2026, 3, 12, 1, 28, 0)
+    assert_equal Time.utc(2026, 3, 12, 1, 29, 0), task.next_time_after(time)
+
+    # next_time_after a time just before the boundary should return that boundary
+    time = Time.utc(2026, 3, 12, 1, 27, 59)
+    assert_equal Time.utc(2026, 3, 12, 1, 28, 0), task.next_time_after(time)
+  end
+
   test "task configured with a command" do
     task = recurring_task_with(command: "JobBuffer.add('from_a_command')")
     enqueue_and_assert_performed_with_result(task, "from_a_command")
