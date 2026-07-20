@@ -6,9 +6,10 @@ module SolidQueue::Processes
 
     attr_writer :mode
 
-    def start
+    def start(on_fork_ready: nil)
       run_in_mode do
         boot
+        on_fork_ready&.call if running_as_fork?
         run
       end
     end
