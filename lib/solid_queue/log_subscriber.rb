@@ -161,6 +161,11 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     end
   end
 
+  def fork_startup_timeout(event)
+    process = event.payload[:process]
+    warn formatted_event(event, action: "Terminate unresponsive #{process.kind} during startup", **event.payload.slice(:pid).merge(hostname: process.hostname, name: process.name))
+  end
+
   private
     def formatted_event(event, action:, **attributes)
       "SolidQueue-#{SolidQueue::VERSION} #{action} (#{event.duration.round(1)}ms)  #{formatted_attributes(**attributes)}"
