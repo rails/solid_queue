@@ -108,6 +108,40 @@ class SolidQueue::SemaphoreTest < ActiveSupport::TestCase
     assert_equal 0, SolidQueue::BlockedExecution.where(concurrency_key: concurrency_key).count
   end
 
+  test "signal_all does not increment semaphore value beyond limit" do
+    # Create a job with concurrency limit of 1
+    NonOverlappingUpdateResultJob.perform_later(@result)
+    job = SolidQueue::Job.last
+    concurrency_key = job.concurrency_key
+
+    # Semaphore should exist with value=0 (one slot taken)
+    semaphore = SolidQueue::Semaphore.find_by(key: concurrency_key)
+    assert_equal 0, semaphore.value
+
+    # Manually set semaphore to its limit (simulating the slot was already returned)
+    semaphore.update!(value: 1)
+
+    # signal_all should NOT increment beyond the limit
+    SolidQueue::Semaphore.signal_all([ job ])
+
+    assert_equal 1, semaphore.reload.value, "signal_all should not increment semaphore beyond its limit"
+  end
+
+  test "signal_all increments semaphore when below limit" do
+    # Create a job with concurrency limit of 1
+    NonOverlappingUpdateResultJob.perform_later(@result)
+    job = SolidQueue::Job.last
+    concurrency_key = job.concurrency_key
+
+    # Semaphore should exist with value=0
+    assert_equal 0, SolidQueue::Semaphore.find_by(key: concurrency_key).value
+
+    # signal_all should increment from 0 to 1
+    SolidQueue::Semaphore.signal_all([ job ])
+
+    assert_equal 1, SolidQueue::Semaphore.find_by(key: concurrency_key).value
+  end
+
   private
     def skip_on_sqlite
       skip "Row-level locking not supported on SQLite" if SolidQueue::Record.connection.adapter_name.downcase.include?("sqlite")

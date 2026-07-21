@@ -32,7 +32,13 @@ module SolidQueue
 
     class Proxy
       def self.signal_all(jobs)
-        Semaphore.where(key: jobs.map(&:concurrency_key)).update_all("value = value + 1")
+        # Guard against incrementing a semaphore's value beyond its limit. Jobs can
+        # have different limits, so group them and cap each group with `value < limit`.
+        jobs.group_by { |job| job.concurrency_limit || 1 }.each do |limit, grouped_jobs|
+          Semaphore.where(key: grouped_jobs.map(&:concurrency_key))
+            .where(value: ...limit)
+            .update_all("value = value + 1")
+        end
       end
 
       def initialize(job)
