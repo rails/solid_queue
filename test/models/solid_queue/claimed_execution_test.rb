@@ -17,6 +17,29 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert job.reload.finished?
   end
 
+  test "stale performer cannot release a concurrency lock after its claim is pruned" do
+    job_result = JobResult.create!(queue_name: "default", status: "")
+    first_active_job = NonOverlappingUpdateResultJob.perform_later(job_result, name: "A")
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "B")
+    NonOverlappingUpdateResultJob.perform_later(job_result, name: "C")
+
+    first_job = SolidQueue::Job.find_by!(active_job_id: first_active_job.job_id)
+    claimed_execution = claim_job(first_job)
+    @process.prune
+
+    assert first_job.reload.failed?
+    assert_equal 1, SolidQueue::ReadyExecution.count
+    assert_equal 1, SolidQueue::BlockedExecution.count
+
+    claimed_execution.perform
+
+    assert_not first_job.reload.finished?
+    assert first_job.failed?
+    assert_equal 1, SolidQueue::ReadyExecution.count
+    assert_equal 1, SolidQueue::BlockedExecution.count
+    assert_equal 0, SolidQueue::Semaphore.find_by!(key: first_job.concurrency_key).value
+  end
+
   test "perform job that fails" do
     claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "A")
     job = claimed_execution.job
