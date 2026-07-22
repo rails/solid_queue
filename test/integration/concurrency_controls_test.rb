@@ -6,18 +6,27 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    @result = JobResult.create!(queue_name: "default", status: "")
+    # Previous tests may leave forked workers briefly alive; those can still write to
+    # JobResult rows whose primary keys get reused by create! below (e.g. overwriting
+    # status with StoreResultJob's default "completed").
+    wait_for_registered_processes(0, timeout: 5.seconds)
+    destroy_records
 
     default_worker = { queues: "default", polling_interval: 0.1, processes: 3, threads: 2 }
     dispatcher = { polling_interval: 0.1, batch_size: 200, concurrency_maintenance_interval: 1 }
 
     @pid = run_supervisor_as_fork(workers: [ default_worker ], dispatchers: [ dispatcher ])
+    wait_for_registered_processes(5, timeout: 3.seconds) # 3 workers + dispatcher + supervisor
 
-    wait_for_registered_processes(5, timeout: 0.5.second) # 3 workers working the default queue + dispatcher + supervisor
+    @result = JobResult.create!(queue_name: "default", status: "")
   end
 
   teardown do
-    terminate_process(@pid) if process_exists?(@pid)
+    if @pid && process_exists?(@pid)
+      terminate_process(@pid)
+    end
+    wait_for_registered_processes(0, timeout: 5.seconds)
+    destroy_records
   end
 
   test "run several conflicting jobs over the same record without overlapping" do
@@ -36,51 +45,53 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "schedule several conflicting jobs over the same record sequentially" do
-    # Writes to @result at 0.4s
-    UpdateResultJob.set(wait: 0.2.seconds).perform_later(@result, name: "000", pause: 0.2.seconds)
+    # "000" isn't concurrency-limited, so it runs alongside A. Both read @result
+    # while it's still empty; "000" writes "s000c000" partway through A's run, but
+    # A pauses much longer and saves last of the two, overwriting it. A is
+    # scheduled well ahead of B–K so it reliably holds the semaphore first, and
+    # the rest of the chain builds only on A's clean write — so "000" never
+    # survives in the final result.
+    UpdateResultJob.set(wait: 0.1.seconds).perform_later(@result, name: "000", pause: 1.second)
 
-    ("A".."F").each_with_index do |name, i|
-      # "A" is enqueued at 0.2s and writes to @result at 0.6s, the write at 0.4s gets overwritten
-      NonOverlappingUpdateResultJob.set(wait: (0.2 + i * 0.1).seconds).perform_later(@result, name: name, pause: 0.4.seconds)
+    NonOverlappingUpdateResultJob.set(wait: 0.1.seconds).perform_later(@result, name: "A", pause: 2.5.seconds)
+
+    ("B".."F").each_with_index do |name, i|
+      NonOverlappingUpdateResultJob.set(wait: (1 + i * 0.1).seconds).perform_later(@result, name: name, pause: 0.1.seconds)
     end
 
     ("G".."K").each_with_index do |name, i|
-      NonOverlappingUpdateResultJob.set(wait: (1 + i * 0.1).seconds).perform_later(@result, name: name)
+      NonOverlappingUpdateResultJob.set(wait: (1.5 + i * 0.1).seconds).perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(15.seconds)
     assert_no_unfinished_jobs
 
     assert_stored_sequence @result, ("A".."K").to_a
   end
 
   test "run several jobs over the same record limiting concurrency" do
-    incr = 0
-    # C is the last one to update the record
-    # A: 0 to 0.5
-    # B: 0 to 1.0
-    # C: 0 to 1.5
+    # ThrottledUpdateResultJob has a concurrency limit of 3, so A, B and C run
+    # together — all reading @result while it's still empty — and D–H block. A
+    # and B finish quickly, freeing slots that drain D–H; C reads the empty
+    # status and pauses far longer than everyone else, so it saves last and its
+    # write (built on the empty status) overwrites all the others, leaving "C".
     assert_no_difference -> { SolidQueue::BlockedExecution.count } do
-      ("A".."C").each do |name|
-        ThrottledUpdateResultJob.perform_later(@result, name: name, pause: (0.5 + incr).seconds)
-        incr += 0.5
-      end
+      ThrottledUpdateResultJob.perform_later(@result, name: "A", pause: 0.5.seconds)
+      ThrottledUpdateResultJob.perform_later(@result, name: "B", pause: 0.5.seconds)
+      ThrottledUpdateResultJob.perform_later(@result, name: "C", pause: 3.seconds)
     end
 
-    sleep(0.01) # To ensure these aren't picked up before ABC
-    # D to H: 0.51 to 0.76 (starting after A finishes, and in order, 5 * 0.05 = 0.25)
-    # These would finish all before B and C
+    wait_for(timeout: 2.seconds) { SolidQueue::ClaimedExecution.count >= 3 }
+
     assert_difference -> { SolidQueue::BlockedExecution.count }, +5 do
       ("D".."H").each do |name|
-        ThrottledUpdateResultJob.perform_later(@result, name: name, pause: 0.05.seconds)
+        ThrottledUpdateResultJob.perform_later(@result, name: name, pause: 0.01.seconds)
       end
     end
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(15.seconds)
     assert_no_unfinished_jobs
 
-    # C would have started in the beginning, seeing the status empty, and would finish after
-    # all other jobs, so it'll do the last update with only itself
     assert_stored_sequence(@result, [ "C" ])
   end
 
@@ -94,7 +105,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
       NonOverlappingUpdateResultJob.perform_later(@result, name: name)
     end
 
-    wait_for_jobs_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(15.seconds)
     assert_equal 3, SolidQueue::FailedExecution.count
 
     assert_stored_sequence @result, [ "B", "D", "F" ] + ("G".."K").to_a
@@ -195,8 +206,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "discard jobs when concurrency limit is reached with on_conflict: :discard" do
-    job1 = DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 3)
-    sleep(0.1)
+    job1 = DiscardableUpdateResultJob.perform_later(@result, name: "1", pause: 1.second)
+    wait_for(timeout: 2.seconds) { SolidQueue::Job.find_by(active_job_id: job1.job_id)&.claimed? }
 
     # should be discarded due to concurrency limit
     job2 = DiscardableUpdateResultJob.perform_later(@result, name: "2")
@@ -255,9 +266,8 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   private
     def assert_stored_sequence(result, sequence)
       expected = sequence.sort.map { |name| "s#{name}c#{name}" }.join
-      skip_active_record_query_cache do
-        assert_equal expected, result.reload.status.split(" + ").sort.join
-      end
+      actual = skip_active_record_query_cache { result.reload.status.split(" + ").sort.join }
+      assert_equal expected, actual
     end
 
     def wait_for_semaphores_to_be_released_for(timeout)

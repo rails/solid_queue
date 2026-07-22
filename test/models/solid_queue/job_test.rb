@@ -256,7 +256,7 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     job = SolidQueue::Job.last
 
     worker = SolidQueue::Worker.new(queues: "background").tap(&:start)
-    sleep(0.2)
+    wait_while_with_timeout(2.seconds) { !job.reload.claimed? }
 
     assert_no_difference -> { SolidQueue::Job.count }, -> { SolidQueue::ClaimedExecution.count } do
       assert_raises SolidQueue::Execution::UndiscardableError do
