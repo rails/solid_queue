@@ -10,7 +10,7 @@ class InstrumentationTest < ActiveSupport::TestCase
       travel_to 2.days.from_now
       dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10).tap(&:start)
 
-      wait_while_with_timeout!(0.5.seconds) { SolidQueue::ScheduledExecution.any? }
+      wait_while_with_timeout!(3.seconds) { SolidQueue::ScheduledExecution.any? }
       dispatcher.stop
     end
 

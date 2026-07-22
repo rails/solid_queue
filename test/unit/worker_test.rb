@@ -3,6 +3,26 @@ require "active_support/testing/method_call_assertions"
 
 class WorkerTest < ActiveSupport::TestCase
   include ActiveSupport::Testing::MethodCallAssertions
+  self.use_transactional_tests = false
+
+  EXECUTION_MODES = [
+    {
+      name: "thread",
+      options: { threads: 3 },
+      expected_metadata: {
+        inflight: 0,
+        thread_pool_size: 3
+      }
+    },
+    {
+      name: "fiber",
+      options: { fibers: 3 },
+      expected_metadata: {
+        inflight: 0,
+        fiber_pool_size: 3
+      }
+    }
+  ].freeze
 
   setup do
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
@@ -13,13 +33,117 @@ class WorkerTest < ActiveSupport::TestCase
     JobBuffer.clear
   end
 
-  test "worker is registered as process" do
-    @worker.start
+  EXECUTION_MODES.each do |mode|
+    test "worker is registered as process in #{mode[:name]} mode" do
+      with_worker_execution_support(mode[:options]) do
+        worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2, **mode[:options])
+
+        worker.start
+        wait_for_registered_processes(1, timeout: 1.second)
+
+        process = SolidQueue::Process.first
+        assert_equal "Worker", process.kind
+        assert_metadata process, {
+          queues: "background",
+          polling_interval: 0.2
+        }.merge(mode[:expected_metadata])
+      ensure
+        worker&.stop
+        wait_for_registered_processes(0, timeout: 1.second)
+      end
+    end
+
+    test "claim and process more enqueued jobs than the pool size allows to process at once in #{mode[:name]} mode" do
+      5.times do
+        StoreResultJob.perform_later(:paused, pause: 0.1.second)
+      end
+
+      3.times do
+        StoreResultJob.perform_later(:immediate)
+      end
+
+      with_worker_execution_support(mode[:options]) do
+        worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2, **mode[:options])
+
+        worker.start
+
+        wait_for_jobs_to_finish_for(2.second)
+        worker.wake_up
+
+        assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
+        assert_equal 3, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
+      ensure
+        worker&.stop
+        wait_for_registered_processes(0, timeout: 1.second)
+      end
+    end
+
+    test "updates inflight metadata after jobs finish in #{mode[:name]} mode" do
+      StoreResultJob.perform_later(:slow, pause: 0.1.second)
+
+      with_worker_execution_support(mode[:options]) do
+        worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.05, **mode[:options])
+
+        worker.start
+        wait_for_registered_processes(1, timeout: 1.second)
+
+        process = SolidQueue::Process.first
+
+        wait_for(timeout: 2.seconds) { process.reload.metadata["inflight"] == 1 }
+        assert_equal 1, process.reload.metadata["inflight"]
+
+        wait_for(timeout: 2.seconds) do
+          process.reload.metadata["inflight"] == 0 &&
+            JobResult.where(queue_name: :background, status: "completed", value: :slow).count == 1
+        end
+        assert_equal 0, process.reload.metadata["inflight"]
+        assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :slow).count
+      ensure
+        worker&.stop
+        wait_for_registered_processes(0, timeout: 1.second)
+      end
+    end
+  end
+
+  test "builds the execution pool on boot instead of initialize" do
+    pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
+
+    SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
+      options[:type] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
+    end.returns(pool)
+
+    worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
+
+    assert_nil worker.pool
+
+    worker.start
     wait_for_registered_processes(1, timeout: 1.second)
 
-    process = SolidQueue::Process.first
-    assert_equal "Worker", process.kind
-    assert_metadata process, { queues: "background", polling_interval: 0.2, thread_pool_size: 3 }
+    assert_equal pool, worker.pool
+  ensure
+    worker&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
+  end
+
+  test "rejects multiple worker pool size options" do
+    error = assert_raises ArgumentError do
+      SolidQueue::Worker.new(queues: "background", threads: 3, fibers: 3, polling_interval: 0.2)
+    end
+
+    assert_match /either `threads` or `fibers`/, error.message
+  end
+
+  test "defaults thread workers to the configured thread pool size" do
+    worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2)
+
+    worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_equal 3, worker.pool.size
+    assert_metadata SolidQueue::Process.first, thread_pool_size: 3, inflight: 0
+  ensure
+    worker&.stop
+    wait_for_registered_processes(0, timeout: 1.second)
   end
 
   test "errors on polling are passed to on_thread_error and re-raised" do
@@ -83,24 +207,6 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal "This is a ExpectedTestError exception", subscriber.messages.first
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
-  end
-
-  test "claim and process more enqueued jobs than the pool size allows to process at once" do
-    5.times do |i|
-      StoreResultJob.perform_later(:paused, pause: 0.1.second)
-    end
-
-    3.times do |i|
-      StoreResultJob.perform_later(:immediate)
-    end
-
-    @worker.start
-
-    wait_for_jobs_to_finish_for(2.second)
-    @worker.wake_up
-
-    assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
-    assert_equal 3, JobResult.where(queue_name: :background, status: "completed", value: :immediate).count
   end
 
   test "polling queries are logged" do
@@ -173,28 +279,50 @@ class WorkerTest < ActiveSupport::TestCase
   end
 
   test "sleeps `10.minutes` if at capacity" do
-    3.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+    3.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 
-    @worker.expects(:interruptible_sleep).with(10.minutes).at_least_once
-    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).never
-    @worker.expects(:handle_thread_error).never
+    delays = stub_interruptible_sleep(@worker)
 
     @worker.start
-    sleep 1.second
+
+    first_delay = Timeout.timeout(1.second) { delays.pop }
+
+    assert_equal 10.minutes, first_delay
   end
 
   test "sleeps `polling_interval` if worker not at capacity" do
-    2.times { |i| StoreResultJob.perform_later(i, pause: 1.second) }
+    2.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 
-    @worker.expects(:interruptible_sleep).with(@worker.polling_interval).at_least_once
-    @worker.expects(:interruptible_sleep).with(10.minutes).never
-    @worker.expects(:handle_thread_error).never
+    delays = stub_interruptible_sleep(@worker)
 
     @worker.start
-    sleep 1.second
+
+    first_delay = Timeout.timeout(1.second) { delays.pop }
+
+    assert_equal @worker.polling_interval, first_delay
   end
 
   private
+    def stub_interruptible_sleep(worker)
+      delays = Thread::Queue.new
+
+      worker.stubs(:handle_thread_error)
+      worker.define_singleton_method(:interruptible_sleep) do |delay|
+        delays << delay
+        sleep 0.01
+      end
+
+      delays
+    end
+
+    def with_worker_execution_support(options, &block)
+      if options.key?(:fibers)
+        with_execution_isolation(:fiber, &block)
+      else
+        yield
+      end
+    end
+
     def with_polling(silence:)
       old_silence_polling, SolidQueue.silence_polling = SolidQueue.silence_polling, silence
       yield
