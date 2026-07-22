@@ -111,6 +111,45 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :dispatcher, 1, polling_interval: 0.1, recurring_tasks: nil
   end
 
+  test "only_recurring runs just the scheduler process" do
+    configuration = SolidQueue::Configuration.new(only_recurring: true)
+
+    assert_equal 1, configuration.configured_processes.count
+    assert_processes configuration, :scheduler, 1
+    assert_processes configuration, :worker, 0
+    assert_processes configuration, :dispatcher, 0
+    assert configuration.valid?
+  end
+
+  test "only_recurring ignores workers and dispatchers from the config file" do
+    configuration = SolidQueue::Configuration.new(only_recurring: true)
+
+    assert_processes configuration, :worker, 0
+    assert_processes configuration, :dispatcher, 0
+    assert_processes configuration, :scheduler, 1
+
+    scheduler = configuration.configured_processes.first.instantiate
+    assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
+  end
+
+  test "only_recurring when SOLID_QUEUE_ONLY_RECURRING environment variable is set" do
+    with_env("SOLID_QUEUE_ONLY_RECURRING" => "true") do
+      configuration = SolidQueue::Configuration.new
+
+      assert_equal 1, configuration.configured_processes.count
+      assert_processes configuration, :scheduler, 1
+      assert_processes configuration, :worker, 0
+      assert_processes configuration, :dispatcher, 0
+    end
+  end
+
+  test "only_recurring with skip_recurring is invalid" do
+    configuration = SolidQueue::Configuration.new(only_recurring: true, skip_recurring: true)
+
+    assert_not configuration.valid?
+    assert_equal [ "No processes configured" ], configuration.errors.full_messages
+  end
+
   test "skip recurring tasks when SOLID_QUEUE_SKIP_RECURRING environment variable is set" do
     with_env("SOLID_QUEUE_SKIP_RECURRING" => "true") do
       configuration = SolidQueue::Configuration.new(dispatchers: [ { polling_interval: 0.1 } ])

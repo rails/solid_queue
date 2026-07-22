@@ -43,7 +43,10 @@ module SolidQueue
     end
 
     def configured_processes
-      if only_work? then workers
+      if only_work?
+        workers
+      elsif only_recurring?
+        schedulers
       else
         dispatchers + workers + schedulers
       end
@@ -126,6 +129,7 @@ module SolidQueue
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),
           only_work: false,
           only_dispatch: false,
+          only_recurring: ActiveModel::Type::Boolean.new.cast(ENV["SOLID_QUEUE_ONLY_RECURRING"]),
           skip_recurring: ActiveModel::Type::Boolean.new.cast(ENV["SOLID_QUEUE_SKIP_RECURRING"])
         }
       end
@@ -140,6 +144,10 @@ module SolidQueue
 
       def only_dispatch?
         options[:only_dispatch]
+      end
+
+      def only_recurring?
+        options[:only_recurring]
       end
 
       def skip_recurring_tasks?
