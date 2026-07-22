@@ -227,13 +227,16 @@ production:
       batch_size: 500
       concurrency_maintenance_interval: 300
   workers:
-    - queues: "llm*"
-      fibers: 100
-      polling_interval: 0.05
+    - queues: "*"
+      threads: 3
+      polling_interval: 2
     - queues: [ real_time, background ]
       threads: 5
       polling_interval: 0.1
       processes: 3
+    - queues: "api*"
+      fibers: 100
+      polling_interval: 0.05
   scheduler:
     dynamic_tasks_enabled: true
     polling_interval: 5
@@ -376,6 +379,8 @@ By default, workers in Solid Queue use a thread pool to run work in multiple thr
 Fiber worker execution is best suited for cooperative, mostly I/O-bound jobs. Blocking or CPU-heavy work still blocks the single reactor thread, so it should not be expected to outperform thread mode for every workload.
 
 Because fiber workers run multiple fibers on a single thread, Rails must also isolate execution state per fiber rather than per thread. If your app keeps the default thread-scoped isolation level, Solid Queue will raise a boot-time error instead of running fiber workers with shared Active Record state.
+
+Keep in mind that `config.active_support.isolation_level = :fiber` applies to your whole application, not just to Solid Queue: if you run Solid Queue inside Puma via [the plugin](#puma-plugin), or combine fiber workers with thread workers in the same process using the supervisor's `async` mode, everything in that process will use fiber-scoped execution state. This is fully supported by Rails, but it's a global setting worth being deliberate about.
 
 On Rails 7.2 and later, fiber workers can often use a much smaller queue database pool than an equivalent thread pool. A practical starting point is `3-5` queue database connections per worker process: one for job execution, one for polling, one for heartbeats, plus some headroom. In the default `fork` supervisor mode, that guidance applies per worker process. In supervisor `async` mode, all workers share one process, so add together the requirements for the workers running there.
 
