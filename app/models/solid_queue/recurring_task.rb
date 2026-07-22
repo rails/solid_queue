@@ -86,6 +86,7 @@ module SolidQueue
 
           perform_later.tap do |job|
             unless job.successfully_enqueued?
+              report_enqueue_error(job.enqueue_error, at: at)
               payload[:enqueue_error] = job.enqueue_error&.message
             end
           end
@@ -98,6 +99,7 @@ module SolidQueue
         payload[:skipped] = true
         false
       rescue Job::EnqueueError => error
+        report_enqueue_error(error, at: at)
         payload[:enqueue_error] = error.message
         false
       end
@@ -197,6 +199,12 @@ module SolidQueue
 
       def default_time_zone
         SolidQueue.time_zone
+      end
+
+      def report_enqueue_error(error, at:)
+        if error
+          Rails.error.report(error, handled: true, source: "application.solid_queue", context: { task: key, at: at })
+        end
       end
   end
 end
