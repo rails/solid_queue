@@ -62,6 +62,65 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_processes configuration, :worker, 2
   end
 
+  test "fibers configure workers to execute jobs in fibers" do
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [
+          { queues: "llm*", fibers: 10 },
+          { queues: "*", threads: 3 }
+        ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert configuration.valid?
+      assert_processes configuration, :worker, 2, fibers: [ 10, nil ], threads: [ nil, 3 ]
+    end
+  end
+
+  test "workers reject threads and fibers together" do
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", threads: 1, fibers: 1 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert_not configuration.valid?
+      assert_match /either `threads` or `fibers`/, configuration.errors.full_messages.first
+    end
+  end
+
+  test "fiber worker size inflates required database pool size on Rails 7.1" do
+    skip if fiber_workers_release_connections_between_queries?
+
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", fibers: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert configuration.valid?
+      assert_match /needs at least 1002 database connections/, configuration.warnings.full_messages.first
+    end
+  end
+
+  test "fiber worker size does not inflate required database pool size on Rails 7.2+" do
+    skip unless fiber_workers_release_connections_between_queries?
+
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", fibers: 1000 } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert configuration.valid?
+      assert_empty configuration.warnings
+    end
+  end
+
   test "mulitple workers with the same configuration" do
     background_worker = { queues: "background", polling_interval: 10, processes: 3 }
     configuration = SolidQueue::Configuration.new(workers: [ background_worker ])
@@ -166,17 +225,33 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_not configuration.valid?
     assert_equal [ "No processes configured" ], configuration.errors.full_messages
 
+    # Fiber workers require fiber-scoped isolated execution state
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
+    assert_not configuration.valid?
+    assert_match /requires fiber-scoped isolated execution state/, configuration.errors.full_messages.first
+
+    # Fiber workers require the async gem
+    with_execution_isolation(:fiber) do
+      load_error = LoadError.new("cannot load such file -- async")
+      missing_dependency_error = SolidQueue::ExecutionPools::FiberPool::MissingDependencyError.new(load_error)
+      SolidQueue::ExecutionPools::FiberPool.expects(:ensure_dependency!).raises(missing_dependency_error)
+
+      configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
+      assert_not configuration.valid?
+      assert_match /gem "async"/, configuration.errors.full_messages.first
+    end
+
     # Not enough DB connections: still valid so boot is not blocked
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ])
     assert configuration.valid?
   end
 
-  test "reports an undersized thread pool as a warning rather than an error" do
+  test "reports an undersized database pool as a warning rather than an error" do
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true)
 
     assert configuration.valid?
     assert_equal 1, configuration.warnings.size
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, configuration.warnings.full_messages.first
+    assert_match /Solid Queue needs at least \d+ database connections for the configured workers but the database connection pool is \d+\. Increase it in `config\/database.yml`/, configuration.warnings.full_messages.first
   end
 
   test "has no warnings when the database connection pool is large enough" do
@@ -209,7 +284,7 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
 
     assert_match "Solid Queue configuration is valid.", out
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+/, err
+    assert_match /Solid Queue needs at least \d+ database connections for the configured workers but the database connection pool is \d+/, err
   end
 
   test "check prints errors to stderr and returns false for an invalid configuration" do
@@ -222,6 +297,10 @@ class ConfigurationTest < ActiveSupport::TestCase
   end
 
   private
+    def fiber_workers_release_connections_between_queries?
+      ActiveRecord.gem_version >= SolidQueue::Configuration::FIBER_QUERY_SCOPED_CONNECTIONS_VERSION
+    end
+
     def assert_processes(configuration, kind, count, **attributes)
       processes = configuration.configured_processes.select { |p| p.kind == kind }
       assert_equal count, processes.size
