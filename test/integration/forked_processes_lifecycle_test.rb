@@ -22,7 +22,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
     wait_for_jobs_to_finish_for(2.seconds)
 
-    assert_equal 12, JobResult.count
+    assert_equal 12, skip_active_record_query_cache { JobResult.count }
     6.times { |i| assert_completed_job_results("job_#{i}", :background) }
     6.times { |i| assert_completed_job_results("job_#{i}", :default) }
 
@@ -124,7 +124,12 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.seconds)
 
-    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 1 }
+    wait_while_with_timeout(5.seconds) {
+      SolidQueue::ReadyExecution.joins(:job).exists?(solid_queue_jobs: { active_job_id: pause.job_id })
+    }
+    wait_while_with_timeout(5.seconds) {
+      !JobResult.exists?(status: "started", value: "pause")
+    }
 
     signal_process(@pid, :TERM, wait: 0.5.second)
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
@@ -167,18 +172,17 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
   end
 
   test "process a job that exits" do
-    2.times do
-      enqueue_store_result_job("no exit", :background)
-      enqueue_store_result_job("no exit", :default)
-    end
+    # Enqueue all four "no exit" background jobs ahead of the exiting job. Jobs are
+    # claimed in enqueue order, so these are always claimed no later than exit_job
+    # and — being pauseless — finish before the worker exits, completing normally.
+    4.times { enqueue_store_result_job("no exit", :background) }
+    2.times { enqueue_store_result_job("no exit", :default) }
     enqueue_store_result_job("paused no exit", :default, pause: 0.5.second)
+
     # the worker for :background queue will exit abnormally
     exit_job = enqueue_store_result_job("exit", :background, exit_value: 1, pause: 0.5.second)
-    # this will run *after* exit_job (pause: 1.second) - should also be marked as failed
+    # claimed alongside exit_job and still paused when it exits, so it's failed too
     pause_job = enqueue_store_result_job("exit", :background, pause: 1.second)
-
-    # this will run *before* exit_job (no pause) - should complete normally
-    2.times { enqueue_store_result_job("no exit", :background) }
 
     wait_for_jobs_to_finish_for(3.seconds, except: [ exit_job, pause_job ])
 
@@ -236,6 +240,10 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
 
     wait_for_jobs_to_finish_for(1.second, except: [ killed_pause ])
+    # Ensure the long job has written its "started" row before we SIGKILL the worker.
+    wait_while_with_timeout(2.seconds) do
+      JobResult.where(status: "started", value: "killed_pause").none?
+    end
 
     worker = find_processes_registered_as("Worker").detect { |process| process.metadata["queues"].include? "background" }
     signal_process(worker.pid, :KILL, wait: 0.5.seconds)
@@ -298,15 +306,17 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_completed_job_results(value, queue_name = :background, count = 1)
-      skip_active_record_query_cache do
-        assert_equal count, JobResult.where(queue_name: queue_name, status: "completed", value: value).count
-      end
+      actual = skip_active_record_query_cache {
+        JobResult.where(queue_name: queue_name, status: "completed", value: value).count
+      }
+      assert_equal count, actual
     end
 
     def assert_started_job_result(value, queue_name = :background, count = 1)
-      skip_active_record_query_cache do
-        assert_equal count, JobResult.where(queue_name: queue_name, status: "started", value: value).count
-      end
+      actual = skip_active_record_query_cache {
+        JobResult.where(queue_name: queue_name, status: "started", value: value).count
+      }
+      assert_equal count, actual
     end
 
     def assert_job_status(active_job, status)
