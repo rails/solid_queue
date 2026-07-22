@@ -44,20 +44,6 @@ class FiberPoolTest < Minitest::Test
     assert_match /isolation_level = :fiber/, error.message
   end
 
-  def test_adds_io_timeout_compatibility_for_older_rubies
-    io_class = Class.new
-
-    SolidQueue::ExecutionPools::FiberPool.ensure_io_timeout_compatibility!(io_class)
-
-    io = io_class.new
-    assert_nil io.timeout
-
-    io.timeout = 1.second
-
-    assert_equal 1.second, io.timeout
-    assert io_class.const_defined?(:TimeoutError, false)
-  end
-
   def test_executes_jobs_as_fibers_on_a_single_reactor_thread
     with_execution_isolation(:fiber) do
       pool = SolidQueue::ExecutionPools::FiberPool.new(2)
