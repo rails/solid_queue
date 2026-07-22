@@ -29,6 +29,19 @@ end
 Logger::LogDevice.prepend(BlockLogDeviceTimeoutExceptions)
 class ExpectedTestError < RuntimeError; end
 
+module ExecutionIsolationTestHelper
+  def with_execution_isolation(level)
+    previous_level = ActiveSupport::IsolatedExecutionState.isolation_level
+    ActiveSupport::IsolatedExecutionState.isolation_level = level
+    yield
+  ensure
+    ActiveSupport::IsolatedExecutionState.isolation_level = previous_level
+  end
+end
+
+class Minitest::Test
+  include ExecutionIsolationTestHelper
+end
 
 class ActiveSupport::TestCase
   include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper

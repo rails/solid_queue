@@ -97,7 +97,7 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
       supervisor.stop
     end
 
-    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, log.string
+    assert_match /Solid Queue needs at least \d+ database connections for the configured workers but the database connection pool is \d+\. Increase it in `config\/database.yml`/, log.string
   end
 
   test "does not warn on boot when the database connection pool is large enough" do
