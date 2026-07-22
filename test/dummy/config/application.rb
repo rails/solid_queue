@@ -28,5 +28,7 @@ module Dummy
     # config.eager_load_paths << Rails.root.join("extras")
 
     config.active_job.queue_adapter = :solid_queue
+
+    config.active_record.strict_loading_by_default = true
   end
 end
