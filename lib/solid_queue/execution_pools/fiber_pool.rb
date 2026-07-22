@@ -5,8 +5,6 @@ module SolidQueue
     class FiberPool
       include AppExecutor
 
-      IDLE_WAIT_INTERVAL = 0.01
-
       class MissingDependencyError < LoadError
         def initialize(error)
           super(
@@ -96,6 +94,10 @@ module SolidQueue
           next false if @shutdown
 
           @shutdown = true
+        end.tap do |shut_down|
+          # Wake the reactor: already-queued executions are drained before the
+          # blocked pop in +wait_for_executions+ returns nil
+          pending_executions.close if shut_down
         end
       end
 
@@ -127,8 +129,9 @@ module SolidQueue
               semaphore = Async::Semaphore.new(size, parent: task)
               boot_queue << :ready
 
+              # The reactor exits when all in-flight execution fibers, children
+              # of this task, have finished
               wait_for_executions(semaphore)
-              wait_for_inflight_executions
             end
           rescue Exception => error
             register_fatal_error(error)
@@ -137,29 +140,15 @@ module SolidQueue
         end
 
         def wait_for_executions(semaphore)
-          loop do
-            schedule_pending_executions(semaphore)
-
-            break if shutdown? && pending_executions.empty?
-
-            # Older versions of the async gem don't support waking the reactor from another
-            # thread reliably, so we cooperatively poll for newly posted work.
-            sleep(IDLE_WAIT_INTERVAL) if pending_executions.empty?
-          end
-        end
-
-        def schedule_pending_executions(semaphore)
-          while execution = next_pending_execution
+          # Thread::Queue#pop is fiber-scheduler-aware: it suspends this fiber, letting
+          # execution fibers run, and wakes the reactor when the poller thread pushes new
+          # work or closes the queue on shutdown, after which it drains any remaining
+          # executions and returns nil
+          while execution = pending_executions.pop
             semaphore.async(execution) do |_execution_task, scheduled_execution|
               perform_execution(scheduled_execution)
             end
           end
-        end
-
-        def next_pending_execution
-          pending_executions.pop(true)
-        rescue ThreadError
-          nil
         end
 
         def perform_execution(execution)
@@ -202,14 +191,6 @@ module SolidQueue
         def raise_if_fatal_error!
           error = state_mutex.synchronize { @fatal_error }
           raise error if error
-        end
-
-        def wait_for_inflight_executions
-          sleep(IDLE_WAIT_INTERVAL) while executions_in_flight?
-        end
-
-        def executions_in_flight?
-          mutex.synchronize { @available_capacity < size }
         end
     end
   end
