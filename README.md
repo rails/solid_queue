@@ -214,6 +214,8 @@ bin/jobs -c config/calendar.yml
 
 You can also skip the scheduler process by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true`. This is useful for environments like staging, review apps, or development where you don't want any recurring jobs to run. This is equivalent to using the `--skip-recurring` option with `bin/jobs`.
 
+To run **only** the scheduler (no workers or dispatchers)—for example to isolate recurring tasks on a dedicated process—set `SOLID_QUEUE_ONLY_RECURRING=true` or use the `--only-recurring` option with `bin/jobs`.
+
 This is what this configuration looks like:
 
 ```yml
@@ -708,6 +710,8 @@ bin/jobs --recurring_schedule_file=config/schedule.yml
 ```
 
 You can completely disable recurring tasks by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true` or by using the `--skip-recurring` option with `bin/jobs`.
+
+To run only the scheduler (no workers or dispatchers), set `SOLID_QUEUE_ONLY_RECURRING=true` or use `--only-recurring` with `bin/jobs`.
 
 The configuration itself looks like this:
 

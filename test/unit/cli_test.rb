@@ -36,6 +36,22 @@ class CliTest < ActiveSupport::TestCase
     end
   end
 
+  test "only_recurring option runs just the scheduler" do
+    config = configuration_from_cli(only_recurring: true)
+
+    assert_equal 1, config.configured_processes.count
+    assert_equal :scheduler, config.configured_processes.first.kind
+  end
+
+  test "only_recurring respects SOLID_QUEUE_ONLY_RECURRING env var" do
+    with_env("SOLID_QUEUE_ONLY_RECURRING" => "true") do
+      config = configuration_from_cli
+
+      assert_equal 1, config.configured_processes.count
+      assert_equal :scheduler, config.configured_processes.first.kind
+    end
+  end
+
   test "check exits 0 and prints OK message for a valid configuration" do
     out, err = capture_io do
       assert_nothing_raised { SolidQueue::Cli.start([ "check", "--skip-recurring" ]) }
