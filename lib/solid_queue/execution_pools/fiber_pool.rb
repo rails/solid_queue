@@ -3,46 +3,6 @@
 module SolidQueue
   module ExecutionPools
     class FiberPool < Base
-      class MissingDependencyError < LoadError
-        def initialize(error)
-          super(
-            "Fiber worker execution requires the `async` gem. " \
-            "Add `gem \"async\"` to your Gemfile to configure workers with `fibers`. " \
-            "Original error: #{error.message}"
-          )
-        end
-      end
-
-      class UnsupportedIsolationLevelError < ArgumentError
-        def initialize(level)
-          super(
-            "Fiber worker execution requires fiber-scoped isolated execution state. " \
-            "Set `ActiveSupport::IsolatedExecutionState.isolation_level = :fiber` " \
-            "(or `config.active_support.isolation_level = :fiber` in Rails). " \
-            "Current isolation level: #{level.inspect}"
-          )
-        end
-      end
-
-      class << self
-        def ensure_dependency!
-          require "async"
-          require "async/semaphore"
-        rescue LoadError => error
-          raise MissingDependencyError.new(error)
-        end
-
-        def ensure_supported_isolation_level!
-          return if supported_isolation_level?
-
-          raise UnsupportedIsolationLevelError.new(ActiveSupport::IsolatedExecutionState.isolation_level)
-        end
-
-        def supported_isolation_level?
-          ActiveSupport::IsolatedExecutionState.isolation_level == :fiber
-        end
-      end
-
       def initialize(size, on_idle: nil)
         super
 
@@ -52,9 +12,6 @@ module SolidQueue
         @boot_queue = Thread::Queue.new
         @pending_executions = Thread::Queue.new
         @reactor_thread = nil
-
-        self.class.ensure_dependency!
-        self.class.ensure_supported_isolation_level!
       end
 
       def post(execution)
@@ -104,11 +61,17 @@ module SolidQueue
         # The reactor thread is started lazily, when the first execution is posted,
         # so that the pool can be safely built before forking: in the default fork
         # supervisor mode, workers are instantiated in the supervisor process, and
-        # a thread started there wouldn't survive the fork.
+        # a thread started there wouldn't survive the fork. The async gem is also
+        # required lazily here, so that setups without fiber workers never load it.
         def start_reactor_if_needed
-          @reactor_thread ||= start_reactor.tap do
-            boot_result = boot_queue.pop
-            raise boot_result if boot_result.is_a?(Exception)
+          @reactor_thread ||= begin
+            require "async"
+            require "async/semaphore"
+
+            start_reactor.tap do
+              boot_result = boot_queue.pop
+              raise boot_result if boot_result.is_a?(Exception)
+            end
           end
         end
 
