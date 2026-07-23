@@ -55,12 +55,22 @@ GEM
       rake
       thor (>= 0.14.0)
     ast (2.4.2)
+    async (2.38.1)
+      console (~> 1.29)
+      fiber-annotation
+      io-event (~> 1.11)
+      metrics (~> 0.12)
+      traces (~> 0.18)
     base64 (0.3.0)
     benchmark (0.4.1)
     bigdecimal (3.3.1)
     builder (3.3.0)
     concurrent-ruby (1.3.5)
     connection_pool (2.5.4)
+    console (1.34.3)
+      fiber-annotation
+      fiber-local (~> 1.1)
+      json
     crass (1.0.6)
     date (3.4.1)
     debug (1.9.2)
@@ -70,6 +80,10 @@ GEM
     erubi (1.13.1)
     et-orbi (1.2.11)
       tzinfo
+    fiber-annotation (0.2.0)
+    fiber-local (1.1.0)
+      fiber-storage
+    fiber-storage (1.0.1)
     fugit (1.11.1)
       et-orbi (~> 1, >= 1.2.11)
       raabro (~> 1.4)
@@ -78,6 +92,7 @@ GEM
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
     io-console (0.8.0)
+    io-event (1.14.5)
     irb (1.14.3)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
@@ -87,6 +102,7 @@ GEM
     loofah (2.23.1)
       crass (~> 1.0.2)
       nokogiri (>= 1.12.0)
+    metrics (0.15.0)
     minitest (5.26.0)
     mocha (2.1.0)
       ruby2_keywords (>= 0.0.5)
@@ -181,6 +197,7 @@ GEM
     stringio (3.1.2)
     thor (1.3.2)
     timeout (0.4.3)
+    traces (0.18.2)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     unicode-display_width (3.1.3)
@@ -199,6 +216,7 @@ PLATFORMS
 
 DEPENDENCIES
   appraisal
+  async (>= 2.24)
   debug (~> 1.9)
   logger
   minitest (~> 5.0)
