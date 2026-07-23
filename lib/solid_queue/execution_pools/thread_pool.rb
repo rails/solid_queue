@@ -21,24 +21,24 @@ module SolidQueue
       end
 
       def post(execution)
-        reserved = false
         reserve_capacity!
-        reserved = true
 
-        Concurrent::Promises.future_on(executor, execution) do |thread_execution|
-          wrap_in_app_executor { thread_execution.perform }
-        rescue Exception => error
-          handle_thread_error(error)
-        ensure
+        begin
+          Concurrent::Promises.future_on(executor, execution) do |thread_execution|
+            wrap_in_app_executor { thread_execution.perform }
+          rescue Exception => error
+            handle_thread_error(error)
+          ensure
+            restore_capacity
+          end.on_rejection! do |error|
+            # Backstop for errors raised outside the rescue above, such as when
+            # restoring capacity or waking up the worker
+            handle_thread_error(error)
+          end
+        rescue Exception
           restore_capacity
-        end.on_rejection! do |error|
-          # Backstop for errors raised outside the rescue above, such as when
-          # restoring capacity or waking up the worker
-          handle_thread_error(error)
+          raise
         end
-      rescue Exception
-        restore_capacity if reserved
-        raise
       end
 
       def available_capacity
