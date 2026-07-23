@@ -19,7 +19,7 @@ module SolidQueue
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
 
-      @pool = ExecutionPools.build \
+      @pool = Pool.build \
         type: execution_pool_type,
         size: execution_pool_size,
         on_idle: -> { wake_up }
