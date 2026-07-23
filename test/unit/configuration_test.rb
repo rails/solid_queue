@@ -228,15 +228,13 @@ class ConfigurationTest < ActiveSupport::TestCase
     # Fiber workers require fiber-scoped isolated execution state
     configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
     assert_not configuration.valid?
-    assert_match /requires fiber-scoped isolated execution state/, configuration.errors.full_messages.first
+    assert_match /require fiber-scoped isolated execution state/, configuration.errors.full_messages.first
 
     # Fiber workers require the async gem
     with_execution_isolation(:fiber) do
-      load_error = LoadError.new("cannot load such file -- async")
-      missing_dependency_error = SolidQueue::ExecutionPools::FiberPool::MissingDependencyError.new(load_error)
-      SolidQueue::ExecutionPools::FiberPool.expects(:ensure_dependency!).raises(missing_dependency_error)
-
       configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { fibers: 3 } ])
+      configuration.expects(:require).with("async").raises(LoadError.new("cannot load such file -- async"))
+
       assert_not configuration.valid?
       assert_match /gem "async"/, configuration.errors.full_messages.first
     end

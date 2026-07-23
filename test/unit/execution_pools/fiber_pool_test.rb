@@ -16,32 +16,12 @@ class FiberPoolTest < Minitest::Test
     end
   end
 
-  def test_raises_a_clear_error_when_the_async_gem_is_unavailable
-    load_error = LoadError.new("cannot load such file -- async")
-
-    SolidQueue::ExecutionPools::FiberPool.expects(:require).with("async").raises(load_error)
-
-    error = assert_raises SolidQueue::ExecutionPools::FiberPool::MissingDependencyError do
-      SolidQueue::ExecutionPools::FiberPool.new(3)
-    end
-
-    assert_match /gem "async"/, error.message
-  end
-
   def test_builds_a_fiber_pool
     pool = mock
 
     SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_idle: nil).returns(pool)
 
     assert_equal pool, SolidQueue::ExecutionPools.build(type: :fiber, size: 5)
-  end
-
-  def test_raises_a_clear_error_when_isolation_level_is_not_fiber
-    error = assert_raises SolidQueue::ExecutionPools::FiberPool::UnsupportedIsolationLevelError do
-      SolidQueue::ExecutionPools::FiberPool.new(3)
-    end
-
-    assert_match /isolation_level = :fiber/, error.message
   end
 
   def test_executes_jobs_as_fibers_on_a_single_reactor_thread

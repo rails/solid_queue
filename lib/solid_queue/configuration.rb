@@ -132,17 +132,21 @@ module SolidQueue
       def ensure_fiber_workers_have_required_dependency
         return unless workers_options.any? { |options| fiber_worker?(options) }
 
-        SolidQueue::ExecutionPools::FiberPool.ensure_dependency!
-      rescue LoadError => error
-        errors.add(:base, error.message)
+        require "async"
+        require "async/semaphore"
+      rescue LoadError
+        errors.add(:base, "Fiber workers require the `async` gem. " \
+          "Add `gem \"async\"` to your Gemfile to configure workers with `fibers`.")
       end
 
       def ensure_fiber_workers_use_supported_isolation_level
         return unless workers_options.any? { |options| fiber_worker?(options) }
 
-        SolidQueue::ExecutionPools::FiberPool.ensure_supported_isolation_level!
-      rescue ArgumentError => error
-        errors.add(:base, error.message)
+        unless ActiveSupport::IsolatedExecutionState.isolation_level == :fiber
+          errors.add(:base, "Fiber workers require fiber-scoped isolated execution state. " \
+            "Set `config.active_support.isolation_level = :fiber` in your Rails configuration " \
+            "(or `ActiveSupport::IsolatedExecutionState.isolation_level = :fiber` outside Rails).")
+        end
       end
 
       def default_options
