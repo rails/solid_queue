@@ -11,20 +11,18 @@ module SolidQueue
     attr_reader :queues, :pool
 
     def initialize(**options)
-      options = options.dup
-
       execution_pool_type = options.key?(:fibers) ? :fiber : :thread
-      execution_pool_size = options[:fibers] || options[:threads] || SolidQueue::Configuration::WORKER_DEFAULTS[:threads]
-      options = options.with_defaults(worker_defaults_for(options))
+
+      options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
+      execution_pool_size = execution_pool_type == :fiber ? options[:fibers] : options[:threads]
 
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
 
-      @pool_options = {
+      @pool = ExecutionPools.build \
         type: execution_pool_type,
         size: execution_pool_size,
         on_idle: -> { wake_up }
-      }
 
       super(**options)
     end
@@ -50,11 +48,6 @@ module SolidQueue
         end
       end
 
-      def boot
-        build_pool
-        super
-      end
-
       def shutdown
         pool.shutdown
         pool.wait_for_termination(SolidQueue.shutdown_timeout)
@@ -73,18 +66,6 @@ module SolidQueue
 
       def set_procline
         procline "waiting for jobs in #{queues.join(",")}"
-      end
-
-      def build_pool
-        @pool ||= ExecutionPools.build(**@pool_options)
-      end
-
-      def worker_defaults_for(options)
-        if options.key?(:fibers)
-          SolidQueue::Configuration::WORKER_DEFAULTS.except(:threads)
-        else
-          SolidQueue::Configuration::WORKER_DEFAULTS
-        end
       end
   end
 end

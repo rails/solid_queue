@@ -108,26 +108,6 @@ class WorkerTest < ActiveSupport::TestCase
     end
   end
 
-  test "builds the execution pool on boot instead of initialize" do
-    pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
-
-    SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
-      options[:type] == :thread && options[:size] == 3 && options[:on_idle].respond_to?(:call)
-    end.returns(pool)
-
-    worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
-
-    assert_nil worker.pool
-
-    worker.start
-    wait_for_registered_processes(1, timeout: 1.second)
-
-    assert_equal pool, worker.pool
-  ensure
-    worker&.stop
-    wait_for_registered_processes(0, timeout: 1.second)
-  end
-
   test "defaults thread workers to the configured thread pool size" do
     worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2)
 
