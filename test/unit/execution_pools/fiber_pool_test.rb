@@ -31,7 +31,7 @@ class FiberPoolTest < Minitest::Test
   def test_builds_a_fiber_pool
     pool = mock
 
-    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_state_change: nil).returns(pool)
+    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_idle: nil).returns(pool)
 
     assert_equal pool, SolidQueue::ExecutionPools.build(type: :fiber, size: 5)
   end
@@ -103,7 +103,7 @@ class FiberPoolTest < Minitest::Test
       original_on_thread_error = SolidQueue.on_thread_error
       SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
 
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_state_change: -> { notifications << :changed })
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_idle: -> { notifications << :changed })
 
       pool.post CancelledExecution.new(started)
       Timeout.timeout(1.second) { started.pop }

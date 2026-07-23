@@ -78,8 +78,9 @@ class WorkerTest < ActiveSupport::TestCase
       end
     end
 
-    test "updates inflight metadata after jobs finish in #{mode[:name]} mode" do
-      StoreResultJob.perform_later(:slow, pause: 0.1.second)
+    test "updates inflight metadata on heartbeats in #{mode[:name]} mode" do
+      old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.5.second
+      StoreResultJob.perform_later(:slow, pause: 1.second)
 
       with_worker_execution_support(mode[:options]) do
         worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.05, **mode[:options])
@@ -92,7 +93,7 @@ class WorkerTest < ActiveSupport::TestCase
         wait_for(timeout: 2.seconds) { process.reload.metadata["inflight"] == 1 }
         assert_equal 1, process.reload.metadata["inflight"]
 
-        wait_for(timeout: 2.seconds) do
+        wait_for(timeout: 3.seconds) do
           process.reload.metadata["inflight"] == 0 &&
             JobResult.where(queue_name: :background, status: "completed", value: :slow).count == 1
         end
@@ -102,6 +103,8 @@ class WorkerTest < ActiveSupport::TestCase
         worker&.stop
         wait_for_registered_processes(0, timeout: 1.second)
       end
+    ensure
+      SolidQueue.process_heartbeat_interval = old_heartbeat_interval
     end
   end
 
@@ -109,7 +112,7 @@ class WorkerTest < ActiveSupport::TestCase
     pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
 
     SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
-      options[:type] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
+      options[:type] == :thread && options[:size] == 3 && options[:on_idle].respond_to?(:call)
     end.returns(pool)
 
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)

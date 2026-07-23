@@ -9,9 +9,9 @@ module SolidQueue
 
       delegate :shutdown, :shutdown?, :wait_for_termination, to: :executor
 
-      def initialize(size, on_state_change: nil)
+      def initialize(size, on_idle: nil)
         @size = size
-        @on_state_change = on_state_change
+        @on_idle = on_idle
         @available_capacity = size
         @mutex = Mutex.new
       end
@@ -49,7 +49,7 @@ module SolidQueue
       end
 
       private
-        attr_reader :mutex, :on_state_change
+        attr_reader :mutex, :on_idle
 
         DEFAULT_OPTIONS = {
           min_threads: 0,
@@ -75,7 +75,7 @@ module SolidQueue
             @available_capacity.positive?
           end
 
-          on_state_change&.call if should_notify
+          on_idle&.call if should_notify
         end
     end
   end

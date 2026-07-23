@@ -47,9 +47,9 @@ module SolidQueue
 
       attr_reader :size
 
-      def initialize(size, on_state_change: nil)
+      def initialize(size, on_idle: nil)
         @size = size
-        @on_state_change = on_state_change
+        @on_idle = on_idle
         @available_capacity = size
         @mutex = Mutex.new
         @state_mutex = Mutex.new
@@ -117,7 +117,7 @@ module SolidQueue
       end
 
       private
-        attr_reader :boot_queue, :mutex, :on_state_change, :pending_executions, :reactor_thread, :state_mutex
+        attr_reader :boot_queue, :mutex, :on_idle, :pending_executions, :reactor_thread, :state_mutex
 
         def name
           @name ||= "solid_queue-fiber-pool-#{object_id}"
@@ -176,7 +176,7 @@ module SolidQueue
             @available_capacity.positive?
           end
 
-          on_state_change&.call if should_notify
+          on_idle&.call if should_notify
         end
 
         def register_fatal_error(error)
@@ -185,7 +185,7 @@ module SolidQueue
           end
 
           boot_queue << error if boot_queue.empty?
-          on_state_change&.call
+          on_idle&.call
         end
 
         def raise_if_fatal_error!
