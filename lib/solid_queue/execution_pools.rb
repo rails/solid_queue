@@ -2,17 +2,8 @@
 
 module SolidQueue
   module ExecutionPools
-    class << self
-      def build(type:, size:, on_idle: nil)
-        case type
-        when :thread
-          ThreadPool.new(size, on_idle: on_idle)
-        when :fiber
-          FiberPool.new(size, on_idle: on_idle)
-        else
-          raise ArgumentError, "Unknown execution pool type #{type.inspect}. Expected one of: :thread, :fiber"
-        end
-      end
+    def self.build(type:, size:, on_idle: nil)
+      const_get("#{type.to_s.camelize}Pool").new(size, on_idle: on_idle)
     end
   end
 end
