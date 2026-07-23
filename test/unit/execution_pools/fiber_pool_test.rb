@@ -85,10 +85,35 @@ class FiberPoolTest < Minitest::Test
   def test_shutdown_wakes_the_reactor_when_idle
     with_execution_isolation(:fiber) do
       pool = SolidQueue::ExecutionPools::FiberPool.new(1)
+      results = Thread::Queue.new
+
+      pool.post Execution.new(nil, results, nil)
+      Timeout.timeout(1.second) { results.pop }
 
       pool.shutdown
 
       assert pool.wait_for_termination(1.second)
+    ensure
+      pool&.shutdown
+      pool&.wait_for_termination(1.second)
+    end
+  end
+
+  def test_starts_the_reactor_lazily_so_the_pool_can_be_built_before_forking
+    with_execution_isolation(:fiber) do
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
+
+      pid = fork do
+        results = Thread::Queue.new
+        pool.post Execution.new(nil, results, nil)
+        Timeout.timeout(1.second) { results.pop }
+        pool.shutdown
+        pool.wait_for_termination(1.second)
+        exit!(0)
+      end
+
+      _, status = Process.waitpid2(pid)
+      assert_equal 0, status.exitstatus
     ensure
       pool&.shutdown
       pool&.wait_for_termination(1.second)

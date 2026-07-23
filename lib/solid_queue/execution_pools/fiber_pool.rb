@@ -57,14 +57,10 @@ module SolidQueue
         @fatal_error = nil
         @boot_queue = Thread::Queue.new
         @pending_executions = Thread::Queue.new
+        @reactor_thread = nil
 
         self.class.ensure_dependency!
         self.class.ensure_supported_isolation_level!
-
-        @reactor_thread = start_reactor
-
-        boot_result = @boot_queue.pop
-        raise boot_result if boot_result.is_a?(Exception)
       end
 
       def post(execution)
@@ -74,6 +70,8 @@ module SolidQueue
 
         reserve_capacity!
         reserved = true
+
+        start_reactor_if_needed
         pending_executions << execution
       rescue Exception
         restore_capacity if reserved
@@ -106,7 +104,7 @@ module SolidQueue
       end
 
       def wait_for_termination(timeout)
-        reactor_thread.join(timeout)
+        reactor_thread&.join(timeout)
       end
 
       def metadata
@@ -121,6 +119,17 @@ module SolidQueue
 
         def name
           @name ||= "solid_queue-fiber-pool-#{object_id}"
+        end
+
+        # The reactor thread is started lazily, when the first execution is posted,
+        # so that the pool can be safely built before forking: in the default fork
+        # supervisor mode, workers are instantiated in the supervisor process, and
+        # a thread started there wouldn't survive the fork.
+        def start_reactor_if_needed
+          @reactor_thread ||= start_reactor.tap do
+            boot_result = boot_queue.pop
+            raise boot_result if boot_result.is_a?(Exception)
+          end
         end
 
         def start_reactor
