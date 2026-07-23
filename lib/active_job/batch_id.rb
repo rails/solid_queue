@@ -11,13 +11,19 @@ module ActiveJob
       attr_accessor :callback_batch_id
     end
 
-    def initialize(*arguments, **kwargs)
+    # Captured at enqueue time; bulk enqueues are handled in SolidQueue::Job.enqueue_all.
+    # The active context wins so reused instances join the current batch; without one,
+    # prior membership is kept so retries stay in their batch.
+    def enqueue(options = {})
+      self.batch_id = SolidQueue::Batch.current_batch_id || batch_id if solid_queue_job?
       super
-      self.batch_id = SolidQueue::Batch.current_batch_id if solid_queue_job?
     end
 
     def serialize
-      super.merge("batch_id" => batch_id, "callback_batch_id" => callback_batch_id)
+      super.tap do |data|
+        data["batch_id"] = batch_id if batch_id
+        data["callback_batch_id"] = callback_batch_id if callback_batch_id
+      end
     end
 
     def deserialize(job_data)
@@ -27,7 +33,12 @@ module ActiveJob
     end
 
     def batch
-      @batch ||= SolidQueue::Batch.find_by(id: callback_batch_id || batch_id)
+      batch_id_to_load = callback_batch_id || batch_id
+      return if batch_id_to_load.nil?
+      return @batch if defined?(@batch) && @loaded_batch_id == batch_id_to_load
+
+      @loaded_batch_id = batch_id_to_load
+      @batch = SolidQueue::Batch.find_by(id: batch_id_to_load)
     end
 
     private
