@@ -31,9 +31,32 @@ class DispatcherTest < ActiveSupport::TestCase
 
     process = SolidQueue::Process.first
     assert_equal "Dispatcher", process.kind
-    assert_metadata process, polling_interval: 0.1, batch_size: 10
+    assert_metadata process, polling_interval: 0.1, batch_size: 10, batch_maintenance: true
+    assert_nil process.metadata["concurrency_maintenance_interval"]
   ensure
     no_concurrency_maintenance_dispatcher.stop
+  end
+
+  test "batch maintenance is optional" do
+    no_batch_maintenance_dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, batch_maintenance: false)
+    no_batch_maintenance_dispatcher.start
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    process = SolidQueue::Process.first
+    assert_equal "Dispatcher", process.kind
+    assert_metadata process, concurrency_maintenance_interval: 600, batch_maintenance: false
+  ensure
+    no_batch_maintenance_dispatcher.stop
+  end
+
+  test "ConcurrencyMaintenance remains constructible with its original signature" do
+    maintenance = SolidQueue::Dispatcher::ConcurrencyMaintenance.new(600, 100)
+
+    assert_equal 600, maintenance.interval
+    assert_equal 100, maintenance.batch_size
+    assert maintenance.concurrency?
+    assert_not maintenance.batches?
   end
 
   test "polling queries are logged" do
