@@ -21,7 +21,7 @@ class FiberProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "process jobs in fibers in a forked worker" do
     worker = find_processes_registered_as("Worker").first
-    assert_metadata worker, fiber_pool_size: 3
+    assert_metadata worker, pool_type: "fiber", pool_size: 3
 
     6.times { |i| enqueue_store_result_job("job_#{i}") }
 

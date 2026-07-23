@@ -31,7 +31,7 @@ class FiberPoolTest < Minitest::Test
   def test_builds_a_fiber_pool
     pool = mock
 
-    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_state_change: nil).returns(pool)
+    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_idle: nil).returns(pool)
 
     assert_equal pool, SolidQueue::ExecutionPools.build(type: :fiber, size: 5)
   end
@@ -57,7 +57,6 @@ class FiberPoolTest < Minitest::Test
       assert_equal 1, entries.map(&:first).uniq.count
       assert_equal 2, entries.map(&:last).uniq.count
       assert_equal 2, pool.available_capacity
-      assert_equal 0, pool.metadata[:inflight]
     ensure
       pool&.shutdown
       pool&.wait_for_termination(1.second)
@@ -103,7 +102,7 @@ class FiberPoolTest < Minitest::Test
       original_on_thread_error = SolidQueue.on_thread_error
       SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
 
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_state_change: -> { notifications << :changed })
+      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_idle: -> { notifications << :changed })
 
       pool.post CancelledExecution.new(started)
       Timeout.timeout(1.second) { started.pop }
@@ -111,7 +110,6 @@ class FiberPoolTest < Minitest::Test
 
       error = assert_raises(Async::Stop) { pool.available_capacity }
       assert_equal [ error.class.name ], reported_errors
-      assert_raises(Async::Stop) { pool.metadata }
     ensure
       SolidQueue.on_thread_error = original_on_thread_error
       pool&.shutdown

@@ -20,20 +20,18 @@ module SolidQueue
 
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
-      @metadata_state_mutex = Mutex.new
-      @metadata_dirty = false
 
       @pool_options = {
         type: execution_pool_type,
         size: execution_pool_size,
-        on_state_change: -> { mark_metadata_dirty; wake_up }
+        on_idle: -> { wake_up }
       }
 
       super(**options)
     end
 
     def metadata
-      super.merge(queues: queues.join(",")).merge(pool.metadata)
+      super.merge(queues: queues.join(","), pool_type: pool.type, pool_size: pool.size)
     end
 
     private
@@ -42,8 +40,6 @@ module SolidQueue
           executions.each do |execution|
             pool.post(execution)
           end
-
-          reload_metadata_if_needed(executions.any?)
 
           pool.idle? ? polling_interval : 10.minutes
         end
@@ -71,11 +67,6 @@ module SolidQueue
         SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
       end
 
-      def heartbeat
-        super
-        reload_metadata
-      end
-
       def set_procline
         procline "waiting for jobs in #{queues.join(",")}"
       end
@@ -96,24 +87,6 @@ module SolidQueue
         else
           SolidQueue::Configuration::WORKER_DEFAULTS
         end
-      end
-
-      def mark_metadata_dirty
-        metadata_state_mutex.synchronize { @metadata_dirty = true }
-      end
-
-      def metadata_state_mutex
-        @metadata_state_mutex
-      end
-
-      def reload_metadata_if_needed(executions_claimed)
-        needs_reload = metadata_state_mutex.synchronize do
-          claimed_or_dirty = executions_claimed || @metadata_dirty
-          @metadata_dirty = false
-          claimed_or_dirty
-        end
-
-        reload_metadata if needs_reload
       end
   end
 end
