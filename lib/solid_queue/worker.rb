@@ -28,7 +28,7 @@ module SolidQueue
     end
 
     def metadata
-      super.merge(queues: queues.join(",")).merge(pool.metadata)
+      super.merge(queues: queues.join(","), pool_type: pool.type, pool_size: pool.size)
     end
 
     private
@@ -57,11 +57,6 @@ module SolidQueue
 
       def all_work_completed?
         SolidQueue::ReadyExecution.aggregated_count_across(queues).zero?
-      end
-
-      def heartbeat
-        super
-        reload_metadata
       end
 
       def set_procline

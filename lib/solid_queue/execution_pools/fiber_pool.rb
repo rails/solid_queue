@@ -47,6 +47,10 @@ module SolidQueue
 
       attr_reader :size
 
+      def type
+        :fiber
+      end
+
       def initialize(size, on_idle: nil)
         @size = size
         @on_idle = on_idle
@@ -105,13 +109,6 @@ module SolidQueue
 
       def wait_for_termination(timeout)
         reactor_thread&.join(timeout)
-      end
-
-      def metadata
-        {
-          fiber_pool_size: size,
-          inflight: size - available_capacity
-        }
       end
 
       private

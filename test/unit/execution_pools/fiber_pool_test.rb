@@ -57,7 +57,6 @@ class FiberPoolTest < Minitest::Test
       assert_equal 1, entries.map(&:first).uniq.count
       assert_equal 2, entries.map(&:last).uniq.count
       assert_equal 2, pool.available_capacity
-      assert_equal 0, pool.metadata[:inflight]
     ensure
       pool&.shutdown
       pool&.wait_for_termination(1.second)
@@ -136,7 +135,6 @@ class FiberPoolTest < Minitest::Test
 
       error = assert_raises(Async::Stop) { pool.available_capacity }
       assert_equal [ error.class.name ], reported_errors
-      assert_raises(Async::Stop) { pool.metadata }
     ensure
       SolidQueue.on_thread_error = original_on_thread_error
       pool&.shutdown

@@ -9,6 +9,10 @@ module SolidQueue
 
       delegate :shutdown, :shutdown?, :wait_for_termination, to: :executor
 
+      def type
+        :thread
+      end
+
       def initialize(size, on_idle: nil)
         @size = size
         @on_idle = on_idle
@@ -39,13 +43,6 @@ module SolidQueue
 
       def idle?
         available_capacity.positive?
-      end
-
-      def metadata
-        {
-          inflight: size - available_capacity,
-          thread_pool_size: size
-        }
       end
 
       private
