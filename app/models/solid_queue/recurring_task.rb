@@ -58,15 +58,15 @@ module SolidQueue
 
 
     def next_time_after(time)
-      parsed_schedule.next_time(time).utc
+      parsed_schedule_with_time_zone.next_time(time).utc
     end
 
     def next_time
-      parsed_schedule.next_time.utc
+      parsed_schedule_with_time_zone.next_time.utc
     end
 
     def previous_time
-      parsed_schedule.previous_time.utc
+      parsed_schedule_with_time_zone.previous_time.utc
     end
 
     def last_enqueued_time
@@ -86,6 +86,7 @@ module SolidQueue
 
           perform_later.tap do |job|
             unless job.successfully_enqueued?
+              report_enqueue_error(job.enqueue_error, at: at)
               payload[:enqueue_error] = job.enqueue_error&.message
             end
           end
@@ -98,6 +99,7 @@ module SolidQueue
         payload[:skipped] = true
         false
       rescue Job::EnqueueError => error
+        report_enqueue_error(error, at: at)
         payload[:enqueue_error] = error.message
         false
       end
@@ -169,9 +171,22 @@ module SolidQueue
         end
       end
 
+      def parsed_schedule_with_time_zone
+        @parsed_schedule_with_time_zone ||= apply_default_time_zone_to(parsed_schedule)
+      end
 
       def parsed_schedule
         @parsed_schedule ||= Fugit.parse(schedule, multi: :fail)
+      end
+
+      def apply_default_time_zone_to(schedule)
+        if schedule.respond_to?(:zone) && schedule.zone.nil? && default_time_zone.present?
+          Fugit.parse("#{schedule.to_cron_s} #{default_time_zone}", multi: :fail)
+        else
+          schedule
+        end
+      rescue ArgumentError
+        schedule
       end
 
       def job_class
@@ -180,6 +195,16 @@ module SolidQueue
 
       def enqueue_options
         { queue: queue_name, priority: priority }.compact
+      end
+
+      def default_time_zone
+        SolidQueue.time_zone
+      end
+
+      def report_enqueue_error(error, at:)
+        if error
+          Rails.error.report(error, handled: true, source: "application.solid_queue", context: { task: key, at: at })
+        end
       end
   end
 end

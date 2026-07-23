@@ -3,6 +3,9 @@
 module SolidQueue
   class Record < ActiveRecord::Base
     self.abstract_class = true
+    self.strict_loading_by_default = false
+
+    include DistinctValues
 
     connects_to(**SolidQueue.connects_to) if SolidQueue.connects_to
 

@@ -52,7 +52,9 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
-    wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
+    wait_while_with_timeout(5.seconds) {
+      SolidQueue::ClaimedExecution.count > 0 || SolidQueue::FailedExecution.count < 3
+    }
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ClaimedExecution.count
@@ -74,7 +76,9 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
-    wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
+    wait_while_with_timeout(5.seconds) {
+      SolidQueue::ClaimedExecution.count > 0 || SolidQueue::FailedExecution.count < 3
+    }
 
     terminate_process(pid)
 

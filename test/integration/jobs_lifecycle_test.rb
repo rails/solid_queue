@@ -40,11 +40,12 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_jobs_to_finish_for(3.seconds)
+    wait_while_with_timeout(3.seconds) { SolidQueue::FailedExecution.count < 2 }
 
     message = "raised ExpectedTestError for the 1st time"
     assert_equal [ "A: #{message}", "B: #{message}" ], JobBuffer.values.sort
 
+    assert_equal 2, SolidQueue::FailedExecution.count
     assert_empty SolidQueue::Job.finished
   end
 

@@ -16,6 +16,12 @@ module SolidQueue
       end
     end
 
+    initializer "solid_queue.time_zone" do |app|
+      unless config.solid_queue.key?(:time_zone)
+        SolidQueue.time_zone = app.config.time_zone
+      end
+    end
+
     initializer "solid_queue.app_executor", before: :run_prepare_callbacks do |app|
       config.solid_queue.app_executor    ||= app.executor
       config.solid_queue.on_thread_error ||= ->(exception) { Rails.error.report(exception, handled: false) }

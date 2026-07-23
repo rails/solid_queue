@@ -272,7 +272,90 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  test "schedule without a time zone uses the configured default time zone" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * * America/New_York").next_time.utc, task.next_time
+    end
+  end
+
+  test "schedule with an explicit time zone ignores the configured default time zone" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "0 9 * * * Europe/Madrid")
+      assert_equal Fugit.parse("0 9 * * * Europe/Madrid").next_time.utc, task.next_time
+    end
+  end
+
+  test "schedule falls back to local time when no default time zone is configured" do
+    with_time_zone nil do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * *").next_time.utc, task.next_time
+    end
+  end
+
+  test "configured default time zone accepts Rails time zone names" do
+    with_time_zone "Eastern Time (US & Canada)" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert_equal Fugit.parse("0 9 * * * America/New_York").next_time.utc, task.next_time
+    end
+  end
+
+  test "default time zone doesn't change the displayed schedule" do
+    with_time_zone "America/New_York" do
+      task = recurring_task_with(class_name: "JobWithoutArguments", schedule: "every day at 9am")
+      assert task.to_s.ends_with? "[ 0 9 * * * ]"
+    end
+  end
+
+  test "reports Job::EnqueueError to Rails.error when enqueuing via Solid Queue" do
+    SolidQueue::Job.stubs(:create!).raises(ActiveRecord::Deadlocked)
+    subscriber = ErrorBuffer.new
+    at = Time.now
+
+    with_error_subscriber(subscriber) do
+      task = recurring_task_with(class_name: "JobWithoutArguments")
+      task.enqueue(at: at)
+    end
+
+    assert_equal 1, subscriber.errors.count
+    error, options = subscriber.errors.first
+    assert_kind_of SolidQueue::Job::EnqueueError, error
+    assert_match "ActiveRecord::Deadlocked", error.message
+    assert_equal true, options[:handled]
+    assert_equal "application.solid_queue", options[:source]
+    assert_equal "task-id", options[:context][:task]
+    assert_equal at, options[:context][:at]
+  end
+
+  test "reports enqueue error to Rails.error when using another adapter" do
+    ActiveJob::QueueAdapters::AsyncAdapter.any_instance.stubs(:enqueue).raises(ActiveJob::EnqueueError.new("All is broken"))
+    subscriber = ErrorBuffer.new
+    at = Time.now
+
+    with_error_subscriber(subscriber) do
+      task = recurring_task_with(class_name: "JobUsingAsyncAdapter")
+      task.enqueue(at: at)
+    end
+
+    assert_equal 1, subscriber.errors.count
+    error, options = subscriber.errors.first
+    assert_kind_of ActiveJob::EnqueueError, error
+    assert_equal "All is broken", error.message
+    assert_equal true, options[:handled]
+    assert_equal "application.solid_queue", options[:source]
+    assert_equal "task-id", options[:context][:task]
+    assert_equal at, options[:context][:at]
+  end
+
   private
+    def with_time_zone(zone)
+      previous = SolidQueue.time_zone
+      SolidQueue.time_zone = zone
+      yield
+    ensure
+      SolidQueue.time_zone = previous
+    end
+
     def enqueue_and_assert_performed_with_result(task, result)
       assert_difference [ -> { SolidQueue::Job.count }, -> { SolidQueue::ReadyExecution.count } ], +1 do
         task.enqueue(at: Time.now)
@@ -300,5 +383,12 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
         worker.mode = :inline
         worker.start
       end
+    end
+
+    def with_error_subscriber(subscriber)
+      Rails.error.subscribe(subscriber)
+      yield
+    ensure
+      Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
     end
 end

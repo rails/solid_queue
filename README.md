@@ -45,7 +45,7 @@ Solid Queue is configured by default in new Rails 8 applications. If you're runn
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
-(Note: The minimum supported version of Rails is 7.1 and Ruby is 3.1.6.)
+(Note: The minimum supported version of Rails is 7.1 and Ruby is 3.2.)
 
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
@@ -339,7 +339,7 @@ FROM solid_queue_ready_executions
 WHERE queue_name LIKE 'beta%';
 ```
 
-This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL and SQLite, however, don't implement this technique, which means that if your `solid_queue_ready_executions` table is very big because your queues get very deep, this query will get slow. Normally your `solid_queue_ready_executions` table will be small, but it can happen.
+This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL doesn't implement this technique natively, so Solid Queue uses a [recursive CTE](https://www.postgresql.org/docs/current/queries-with.html#QUERIES-WITH-RECURSIVE) to emulate it, achieving similar performance by walking the B-tree index and jumping between distinct values. SQLite doesn't implement loose index scan either, but this is unlikely to be a problem since SQLite is typically used in development with small datasets.
 
 Similarly to using prefixes, the same will happen if you have paused queues, because we need to get a list of all queues with a query like
 ```sql
@@ -724,7 +724,9 @@ production:
 
 Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
 
-Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). You can optionally supply the following for each task:
+Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). Schedules can include a time zone (e.g. `0 9 * * * America/New_York` or `every day at 9am America/New_York`). When a schedule doesn't specify one, it's interpreted in the application's configured time zone (`config.time_zone`) by default. You can change or disable this default with `config.solid_queue.time_zone`; setting it to `nil` falls back to the system's local time.
+
+You can optionally supply the following for each task:
 - `args`: the arguments to be passed to the job, as a single argument, a hash, or an array of arguments that can also include kwargs as the last element in the array.
 
 The job in the example configuration above will be enqueued every second as:
