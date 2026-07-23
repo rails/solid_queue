@@ -12,7 +12,6 @@ module SolidQueue
 
     def initialize(**options)
       options = options.dup
-      validate_execution_options!(options)
 
       execution_pool_type = options.key?(:fibers) ? :fiber : :thread
       execution_pool_size = options[:fibers] || options[:threads] || SolidQueue::Configuration::WORKER_DEFAULTS[:threads]
@@ -78,12 +77,6 @@ module SolidQueue
 
       def build_pool
         @pool ||= ExecutionPools.build(**@pool_options)
-      end
-
-      def validate_execution_options!(options)
-        if options.key?(:threads) && options.key?(:fibers)
-          raise ArgumentError, "Workers can specify either `threads` or `fibers`, but not both."
-        end
       end
 
       def worker_defaults_for(options)

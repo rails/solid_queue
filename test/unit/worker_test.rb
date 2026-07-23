@@ -128,14 +128,6 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_registered_processes(0, timeout: 1.second)
   end
 
-  test "rejects multiple worker pool size options" do
-    error = assert_raises ArgumentError do
-      SolidQueue::Worker.new(queues: "background", threads: 3, fibers: 3, polling_interval: 0.2)
-    end
-
-    assert_match /either `threads` or `fibers`/, error.message
-  end
-
   test "defaults thread workers to the configured thread pool size" do
     worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.2)
 
