@@ -19,14 +19,14 @@ class FiberPoolTest < Minitest::Test
   def test_builds_a_fiber_pool
     pool = mock
 
-    SolidQueue::ExecutionPools::FiberPool.expects(:new).with(5, on_idle: nil).returns(pool)
+    SolidQueue::FiberPool.expects(:new).with(5, on_idle: nil).returns(pool)
 
-    assert_equal pool, SolidQueue::ExecutionPools.build(type: :fiber, size: 5)
+    assert_equal pool, SolidQueue::Pool.build(type: :fiber, size: 5)
   end
 
   def test_executes_jobs_as_fibers_on_a_single_reactor_thread
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::FiberPool.new(2)
+      pool = SolidQueue::FiberPool.new(2)
       results = Thread::Queue.new
 
       pool.post Execution.new(nil, results, 0.05)
@@ -45,7 +45,7 @@ class FiberPoolTest < Minitest::Test
 
   def test_waits_for_in_flight_executions_during_shutdown
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
+      pool = SolidQueue::FiberPool.new(1)
       started = Thread::Queue.new
 
       pool.post Execution.new(started, nil, 0.1)
@@ -63,7 +63,7 @@ class FiberPoolTest < Minitest::Test
 
   def test_shutdown_wakes_the_reactor_when_idle
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
+      pool = SolidQueue::FiberPool.new(1)
       results = Thread::Queue.new
 
       pool.post Execution.new(nil, results, nil)
@@ -80,7 +80,7 @@ class FiberPoolTest < Minitest::Test
 
   def test_starts_the_reactor_lazily_so_the_pool_can_be_built_before_forking
     with_execution_isolation(:fiber) do
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1)
+      pool = SolidQueue::FiberPool.new(1)
 
       pid = fork do
         results = Thread::Queue.new
@@ -107,7 +107,7 @@ class FiberPoolTest < Minitest::Test
       original_on_thread_error = SolidQueue.on_thread_error
       SolidQueue.on_thread_error = ->(error) { reported_errors << error.class.name }
 
-      pool = SolidQueue::ExecutionPools::FiberPool.new(1, on_idle: -> { notifications << :changed })
+      pool = SolidQueue::FiberPool.new(1, on_idle: -> { notifications << :changed })
 
       pool.post CancelledExecution.new(started)
       Timeout.timeout(1.second) { started.pop }
