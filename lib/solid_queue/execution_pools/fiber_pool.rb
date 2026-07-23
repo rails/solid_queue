@@ -2,9 +2,7 @@
 
 module SolidQueue
   module ExecutionPools
-    class FiberPool
-      include AppExecutor
-
+    class FiberPool < Base
       class MissingDependencyError < LoadError
         def initialize(error)
           super(
@@ -45,17 +43,9 @@ module SolidQueue
         end
       end
 
-      attr_reader :size
-
-      def type
-        :fiber
-      end
-
       def initialize(size, on_idle: nil)
-        @size = size
-        @on_idle = on_idle
-        @available_capacity = size
-        @mutex = Mutex.new
+        super
+
         @state_mutex = Mutex.new
         @shutdown = false
         @fatal_error = nil
@@ -71,24 +61,12 @@ module SolidQueue
         raise_if_fatal_error!
         raise RuntimeError, "Execution pool is shutting down" if shutdown?
 
-        reserve_capacity!
-
-        begin
-          start_reactor_if_needed
-          pending_executions << execution
-        rescue Exception
-          restore_capacity
-          raise
-        end
+        super
       end
 
       def available_capacity
         raise_if_fatal_error!
-        mutex.synchronize { @available_capacity }
-      end
-
-      def idle?
-        available_capacity.positive?
+        super
       end
 
       def shutdown
@@ -112,10 +90,15 @@ module SolidQueue
       end
 
       private
-        attr_reader :boot_queue, :mutex, :on_idle, :pending_executions, :reactor_thread, :state_mutex
+        attr_reader :boot_queue, :pending_executions, :reactor_thread, :state_mutex
 
         def name
           @name ||= "solid_queue-fiber-pool-#{object_id}"
+        end
+
+        def schedule(execution)
+          start_reactor_if_needed
+          pending_executions << execution
         end
 
         # The reactor thread is started lazily, when the first execution is posted,
@@ -166,23 +149,6 @@ module SolidQueue
           handle_thread_error(error)
         ensure
           restore_capacity
-        end
-
-        def reserve_capacity!
-          mutex.synchronize do
-            raise RuntimeError, "Execution pool is at capacity" if @available_capacity <= 0
-
-            @available_capacity -= 1
-          end
-        end
-
-        def restore_capacity
-          should_notify = mutex.synchronize do
-            @available_capacity += 1
-            @available_capacity.positive?
-          end
-
-          on_idle&.call if should_notify
         end
 
         def register_fatal_error(error)
