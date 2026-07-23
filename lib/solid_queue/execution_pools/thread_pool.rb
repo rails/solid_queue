@@ -31,6 +31,10 @@ module SolidQueue
           handle_thread_error(error)
         ensure
           restore_capacity
+        end.on_rejection! do |error|
+          # Backstop for errors raised outside the rescue above, such as when
+          # restoring capacity or waking up the worker
+          handle_thread_error(error)
         end
       rescue Exception
         restore_capacity if reserved
