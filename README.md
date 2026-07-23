@@ -714,6 +714,9 @@ Rails.application.config.after_initialize do # or to_prepare
 end
 ```
 
+The empty job and batch callback jobs always enqueue through Solid Queue, even when the
+job classes involved (or the application default) use a different Active Job adapter.
+
 ### Batch progress and counters
 
 Batches track `total_jobs`, `completed_jobs`, `failed_jobs` and `pending_jobs`, plus a

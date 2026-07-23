@@ -132,6 +132,32 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal 2, batch.jobs.count
   end
 
+  class OtherAdapterCallbackJob < ApplicationJob
+    self.queue_adapter = :test
+
+    def perform; end
+  end
+
+  test "empty job stays on solid_queue regardless of the app's default adapter" do
+    original = ApplicationJob.queue_adapter
+    ApplicationJob.queue_adapter = :test
+
+    assert_equal "solid_queue", SolidQueue::Batch::EmptyJob.queue_adapter_name
+  ensure
+    ApplicationJob.queue_adapter = original
+  end
+
+  test "callback jobs enqueue through solid_queue regardless of their class adapter" do
+    batch = SolidQueue::Batch.enqueue(on_finish: OtherAdapterCallbackJob) do
+      NiceJob.perform_later("world")
+    end
+
+    batch.jobs.sole.finished!
+
+    assert batch.reload.finished?
+    assert_equal 1, SolidQueue::Job.where(class_name: OtherAdapterCallbackJob.name).count
+  end
+
   test "assigns a reserved active_job_batch_id on create" do
     batch = SolidQueue::Batch.enqueue { NiceJob.perform_later("world") }
 
