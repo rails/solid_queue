@@ -39,6 +39,18 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     debug formatted_event(event, action: "Discard job", **event.payload.slice(:job_id, :status))
   end
 
+  def finish_batch(event)
+    info formatted_event(event, action: "Finish batch", **event.payload.slice(:batch_id, :total_jobs, :completed_jobs, :failed_jobs))
+  end
+
+  def sweep_stalled_batches(event)
+    debug formatted_event(event, action: "Sweep stalled batches", **event.payload.slice(:size, :started))
+  end
+
+  def batch_progress_error(event)
+    error formatted_event(event, action: "Error updating batch progress", **event.payload.slice(:batch_id, :job_id), error: formatted_error(event.payload[:error]))
+  end
+
   def release_many_blocked(event)
     debug formatted_event(event, action: "Unblock jobs", **event.payload.slice(:limit, :size))
   end
