@@ -8,19 +8,11 @@ class WorkerTest < ActiveSupport::TestCase
   EXECUTION_MODES = [
     {
       name: "thread",
-      options: { threads: 3 },
-      expected_metadata: {
-        inflight: 0,
-        thread_pool_size: 3
-      }
+      options: { threads: 3 }
     },
     {
       name: "fiber",
-      options: { fibers: 3 },
-      expected_metadata: {
-        inflight: 0,
-        fiber_pool_size: 3
-      }
+      options: { fibers: 3 }
     }
   ].freeze
 
@@ -43,10 +35,7 @@ class WorkerTest < ActiveSupport::TestCase
 
         process = SolidQueue::Process.first
         assert_equal "Worker", process.kind
-        assert_metadata process, {
-          queues: "background",
-          polling_interval: 0.2
-        }.merge(mode[:expected_metadata])
+        assert_metadata process, queues: "background", polling_interval: 0.2, pool_type: mode[:name], pool_size: 3
       ensure
         worker&.stop
         wait_for_registered_processes(0, timeout: 1.second)
@@ -77,39 +66,13 @@ class WorkerTest < ActiveSupport::TestCase
         wait_for_registered_processes(0, timeout: 1.second)
       end
     end
-
-    test "updates inflight metadata after jobs finish in #{mode[:name]} mode" do
-      StoreResultJob.perform_later(:slow, pause: 0.1.second)
-
-      with_worker_execution_support(mode[:options]) do
-        worker = SolidQueue::Worker.new(queues: "background", polling_interval: 0.05, **mode[:options])
-
-        worker.start
-        wait_for_registered_processes(1, timeout: 1.second)
-
-        process = SolidQueue::Process.first
-
-        wait_for(timeout: 2.seconds) { process.reload.metadata["inflight"] == 1 }
-        assert_equal 1, process.reload.metadata["inflight"]
-
-        wait_for(timeout: 2.seconds) do
-          process.reload.metadata["inflight"] == 0 &&
-            JobResult.where(queue_name: :background, status: "completed", value: :slow).count == 1
-        end
-        assert_equal 0, process.reload.metadata["inflight"]
-        assert_equal 1, JobResult.where(queue_name: :background, status: "completed", value: :slow).count
-      ensure
-        worker&.stop
-        wait_for_registered_processes(0, timeout: 1.second)
-      end
-    end
   end
 
   test "builds the execution pool on boot instead of initialize" do
     pool = SolidQueue::ExecutionPools::ThreadPool.new(3)
 
     SolidQueue::ExecutionPools.expects(:build).once.with do |**options|
-      options[:type] == :thread && options[:size] == 3 && options[:on_state_change].respond_to?(:call)
+      options[:type] == :thread && options[:size] == 3 && options[:on_idle].respond_to?(:call)
     end.returns(pool)
 
     worker = SolidQueue::Worker.new(queues: "background", threads: 3, polling_interval: 0.2)
@@ -140,7 +103,7 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_registered_processes(1, timeout: 1.second)
 
     assert_equal 3, worker.pool.size
-    assert_metadata SolidQueue::Process.first, thread_pool_size: 3, inflight: 0
+    assert_metadata SolidQueue::Process.first, pool_type: "thread", pool_size: 3
   ensure
     worker&.stop
     wait_for_registered_processes(0, timeout: 1.second)
