@@ -68,18 +68,18 @@ module SolidQueue
       end
 
       def post(execution)
-        reserved = false
         raise_if_fatal_error!
         raise RuntimeError, "Execution pool is shutting down" if shutdown?
 
         reserve_capacity!
-        reserved = true
 
-        start_reactor_if_needed
-        pending_executions << execution
-      rescue Exception
-        restore_capacity if reserved
-        raise
+        begin
+          start_reactor_if_needed
+          pending_executions << execution
+        rescue Exception
+          restore_capacity
+          raise
+        end
       end
 
       def available_capacity
