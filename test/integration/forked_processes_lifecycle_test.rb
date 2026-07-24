@@ -64,13 +64,15 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    # long enough pause to make sure it doesn't finish
-    pause = enqueue_store_result_job("pause", pause: 60.second)
+    # long enough pause to make sure it doesn't finish before QUIT arrives
+    pause = enqueue_store_result_job("pause", pause: 60.seconds)
 
-    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
+    # Wait for the "no pause" job to finish and the "pause" job to start
+    # before sending QUIT, so it always arrives while "pause" is in-flight
+    wait_for_jobs_to_finish_for(3.seconds, except: pause)
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "pause") }
 
-    signal_process(@pid, :QUIT, wait: 0.4.second)
-    wait_for_jobs_to_finish_for(2.seconds, except: pause)
+    signal_process(@pid, :QUIT, wait: 0.1.second)
 
     wait_while_with_timeout(2.seconds) { process_exists?(@pid) }
     assert_not process_exists?(@pid)
