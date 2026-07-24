@@ -265,6 +265,8 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
 
     worker.stop
+  ensure
+    kill_running_jobs_in(worker)
   end
 
   test "discard scheduled job" do
