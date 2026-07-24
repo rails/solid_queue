@@ -32,7 +32,10 @@ class ContinuationTest < ActiveSupport::TestCase
   test "continuable job can be interrupted and resumed" do
     job = ContinuableJob.perform_later(@result, pause: 0.5.seconds)
 
-    sleep 0.2.seconds
+    # Wait for step_one to have started before signaling TERM, so the signal
+    # always arrives while the job is paused inside step_one and the interruption
+    # lands between the two steps
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "step_one") }
     signal_process(@pid, :TERM)
 
     wait_for_jobs_to_be_released_for(2.seconds)
