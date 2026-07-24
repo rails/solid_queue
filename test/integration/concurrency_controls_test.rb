@@ -6,9 +6,9 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    # Previous tests may leave forked workers briefly alive; those can still write to
-    # JobResult rows whose primary keys get reused by create! below (e.g. overwriting
-    # status with StoreResultJob's default "completed").
+    # Wait for processes from previous tests to deregister first: leftover workers
+    # polling the same queues could claim this test's jobs. Then clear any records
+    # they might have left behind.
     wait_for_registered_processes(0, timeout: 5.seconds)
     destroy_records
 

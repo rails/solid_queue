@@ -65,6 +65,20 @@ module ProcessesTestHelper
     wait_for_process_termination_with_timeout(pid, timeout: timeout, signaled: signal)
   end
 
+  # A worker stopped while a job is still running gives up on its pool after
+  # SolidQueue.shutdown_timeout and releases the claim, but it can't stop the
+  # thread that is running the job. A forked worker exits right after, killing
+  # the thread; a worker running in-process in a test leaks it instead, and the
+  # thread writes to the database whenever the job's pause is over — long after
+  # the test that started it has finished. Inside a transactional test this
+  # corrupts later tests: the job's inserts roll back with the test, on SQLite
+  # rolling back the AUTOINCREMENT sequence bump too, so a later test's rows
+  # get the same ids and the leaked thread overwrites them when it wakes up.
+  # Kill the leaked threads instead, like a forked worker's exit would.
+  def kill_running_jobs_in(worker)
+    worker&.pool&.send(:executor)&.kill
+  end
+
   def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0, signaled: nil)
     Timeout.timeout(timeout) do
       if process_exists?(pid)
