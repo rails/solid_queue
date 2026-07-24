@@ -24,6 +24,16 @@ module SolidQueue
         end
       end
 
+      def warn_about_pending_migrations
+        SolidQueue.deprecator.warn(<<~DEPRECATION)
+          Solid Queue has pending database migrations. To get the new migration files, run:
+            rails solid_queue:update
+          And then:
+            rails db:migrate
+          These migrations will be required after version #{SolidQueue.next_major_version}.0
+        DEPRECATION
+      end
+
       # Pass index hints to the query optimizer using SQL comment hints.
       # Uses MySQL 8 optimizer hint query comments, which SQLite and
       # PostgreSQL ignore.
