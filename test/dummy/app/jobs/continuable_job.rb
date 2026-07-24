@@ -11,6 +11,7 @@ class ContinuableJob < ApplicationJob
 
   def perform(result, pause: 0)
     step :step_one do
+      result.update!(queue_name: queue_name, status: "started", value: "step_one")
       sleep pause if pause > 0
       result.update!(queue_name: queue_name, status: "stepped", value: "step_one")
     end
