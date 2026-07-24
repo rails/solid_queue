@@ -1,0 +1,19 @@
+default: &default
+  workers:
+    - queues: background
+      threads: 3
+      processes: 3
+      name: pipeline
+    - queues: default
+      threads: 1
+      name: housekeeping
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+      name: main-dispatcher
+
+development:
+  <<: *default
+
+test:
+  <<: *default
