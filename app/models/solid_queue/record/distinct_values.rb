@@ -19,23 +19,25 @@ module SolidQueue
 
         private
           def loose_index_scan_emulation_needed?
-            connection.adapter_name == "PostgreSQL"
+            connection_pool.with_connection { |connection| connection.adapter_name == "PostgreSQL" }
           end
 
           # Emulates a loose index scan, honoring the current scope (e.g. LIKE prefixes)
           # by building the anchor and the recursive step as scoped relations, whose
           # #to_sql inlines any bind parameters so they can be embedded in the raw CTE.
           def loose_distinct_via_recursive_cte(column)
-            col = connection.quote_column_name(column)
+            connection_pool.with_connection do |connection|
+              col = connection.quote_column_name(column)
 
-            connection.select_values(<<~SQL.squish)
-              WITH RECURSIVE t AS (
-                (#{next_distinct_value(col, "#{col} IS NOT NULL")})
-                UNION ALL
-                SELECT (#{next_distinct_value(col, "#{col} > t.#{col}")}) FROM t WHERE t.#{col} IS NOT NULL
-              )
-              SELECT #{col} FROM t WHERE #{col} IS NOT NULL
-            SQL
+              connection.select_values(<<~SQL.squish)
+                WITH RECURSIVE t AS (
+                  (#{next_distinct_value(col, "#{col} IS NOT NULL")})
+                  UNION ALL
+                  SELECT (#{next_distinct_value(col, "#{col} > t.#{col}")}) FROM t WHERE t.#{col} IS NOT NULL
+                )
+                SELECT #{col} FROM t WHERE #{col} IS NOT NULL
+              SQL
+            end
           end
 
           # Smallest value of `col` within the current scope that matches `condition`.
