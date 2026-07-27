@@ -9,9 +9,14 @@ module SolidQueue
 
       attr_reader :name
 
-      def initialize(*)
-        @name = generate_name
+      def initialize(name: nil, **)
+        @name = name || generate_name
+        @custom_name = name.present?
         @stopped = false
+      end
+
+      def custom_name?
+        @custom_name
       end
 
       def kind
