@@ -1,3 +1,6 @@
+# Upgrading to version 2.0.x
+Ruby 3.2 and Rails 7.1 and 7.2 are no longer supported, as they have all reached end-of-life. Solid Queue now requires Ruby 3.3 and Rails 8.0 or newer. If you're on older versions, Bundler will continue to resolve solid_queue 1.5.x for you, but you won't receive any new versions until you upgrade.
+
 # Upgrading to version 1.5.x
 Ruby 3.1 is no longer supported, as it reached end-of-life in March 2025. Solid Queue now requires Ruby 3.2 or newer. If you're still on Ruby 3.1, Bundler will continue to resolve solid_queue 1.4.x for you, but you won't receive any new versions until you upgrade Ruby.
 

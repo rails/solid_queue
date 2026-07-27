@@ -26,15 +26,11 @@ jobs:
       fail-fast: false
       matrix:
         ruby-version:
-        - 3.2
         - 3.3
         - 3.4
         - 4.0
         database: [ mysql, postgres, sqlite ]
-        gemfile: [ rails_7_1, rails_7_2, rails_8_0, rails_8_1, rails_main ]
-        exclude:
-          - ruby-version: "3.2"
-            gemfile: rails_main
+        gemfile: [ rails_8_0, rails_8_1, rails_main ]
     services:
       mysql:
         image: mysql:8.0.31
