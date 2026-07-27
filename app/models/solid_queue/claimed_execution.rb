@@ -75,6 +75,10 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   def release
     SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id) do
       unless_already_finalized do
+        # Keep owning the concurrency slot while the job waits to be claimed
+        # again so maintenance cannot expire the lock and unblock another job
+        # for the same key (#735).
+        job.extend_concurrency_lock
         job.dispatch_bypassing_concurrency_limits
         destroy!
       end

@@ -33,6 +33,12 @@ module SolidQueue
         blocked_execution.present?
       end
 
+      def extend_concurrency_lock
+        return unless concurrency_limited?
+
+        Semaphore.where(key: concurrency_key).update_all(expires_at: concurrency_duration.from_now)
+      end
+
       private
         def concurrency_on_conflict
           job_class.concurrency_on_conflict.to_s.inquiry

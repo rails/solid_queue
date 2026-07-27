@@ -38,6 +38,10 @@ module SolidQueue
       boot
       run_start_hooks
 
+      # Clear expired concurrency locks before forking workers so they cannot
+      # claim jobs that should stay blocked until maintenance runs (#735).
+      Dispatcher::ConcurrencyMaintenance.perform
+
       start_processes
       launch_maintenance_task
 
