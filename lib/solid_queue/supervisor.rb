@@ -39,6 +39,8 @@ module SolidQueue
       run_start_hooks
 
       start_processes
+      return shutdown if stopped?
+
       launch_maintenance_task
 
       supervise
@@ -65,7 +67,15 @@ module SolidQueue
       end
 
       def start_processes
-        configuration.configured_processes.each { |configured_process| start_process(configured_process) }
+        configuration.configured_processes.each do |configured_process|
+          # Honour signals that arrived during boot / start hooks before forking
+          # any children. Otherwise a queued TERM is only handled in #supervise,
+          # after workers have already been started (see #755).
+          process_signal_queue if standalone?
+          break if stopped?
+
+          start_process(configured_process)
+        end
       end
 
       def supervise

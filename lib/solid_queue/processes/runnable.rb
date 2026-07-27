@@ -50,7 +50,13 @@ module SolidQueue::Processes
         case
         when running_as_fork?
           @boot_guard = BootGuards::ForkGuard.new
-          fork(&block).tap { @boot_guard.start }
+          # Re-arm signal handlers as the first thing in the child so a TERM
+          # forwarded by the supervisor right after fork is not handled by the
+          # inherited enqueue-only supervisor trap (see #755).
+          fork do
+            register_signal_handlers
+            block.call
+          end.tap { @boot_guard.start }
         when running_async?
           @boot_guard = BootGuards::NullGuard.new
           @thread = create_thread(&block)
