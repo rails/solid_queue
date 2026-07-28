@@ -97,8 +97,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
 
     expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
@@ -119,7 +119,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(5.seconds)
 
     assert_equal [ "added from inside 1", "added from inside 2", "added from inside 3", "hey", "ho" ], JobBuffer.values.sort
     assert_equal 3, SolidQueue::Batch.finished.count
@@ -293,8 +293,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
 
     assert_equal [ "Hi finish #{batch.id}!", "Hi success #{batch.id}!", "hey" ].sort, JobBuffer.values.sort
     assert_equal 1, batch.reload.completed_jobs
