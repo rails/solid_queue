@@ -44,7 +44,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def sweep_stalled_batches(event)
-    debug formatted_event(event, action: "Sweep stalled batches", **event.payload.slice(:size, :started))
+    debug formatted_event(event, action: "Sweep stalled batches", **event.payload.slice(:size, :started, :repaired))
   end
 
   def batch_progress_error(event)

@@ -391,6 +391,32 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal batch.id, job.batch.id
   end
 
+  # Removing a tracking row can fail mid-flight and be swallowed (e.g. SQLite
+  # busy inside the finishing transaction), leaving a resolved job with a live
+  # row and a batch that can never finish. The sweep repairs exactly that state.
+  test "sweep_stalled repairs tracking rows leaked by swallowed removal errors" do
+    batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) do
+      2.times { |i| NiceJob.perform_later(i) }
+    end
+
+    jobs = batch.jobs.order(:id).to_a
+    # Simulate both leak flavors by resolving the jobs without callbacks
+    jobs.first.update_columns(finished_at: Time.current)
+    SolidQueue::FailedExecution.insert_all!([ { job_id: jobs.second.id, error: { exception_class: "RuntimeError" }.to_json } ])
+
+    assert_equal 2, SolidQueue::BatchExecution.where(batch_id: batch.id).count
+    assert_not batch.reload.finished?
+
+    SolidQueue::Batch.sweep_stalled
+
+    batch.reload
+    assert batch.finished?
+    assert batch.failed?
+    assert_equal 1, batch.failed_jobs
+    assert_equal 1, batch.completed_jobs
+    assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
+  end
+
   test "sweep_stalled finishes batches whose jobs were bulk discarded" do
     batch = SolidQueue::Batch.enqueue do
       3.times { |i| NiceJob.perform_later(i) }

@@ -5,6 +5,9 @@ module SolidQueue
     belongs_to :job, optional: true
     belongs_to :batch
 
+    scope :for_finished_jobs, -> { joins(:job).merge(SolidQueue::Job.finished) }
+    scope :for_failed_jobs, -> { joins(job: :failed_execution) }
+
     after_commit :check_completion, on: :destroy
 
     class << self

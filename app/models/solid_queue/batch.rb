@@ -90,7 +90,17 @@ module SolidQueue
 
     # Safety net for batches that can't finish through the normal flow
     def self.sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
-      SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0) do |payload|
+      SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
+        # Tracking rows only outlive their job's resolution when removing them
+        # failed mid-flight; destroying them re-triggers the completion check.
+        # No staleness threshold: a resolved job with a live row is always a leak.
+        [ BatchExecution.for_finished_jobs, BatchExecution.for_failed_jobs ].each do |leaked|
+          leaked.find_each(batch_size: batch_size) do |batch_execution|
+            payload[:repaired] += 1
+            batch_execution.destroy
+          end
+        end
+
         unfinished.empty_executions.where(enqueued_at: ...stalled_for.ago).find_each(batch_size: batch_size) do |batch|
           payload[:size] += 1
           batch.check_completion

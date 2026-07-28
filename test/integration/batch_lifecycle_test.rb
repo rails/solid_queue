@@ -9,7 +9,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for([ FailingJobError ], @_on_thread_error)
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
-    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
+    # Fast maintenance so leaked tracking rows get repaired within the test windows
+    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2, concurrency_maintenance_interval: 1)
     SolidQueue::Batch::EmptyJob.queue_as "background"
   end
 
