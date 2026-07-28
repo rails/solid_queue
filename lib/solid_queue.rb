@@ -10,6 +10,8 @@ require "active_job/batch_id"
 require "active_support"
 require "active_support/core_ext/numeric/time"
 
+require "zlib"
+
 require "zeitwerk"
 
 loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
@@ -86,6 +88,14 @@ module SolidQueue
 
   def preserve_finished_jobs?
     preserve_finished_jobs
+  end
+
+  def sharded?
+    connects_to.is_a?(Hash) && connects_to.key?(:shards)
+  end
+
+  def shards
+    sharded? ? connects_to[:shards].keys : []
   end
 
   def deprecator

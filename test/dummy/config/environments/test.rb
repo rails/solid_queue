@@ -49,7 +49,16 @@ Rails.application.configure do
 
   # Replace the default in-process and non-durable queuing backend for Active Job.
   config.active_job.queue_adapter = :solid_queue
-  config.solid_queue.connects_to = { database: { writing: :queue } }
+  config.solid_queue.connects_to = if ENV["SOLID_QUEUE_SHARDED"]
+    {
+      shards: {
+        queue_shard_one: { writing: :queue },
+        queue_shard_two: { writing: :queue_shard_two }
+      }
+    }
+  else
+    { database: { writing: :queue } }
+  end
 
   # Annotate rendered view with file names.
   # config.action_view.annotate_rendered_view_with_filenames = true

@@ -9,6 +9,10 @@ module SolidQueue
 
     connects_to(**SolidQueue.connects_to) if SolidQueue.connects_to
 
+    # With sharded queue databases, code that doesn't select a shard explicitly
+    # operates on the first one
+    self.default_shard = SolidQueue.shards.first if SolidQueue.sharded?
+
     class << self
       def non_blocking_lock
         if SolidQueue.use_skip_locked
