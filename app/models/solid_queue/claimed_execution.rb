@@ -43,7 +43,6 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
         SolidQueue.instrument(:fail_many_claimed) do |payload|
           executions.each do |execution|
             execution.failed_with(error)
-            execution.unblock_next_job
           end
 
           payload[:process_ids] = executions.map(&:process_id).uniq
@@ -71,13 +70,11 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
       failed_with(result.error)
       raise result.error
     end
-  ensure
-    unblock_next_job
   end
 
   def release
     SolidQueue.instrument(:release_claimed, job_id: job.id, process_id: process_id) do
-      transaction do
+      unless_already_finalized do
         job.dispatch_bypassing_concurrency_limits
         destroy!
       end
@@ -89,14 +86,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   def failed_with(error)
-    transaction do
-      job.failed_with(error)
-      destroy!
-    end
-  end
-
-  def unblock_next_job
-    job.unblock_next_blocked_job
+    finalize { job.failed_with(error) }
   end
 
   private
@@ -108,9 +98,28 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
 
     def finished
-      transaction do
-        job.finished!
+      finalize { job.finished! }
+    end
+
+    def finalize
+      finalized = unless_already_finalized do
+        yield
         destroy!
+        true
+      end
+
+      # Unblock the next job outside the finalize transaction so a failure while
+      # releasing the concurrency lock or dispatching the next job can't roll back
+      # a job that already finished or failed. Only the actor that owned and
+      # finalized the claim gets here, so the lock is released exactly once.
+      job.unblock_next_blocked_job if finalized
+    end
+
+    def unless_already_finalized
+      transaction do
+        return false unless self.class.unscoped.lock.find_by(id: id)
+
+        yield
       end
     end
 end

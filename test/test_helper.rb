@@ -102,7 +102,12 @@ class ActiveSupport::TestCase
     # by the cached queries might have been updated, created or deleted in the forked
     # processes.
     def skip_active_record_query_cache(&block)
-      SolidQueue::Record.uncached(&block)
+      # Forked processes write to both the queue tables and the app's JobResult
+      # rows, which live in separate databases/connections, so bypass the query
+      # cache on both — SolidQueue::Record alone leaves JobResult reads stale.
+      SolidQueue::Record.uncached do
+        JobResult.uncached(&block)
+      end
     end
 
     # Silences specified exceptions during the execution of a block

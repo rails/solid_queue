@@ -52,7 +52,9 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
-    wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
+    wait_while_with_timeout(5.seconds) {
+      SolidQueue::ClaimedExecution.count > 0 || SolidQueue::FailedExecution.count < 3
+    }
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ClaimedExecution.count
@@ -74,7 +76,9 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
     assert_registered_processes(kind: "Supervisor(async)")
 
-    wait_while_with_timeout(1.second) { SolidQueue::ClaimedExecution.count > 0 }
+    wait_while_with_timeout(5.seconds) {
+      SolidQueue::ClaimedExecution.count > 0 || SolidQueue::FailedExecution.count < 3
+    }
 
     terminate_process(pid)
 
@@ -84,9 +88,40 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     end
   end
 
+  test "warns on boot when the thread pool is larger than the database connection pool" do
+    log = StringIO.new
+    with_solid_queue_logger(ActiveSupport::Logger.new(log)) do
+      supervisor = run_supervisor_as_thread(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], dispatchers: [])
+      wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
+    ensure
+      supervisor.stop
+    end
+
+    assert_match /Solid Queue is configured to use \d+ threads but the database connection pool is \d+\. Increase it in `config\/database.yml`/, log.string
+  end
+
+  test "does not warn on boot when the database connection pool is large enough" do
+    log = StringIO.new
+    with_solid_queue_logger(ActiveSupport::Logger.new(log)) do
+      supervisor = run_supervisor_as_thread(workers: [ { queues: "background", threads: 1, polling_interval: 10 } ], dispatchers: [])
+      wait_for_registered_processes(2, timeout: 3.seconds) # supervisor + 1 worker
+    ensure
+      supervisor.stop
+    end
+
+    assert_no_match /the database connection pool is/, log.string
+  end
+
   private
     def run_supervisor_as_thread(**options)
       SolidQueue::Supervisor.start(mode: :async, standalone: false, **options.with_defaults(skip_recurring: true))
+    end
+
+    def with_solid_queue_logger(logger)
+      old_logger, SolidQueue.logger = SolidQueue.logger, logger
+      yield
+    ensure
+      SolidQueue.logger = old_logger
     end
 
     def simulate_orphaned_executions(count)

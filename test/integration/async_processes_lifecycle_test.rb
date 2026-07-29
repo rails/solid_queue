@@ -22,7 +22,7 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
 
     wait_for_jobs_to_finish_for(2.seconds)
 
-    assert_equal 12, JobResult.count
+    assert_equal 12, skip_active_record_query_cache { JobResult.count }
     6.times { |i| assert_completed_job_results("job_#{i}", :background) }
     6.times { |i| assert_completed_job_results("job_#{i}", :default) }
 
@@ -34,8 +34,10 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 3.second)
 
-    # Wait for the "no pause" job to complete before sending KILL
+    # Wait for the "no pause" job to complete and the "pause" job to start
+    # before sending KILL, so it always arrives while "pause" is in-flight
     wait_for_jobs_to_finish_for(2.seconds, except: pause)
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "pause") }
 
     signal_process(@pid, :KILL, wait: 0.1.seconds)
     wait_for_registered_processes(1, timeout: 2.second)
@@ -58,18 +60,21 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
       signal_process(@pid, :TERM, wait: 0.1.second)
     end
 
-    sleep(1.second)
+    wait_while_with_timeout(SolidQueue.shutdown_timeout + 1.second) { process_exists?(@pid) }
     assert_clean_termination
   end
 
   test "quit supervisor while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: 1.second)
+    # long enough pause to make sure it doesn't finish before QUIT arrives
+    pause = enqueue_store_result_job("pause", pause: 60.seconds)
 
-    wait_while_with_timeout(1.second) { SolidQueue::ReadyExecution.count > 0 }
+    # Wait for the "no pause" job to finish and the "pause" job to start
+    # before sending QUIT, so it always arrives while "pause" is in-flight
+    wait_for_jobs_to_finish_for(3.seconds, except: pause)
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "pause") }
 
-    signal_process(@pid, :QUIT, wait: 0.4.second)
-    wait_for_jobs_to_finish_for(2.seconds, except: pause)
+    signal_process(@pid, :QUIT, wait: 0.1.second)
 
     wait_while_with_timeout(2.seconds) { process_exists?(@pid) }
     assert_not process_exists?(@pid)
@@ -212,15 +217,17 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     end
 
     def assert_completed_job_results(value, queue_name = :background, count = 1)
-      skip_active_record_query_cache do
-        assert_equal count, JobResult.where(queue_name: queue_name, status: "completed", value: value).count
-      end
+      actual = skip_active_record_query_cache {
+        JobResult.where(queue_name: queue_name, status: "completed", value: value).count
+      }
+      assert_equal count, actual
     end
 
     def assert_started_job_result(value, queue_name = :background, count = 1)
-      skip_active_record_query_cache do
-        assert_equal count, JobResult.where(queue_name: queue_name, status: "started", value: value).count
-      end
+      actual = skip_active_record_query_cache {
+        JobResult.where(queue_name: queue_name, status: "started", value: value).count
+      }
+      assert_equal count, actual
     end
 
     def assert_job_status(active_job, status)

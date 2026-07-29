@@ -23,6 +23,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Threads, processes, and signals](#threads-processes-and-signals)
   - [Database configuration](#database-configuration)
   - [Other configuration settings](#other-configuration-settings)
+  - [Validating the configuration](#validating-the-configuration)
 - [Lifecycle hooks](#lifecycle-hooks)
 - [Errors when enqueuing](#errors-when-enqueuing)
 - [Concurrency controls](#concurrency-controls)
@@ -45,7 +46,7 @@ Solid Queue is configured by default in new Rails 8 applications. If you're runn
 1. `bundle add solid_queue`
 2. `bin/rails solid_queue:install`
 
-(Note: The minimum supported version of Rails is 7.1 and Ruby is 3.1.6.)
+(Note: The minimum supported version of Rails is 7.1 and Ruby is 3.2.)
 
 This will configure Solid Queue as the production Active Job backend, create the configuration files `config/queue.yml` and `config/recurring.yml`, and create the `db/queue_schema.rb`. It'll also create a `bin/jobs` executable wrapper that you can use to start Solid Queue.
 
@@ -214,6 +215,8 @@ bin/jobs -c config/calendar.yml
 
 You can also skip the scheduler process by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true`. This is useful for environments like staging, review apps, or development where you don't want any recurring jobs to run. This is equivalent to using the `--skip-recurring` option with `bin/jobs`.
 
+To run **only** the scheduler (no workers or dispatchers)—for example to isolate recurring tasks on a dedicated process—set `SOLID_QUEUE_ONLY_RECURRING=true` or use the `--only-recurring` option with `bin/jobs`.
+
 This is what this configuration looks like:
 
 ```yml
@@ -339,7 +342,7 @@ FROM solid_queue_ready_executions
 WHERE queue_name LIKE 'beta%';
 ```
 
-This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL and SQLite, however, don't implement this technique, which means that if your `solid_queue_ready_executions` table is very big because your queues get very deep, this query will get slow. Normally your `solid_queue_ready_executions` table will be small, but it can happen.
+This type of `DISTINCT` query on a column that's the leftmost column in an index can be performed very fast in MySQL thanks to a technique called [Loose Index Scan](https://dev.mysql.com/doc/refman/8.0/en/group-by-optimization.html#loose-index-scan). PostgreSQL doesn't implement this technique natively, so Solid Queue uses a [recursive CTE](https://www.postgresql.org/docs/current/queries-with.html#QUERIES-WITH-RECURSIVE) to emulate it, achieving similar performance by walking the B-tree index and jumping between distinct values. SQLite doesn't implement loose index scan either, but this is unlikely to be a problem since SQLite is typically used in development with small datasets.
 
 Similarly to using prefixes, the same will happen if you have paused queues, because we need to get a list of all queues with a query like
 ```sql
@@ -372,6 +375,8 @@ The supervisor is in charge of managing these processes, and it responds to the 
 - `QUIT`: starts immediate termination. The supervisor will send a `QUIT` signal to its supervised processes, causing them to exit immediately.
 
 When receiving a `QUIT` signal, if workers still have jobs in-flight, these will be returned to the queue when the processes are deregistered.
+
+On Windows, the `QUIT` signal can't be trapped, so the supervisor only responds to `TERM` and `INT` there.
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats. Jobs that were claimed by processes with an expired heartbeat will be marked as failed with a `SolidQueue::Processes::ProcessPrunedError`. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
 
@@ -408,6 +413,22 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+
+### Validating the configuration
+
+You can validate the Solid Queue configuration ahead of time, without starting any process. This is handy in deploy scripts or CI to catch mistakes—a typo in `recurring.yml`, no processes configured, and so on—before they cause a supervisor to boot into a broken state:
+
+```bash
+# Using the bin/jobs binstub
+bin/jobs check
+
+# Or via rake
+bin/rails solid_queue:check
+```
+
+Both commands validate the configuration for the current Rails environment. On success they print `Solid Queue configuration is valid.` and exit `0`; otherwise they print the errors and exit non-zero. When the number of threads is larger than the [database connection pool](#database-configuration), they also print an advisory warning about it—the same one the supervisor logs on boot. They're tolerant of a missing database connection, so they can run on CI or deploy hosts without database credentials.
+
+`bin/jobs check` accepts the same options as `bin/jobs start` (e.g. `--config_file`, `--recurring_schedule_file`, `--skip-recurring`). The rake task honors the same environment variables Solid Queue already uses: `SOLID_QUEUE_CONFIG`, `SOLID_QUEUE_RECURRING_SCHEDULE`, and `SOLID_QUEUE_SKIP_RECURRING`. To validate a specific environment's configuration, set `RAILS_ENV`, for example `RAILS_ENV=production bin/jobs check`.
 
 
 ## Lifecycle hooks
@@ -472,7 +493,7 @@ Solid Queue extends Active Job with concurrency controls, that allows you to lim
 
 ```ruby
 class MyJob < ApplicationJob
-  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, **) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour
+  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, *) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour
 
   # ...
 ```
@@ -751,6 +772,8 @@ bin/jobs --recurring_schedule_file=config/schedule.yml
 
 You can completely disable recurring tasks by setting the environment variable `SOLID_QUEUE_SKIP_RECURRING=true` or by using the `--skip-recurring` option with `bin/jobs`.
 
+To run only the scheduler (no workers or dispatchers), set `SOLID_QUEUE_ONLY_RECURRING=true` or use `--only-recurring` with `bin/jobs`.
+
 The configuration itself looks like this:
 
 ```yml
@@ -766,7 +789,9 @@ production:
 
 Tasks are specified as a hash/dictionary, where the key will be the task's key internally. Each task needs to either have a `class`, which will be the job class to enqueue, or a `command`, which will be eval'ed in the context of a job (`SolidQueue::RecurringJob`) that will be enqueued according to its schedule, in the `solid_queue_recurring` queue.
 
-Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). You can optionally supply the following for each task:
+Each task needs to have also a schedule, which is parsed using [Fugit](https://github.com/floraison/fugit), so it accepts anything [that Fugit accepts as a cron](https://github.com/floraison/fugit?tab=readme-ov-file#fugitcron). Schedules can include a time zone (e.g. `0 9 * * * America/New_York` or `every day at 9am America/New_York`). When a schedule doesn't specify one, it's interpreted in the application's configured time zone (`config.time_zone`) by default. You can change or disable this default with `config.solid_queue.time_zone`; setting it to `nil` falls back to the system's local time.
+
+You can optionally supply the following for each task:
 - `args`: the arguments to be passed to the job, as a single argument, a hash, or an array of arguments that can also include kwargs as the last element in the array.
 
 The job in the example configuration above will be enqueued every second as:

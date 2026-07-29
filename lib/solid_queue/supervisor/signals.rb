@@ -11,7 +11,7 @@ module SolidQueue
       end
 
       private
-        SIGNALS = %i[ QUIT INT TERM ]
+        SIGNALS = Gem.win_platform? ? %i[ INT TERM ] : %i[ QUIT INT TERM ]
 
         def register_signal_handlers
           SIGNALS.each do |signal|

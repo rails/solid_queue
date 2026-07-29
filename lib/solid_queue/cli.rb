@@ -20,6 +20,10 @@ module SolidQueue
       desc: "Whether to skip recurring tasks scheduling",
       banner: "SOLID_QUEUE_SKIP_RECURRING"
 
+    class_option :only_recurring, type: :boolean,
+      desc: "Whether to run only the scheduler process for recurring tasks",
+      banner: "SOLID_QUEUE_ONLY_RECURRING"
+
     def self.exit_on_failure?
       true
     end
@@ -29,6 +33,12 @@ module SolidQueue
 
     def start
       SolidQueue::Supervisor.start(**options.symbolize_keys)
+    end
+
+    desc :check, "Validates the Solid Queue configuration for the current Rails env without starting anything. Exits non-zero on errors."
+    def check
+      configuration = SolidQueue::Configuration.new(**options.symbolize_keys)
+      exit 1 unless configuration.check
     end
   end
 end

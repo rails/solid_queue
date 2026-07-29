@@ -4,7 +4,9 @@ module SolidQueue::Processes
   module Runnable
     include Supervised
 
-    attr_writer :mode
+    def mode=(value)
+      @mode = (value || DEFAULT_MODE).to_s.inquiry
+    end
 
     def start
       run_in_mode do
@@ -33,7 +35,7 @@ module SolidQueue::Processes
       DEFAULT_MODE = :async
 
       def mode
-        (@mode || DEFAULT_MODE).to_s.inquiry
+        @mode ||= DEFAULT_MODE.to_s.inquiry
       end
 
       def run_in_mode(&block)

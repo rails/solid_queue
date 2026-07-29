@@ -14,8 +14,10 @@ class RecurringTasksTest < ActiveSupport::TestCase
   end
 
   test "enqueue and process periodic tasks" do
-    wait_for_jobs_to_be_enqueued(2, timeout: 2.5.seconds)
-    wait_for_jobs_to_finish_for(2.5.seconds)
+    wait_for_jobs_to_be_enqueued(2, timeout: 5.seconds)
+    wait_while_with_timeout(5.seconds) do
+      JobResult.where(status: "custom_status", value: "42").count < 2
+    end
 
     skip_active_record_query_cache do
       assert SolidQueue::Job.count >= 2
@@ -23,13 +25,12 @@ class RecurringTasksTest < ActiveSupport::TestCase
         assert_equal "periodic_store_result", job.recurring_execution.task_key
         assert_equal "StoreResultJob", job.class_name
       end
-
-      assert JobResult.count >= 2
-      JobResult.all.each do |result|
-        assert_equal "custom_status", result.status
-        assert_equal "42", result.value
-      end
     end
+
+    # Scope to this recurring task's results. Other tests may leave JobResult
+    # rows (e.g. status "completed") that would fail a JobResult.all assertion.
+    results = skip_active_record_query_cache { JobResult.where(status: "custom_status", value: "42").to_a }
+    assert_operator results.size, :>=, 2
   end
 
   test "persist and delete configured tasks" do

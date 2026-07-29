@@ -7,3 +7,4 @@ AllCops:
   TargetRubyVersion: 3.3
   Exclude:
     - "**/*_schema.rb"
+    - "lib/generators/solid_queue/update/templates/db/*"

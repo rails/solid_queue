@@ -3,6 +3,9 @@
 module SolidQueue
   class Record < ActiveRecord::Base
     self.abstract_class = true
+    self.strict_loading_by_default = false
+
+    include DistinctValues
 
     connects_to(**SolidQueue.connects_to) if SolidQueue.connects_to
 
@@ -19,6 +22,16 @@ module SolidQueue
         connection_pool.with_connection do |connection|
           connection.supports_insert_conflict_target?
         end
+      end
+
+      def warn_about_pending_migrations
+        SolidQueue.deprecator.warn(<<~DEPRECATION)
+          Solid Queue has pending database migrations. To get the new migration files, run:
+            rails solid_queue:update
+          And then:
+            rails db:migrate
+          These migrations will be required after version #{SolidQueue.next_major_version}.0
+        DEPRECATION
       end
 
       # Pass index hints to the query optimizer using SQL comment hints.
