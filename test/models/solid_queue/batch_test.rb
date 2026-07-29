@@ -187,13 +187,13 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal batch.id, SolidQueue::Job.find_by!(active_job_id: job.job_id).batch_id
   end
 
-  test "jobs instantiated inside the block but enqueued outside do not join the batch" do
+  test "jobs instantiated inside the block keep its batch when enqueued outside any context" do
     job = nil
-    SolidQueue::Batch.enqueue { job = NiceJob.new("inside") }
+    batch = SolidQueue::Batch.enqueue { job = NiceJob.new("inside") }
 
     job.enqueue
 
-    assert_nil SolidQueue::Job.find_by!(active_job_id: job.job_id).batch_id
+    assert_equal batch.id, SolidQueue::Job.find_by!(active_job_id: job.job_id).batch_id
   end
 
   test "in-flight counters do not double count failed jobs" do
@@ -429,7 +429,9 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal 0, SolidQueue::BatchExecution.count
     assert_not batch.reload.finished?
 
-    SolidQueue::Batch.sweep_stalled(stalled_for: 0.seconds)
+    # Age the batch past the completion grace so the sweep will consider it
+    batch.update_columns(enqueued_at: 5.seconds.ago)
+    SolidQueue::Batch.sweep_stalled
 
     batch.reload
     assert batch.finished?

@@ -88,6 +88,8 @@ module SolidQueue
       end
     end
 
+    COMPLETION_GRACE = 3.seconds
+
     # Safety net for batches that can't finish through the normal flow
     def self.sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
       SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
@@ -101,7 +103,10 @@ module SolidQueue
           end
         end
 
-        unfinished.empty_executions.where(enqueued_at: ...stalled_for.ago).find_each(batch_size: batch_size) do |batch|
+        # Completion checks are idempotent and single-winner, so batches whose
+        # finishing transaction failed only need a small grace period covering
+        # the started-but-empty-job-still-deferred window
+        unfinished.empty_executions.where(enqueued_at: ...COMPLETION_GRACE.ago).find_each(batch_size: batch_size) do |batch|
           payload[:size] += 1
           batch.check_completion
         end
