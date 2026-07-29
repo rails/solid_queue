@@ -86,22 +86,16 @@ module SolidQueue
         shutdown
       end
 
-      def start_process(configured_process, on_fork_ready: nil)
+      def start_process(configured_process)
         process_instance = configured_process.instantiate.tap do |instance|
           instance.supervised_by process
           instance.mode = mode
         end
 
-        process_id = if on_fork_ready
-          process_instance.start(on_fork_ready:)
-        else
-          process_instance.start
-        end
+        process_id = process_instance.start
 
         configured_processes[process_id] = configured_process
         process_instances[process_id] = process_instance
-
-        process_id
       end
 
       def check_and_replace_terminated_processes

@@ -20,9 +20,8 @@ module SolidQueue
       end
     end
 
-    private
-      def monotonic_time_now
-        ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
-      end
+    def monotonic_time_now
+      ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
+    end
   end
 end
