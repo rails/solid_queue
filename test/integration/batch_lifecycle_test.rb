@@ -129,6 +129,32 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_finished_in_order(job!(job1), batch1.reload)
   end
 
+  test "prebuilt jobs capture their batch before enqueue is deferred" do
+    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 1
+
+    ApplicationJob.enqueue_after_transaction_commit = true
+
+    job = AddToBufferJob.new("prebuilt")
+    assert_nil job.batch_id
+
+    batch = nil
+    JobResult.transaction do
+      # Materialize the transaction so Active Job defers the adapter push.
+      JobResult.create!(queue_name: "default", status: "")
+
+      batch = SolidQueue::Batch.enqueue do
+        job.enqueue
+      end
+
+      assert_nil SolidQueue::Job.find_by(active_job_id: job.job_id)
+    end
+
+    persisted_job = job!(job)
+    assert_equal batch.id, persisted_job.batch_id
+    assert_equal 1, batch.reload.total_jobs
+    assert_equal 1, batch.batch_executions.count
+  end
+
   test "when self.enqueue_after_transaction_commit = true" do
     skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 1
 
