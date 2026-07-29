@@ -171,8 +171,11 @@ module SolidQueue
         active_job = ActiveJob::Base.deserialize(send(callback_name))
         active_job.callback_batch_id = id
         # Enqueued directly so callbacks stay in Solid Queue even when the job
-        # class's adapter differs, and stay atomic with the finishing transaction
-        Job.enqueue(active_job, scheduled_at: active_job.scheduled_at || Time.current)
+        # class's adapter differs, and stay atomic with the finishing transaction;
+        # the Active Job enqueue callback chain still runs and can abort
+        active_job.run_callbacks(:enqueue) do
+          Job.enqueue(active_job, scheduled_at: active_job.scheduled_at || Time.current)
+        end
       end
 
       def enqueue_callback_jobs

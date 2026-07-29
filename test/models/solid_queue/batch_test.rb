@@ -147,6 +147,40 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     ApplicationJob.queue_adapter = original
   end
 
+  class HookedCallbackJob < ApplicationJob
+    cattr_accessor :enqueue_hook_ran, default: false
+
+    before_enqueue { self.class.enqueue_hook_ran = true }
+
+    def perform; end
+  end
+
+  class AbortingCallbackJob < ApplicationJob
+    before_enqueue { throw :abort }
+
+    def perform; end
+  end
+
+  test "callback jobs run their Active Job enqueue callbacks" do
+    HookedCallbackJob.enqueue_hook_ran = false
+    batch = SolidQueue::Batch.enqueue(on_finish: HookedCallbackJob) { NiceJob.perform_later("world") }
+
+    batch.jobs.sole.finished!
+
+    assert batch.reload.finished?
+    assert HookedCallbackJob.enqueue_hook_ran
+    assert_equal 1, SolidQueue::Job.where(class_name: HookedCallbackJob.name).count
+  end
+
+  test "callback jobs honor an aborting before_enqueue without breaking completion" do
+    batch = SolidQueue::Batch.enqueue(on_finish: AbortingCallbackJob) { NiceJob.perform_later("world") }
+
+    batch.jobs.sole.finished!
+
+    assert batch.reload.finished?
+    assert_equal 0, SolidQueue::Job.where(class_name: AbortingCallbackJob.name).count
+  end
+
   test "callback jobs enqueue through solid_queue regardless of their class adapter" do
     batch = SolidQueue::Batch.enqueue(on_finish: OtherAdapterCallbackJob) do
       NiceJob.perform_later("world")
