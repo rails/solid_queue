@@ -2,14 +2,7 @@
 
 module SolidQueue
   class ForkSupervisor < Supervisor
-    def initialize(...)
-      @starting_processes = {}
-      super
-    end
-
     private
-
-    attr_reader :starting_processes
 
     def perform_graceful_termination
       term_forks
@@ -21,8 +14,6 @@ module SolidQueue
 
     def perform_immediate_termination
       quit_forks
-    ensure
-      close_startup_pipes
     end
 
     def term_forks
@@ -41,7 +32,20 @@ module SolidQueue
         replace_fork(pid, status)
       end
 
-      check_process_startups
+      check_boot_timeouts
+    end
+
+    def check_boot_timeouts
+      process_instances.each do |pid, instance|
+        terminate_unready_process(pid) if instance.boot_timed_out?
+      end
+    end
+
+    def terminate_unready_process(pid)
+      SolidQueue.instrument(:fork_boot_timeout, process: process_instances[pid], pid: pid) do
+        # A child stuck in boot cannot reach its run loop to stop gracefully
+        signal_process(pid, :KILL)
+      end
     end
 
     def reap_terminated_forks
@@ -49,12 +53,15 @@ module SolidQueue
         pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
-        if (terminated_fork = process_instances.delete(pid)) && (!status.exited? || status.exitstatus.to_i > 0)
-          error = Processes::ProcessExitError.new(status)
-          release_claimed_jobs_by(terminated_fork, with_error: error)
+        if terminated_fork = process_instances.delete(pid)
+          terminated_fork.mark_as_reaped
+
+          if !status.exited? || status.exitstatus.to_i > 0
+            error = Processes::ProcessExitError.new(status)
+            release_claimed_jobs_by(terminated_fork, with_error: error)
+          end
         end
 
-        close_startup_pipe(pid)
         configured_processes.delete(pid)
       end
     rescue SystemCallError
@@ -64,7 +71,7 @@ module SolidQueue
     def replace_fork(pid, status)
       SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
         if terminated_fork = process_instances.delete(pid)
-          close_startup_pipe(pid)
+          terminated_fork.mark_as_reaped
           payload[:fork] = terminated_fork
           error = Processes::ProcessExitError.new(status)
           release_claimed_jobs_by(terminated_fork, with_error: error)
@@ -76,60 +83,6 @@ module SolidQueue
 
     def all_processes_terminated?
       process_instances.empty?
-    end
-
-    def start_process(configured_process)
-      reader, writer = IO.pipe
-      inherited_readers = starting_processes.values.map { |startup| startup[:reader] }
-      on_fork_ready = proc do
-        inherited_readers.each(&:close)
-        reader.close
-        writer.write(".")
-      rescue Errno::EPIPE
-        # The supervisor stopped waiting while this process finished booting.
-      ensure
-        writer.close
-      end
-      process_id = super(configured_process, on_fork_ready:)
-      writer.close
-      starting_processes[process_id] = { reader:, started_at: monotonic_time_now }
-      process_id
-    rescue Exception
-      reader&.close unless reader&.closed?
-      writer&.close unless writer&.closed?
-      raise
-    end
-
-    def check_process_startups
-      starting_processes.delete_if do |pid, startup|
-        reader = startup[:reader]
-
-        # A byte means boot completed; EOF means the child exited and waitpid will replace it.
-        if reader.read_nonblock(1, exception: false) != :wait_readable
-          reader.close
-          true
-        elsif monotonic_time_now - startup[:started_at] >= SolidQueue.process_startup_timeout
-          SolidQueue.instrument(:fork_startup_timeout, process: process_instances[pid], pid: pid) do
-            # A child stuck in boot cannot reach its run loop to stop gracefully.
-            signal_process(pid, :KILL)
-          end
-          reader.close
-          true
-        end
-      end
-    end
-
-    def close_startup_pipe(pid)
-      starting_processes.delete(pid)&.fetch(:reader)&.close
-    end
-
-    def close_startup_pipes
-      starting_processes.each_value { |startup| startup[:reader].close }
-      starting_processes.clear
-    end
-
-    def monotonic_time_now
-      ::Process.clock_gettime(::Process::CLOCK_MONOTONIC)
     end
   end
 end

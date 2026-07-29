@@ -50,13 +50,13 @@ class LogSubscriberTest < ActiveSupport::TestCase
     assert_match_logged :error, "Error enqueuing recurring task", "task: :example_task, enqueue_error: \"Everything is broken\", at: \"#{time.iso8601}\""
   end
 
-  test "fork startup timeout" do
+  test "fork boot timeout" do
     worker = SolidQueue::Worker.new
 
     attach_log_subscriber
-    instrument "fork_startup_timeout.solid_queue", process: worker, pid: 42
+    instrument "fork_boot_timeout.solid_queue", process: worker, pid: 42
 
-    assert_match_logged :warn, "Terminate unresponsive Worker during startup", "pid: 42, hostname: \"#{worker.hostname}\", name: \"#{worker.name}\""
+    assert_match_logged :warn, "Terminate Worker that failed to boot in time", "pid: 42, hostname: \"#{worker.hostname}\", name: \"#{worker.name}\""
   end
 
   test "deregister process" do

@@ -22,7 +22,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
 
   setup do
     @previous_pidfile = SolidQueue.supervisor_pidfile
-    @previous_process_startup_timeout = SolidQueue.process_startup_timeout
+    @previous_fork_boot_timeout = SolidQueue.fork_boot_timeout
     @pidfile = Rails.application.root.join("tmp/pids/pidfile_#{SecureRandom.hex}.pid")
     SolidQueue.supervisor_pidfile = @pidfile
     @startup_log = Rails.application.root.join("tmp/pids/startup_#{SecureRandom.hex}.log")
@@ -31,7 +31,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   teardown do
     terminate_stalled_supervisor
     SolidQueue.supervisor_pidfile = @previous_pidfile
-    SolidQueue.process_startup_timeout = @previous_process_startup_timeout
+    SolidQueue.fork_boot_timeout = @previous_fork_boot_timeout
     File.delete(@pidfile) if File.exist?(@pidfile)
     File.delete(@startup_log) if File.exist?(@startup_log)
   end
@@ -229,7 +229,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   end
 
   test "replace only the fork that does not finish booting" do
-    SolidQueue.process_startup_timeout = 0.2.seconds
+    SolidQueue.fork_boot_timeout = 0.2.seconds
     run_stalled_supervisor(startup_delay: 60.seconds, with_healthy_worker: true)
     wait_for_registered_processes(2, timeout: 2.seconds)
     healthy_pid = find_processes_registered_as("Worker").sole.pid
@@ -244,7 +244,7 @@ class ForkSupervisorTest < ActiveSupport::TestCase
   end
 
   test "preserve a fork that finishes booting before the timeout" do
-    SolidQueue.process_startup_timeout = 0.5.seconds
+    SolidQueue.fork_boot_timeout = 0.5.seconds
     run_stalled_supervisor(startup_delay: 0.1.seconds)
     wait_for_registered_processes(2, timeout: 2.seconds)
     worker_pid = find_processes_registered_as("StalledWorker").sole.pid
