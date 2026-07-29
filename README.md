@@ -693,12 +693,13 @@ SolidQueue::Batch.enqueue(
 end
 ```
 
-A job belongs to the batch that's active when it is enqueued. If no batch is active then,
-it keeps the batch that was active when it was created. For example:
+A job joins the batch that's active when its enqueue is requested. This also works when
+Rails defers the actual enqueue until after the surrounding transaction commits.
 
 - A job created outside a batch and enqueued inside one joins that batch.
-- A job created inside a batch and enqueued later outside it still belongs to that batch.
-- Reusing a job inside a different batch makes the new enqueue part of the new batch.
+- Creating a job inside a batch without enqueueing it doesn't keep the batch open.
+- If a job already carries a batch ID but is enqueued inside another active batch, the
+  active batch takes precedence.
 
 Callbacks can be given as a job class or as a configured job instance, e.g.
 `on_finish: BatchFinishJob.new.set(queue: :batches)`. Note that the job is serialized when
