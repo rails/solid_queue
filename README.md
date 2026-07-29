@@ -693,9 +693,11 @@ SolidQueue::Batch.enqueue(
 end
 ```
 
-A job joins the batch that's active *when it's enqueued*. Jobs instantiated inside the block
-but enqueued outside of it won't be part of the batch, and jobs instantiated elsewhere but
-enqueued inside the block will be.
+Batch membership is seeded when a Solid Queue job is instantiated and rebound to the batch
+that's active when it is enqueued. Jobs instantiated inside the block keep that membership
+when enqueued later outside any batch context, while jobs instantiated elsewhere join the
+batch when enqueued inside the block. Reusing a job inside another active batch rebinds it
+to that batch.
 
 Callbacks can be given as a job class or as a configured job instance, e.g.
 `on_finish: BatchFinishJob.new.set(queue: :batches)`. Note that the job is serialized when
