@@ -11,12 +11,11 @@ module ActiveJob
       attr_accessor :callback_batch_id
     end
 
-    # Membership is seeded at build time and rebound at enqueue time when a batch
-    # context is active. The seed matters for deferred enqueues: with
-    # enqueue_after_transaction_commit, the adapter push (per-job on Rails 7.2+,
-    # bulk on edge) runs after the batch block's transaction commits, when the
-    # context is gone. Without one, prior membership is kept so retries stay in
-    # their batch. Bulk enqueues are also captured in SolidQueue::Job.enqueue_all.
+    # Seed membership at construction for enqueue paths deferred until after the
+    # batch context ends, notably bulk enqueue. Enqueueing inside another batch
+    # rebinds membership; enqueueing without a batch preserves it.
+    # SolidQueue::Job.enqueue_all repeats this capture because bulk enqueue
+    # bypasses #enqueue.
     def initialize(*arguments, **kwargs)
       super
       self.batch_id = SolidQueue::Batch.current_batch_id if solid_queue_job?

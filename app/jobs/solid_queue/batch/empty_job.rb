@@ -3,7 +3,7 @@
 module SolidQueue
   class Batch
     class EmptyJob < (defined?(ApplicationJob) ? ApplicationJob : ActiveJob::Base)
-      # Pinned so it can't leak to another backend in mixed-adapter apps
+      # Always use Solid Queue, even when ApplicationJob uses another adapter.
       self.queue_adapter = :solid_queue
 
       def perform

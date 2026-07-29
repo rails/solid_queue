@@ -41,7 +41,7 @@ module SolidQueue
         enqueued_at.present?
       end
 
-      # Failed jobs have also lost their batch execution, so subtract them too
+      # Failed jobs no longer have tracking rows, so exclude them from the completed count.
       def completed_jobs
         finished? ? self[:completed_jobs] : total_jobs - pending_jobs - failed_jobs
       end

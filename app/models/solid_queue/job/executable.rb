@@ -18,7 +18,7 @@ module SolidQueue
 
       class_methods do
         def prepare_all_for_execution(jobs)
-          # Before dispatching, so conflict-discarded jobs are accounted like in the single-job path
+          # Track before dispatch so conflict-discarded jobs count like single enqueues.
           batch_all(jobs)
 
           due, not_yet_due = jobs.partition(&:due?)

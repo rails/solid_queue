@@ -22,7 +22,7 @@ module SolidQueue
       end
     end
 
-    # Reserved as a provider-agnostic batch identifier, like solid_queue_jobs.active_job_id
+    # Provider-agnostic batch identifier, analogous to jobs.active_job_id.
     before_create :set_active_job_batch_id
 
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
@@ -56,7 +56,8 @@ module SolidQueue
     end
 
     def enqueue(&block)
-      # Fast-fail only: the authoritative guard is in BatchExecution.create_all_from_jobs
+      # Fast-fail for the common case. create_all_from_jobs atomically guards
+      # concurrent additions when it creates their tracking rows.
       raise AlreadyFinished if finished?
 
       transaction do
@@ -90,12 +91,11 @@ module SolidQueue
 
     COMPLETION_GRACE = 3.seconds
 
-    # Safety net for batches that can't finish through the normal flow
     def self.sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
       SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
-        # Tracking rows only outlive their job's resolution when removing them
-        # failed mid-flight; destroying them re-triggers the completion check.
-        # No staleness threshold: a resolved job with a live row is always a leak.
+        # BatchExecution rows represent outstanding work. A row for a resolved
+        # job violates that invariant, so remove it immediately; destroy's
+        # after_commit callback retries the batch completion check.
         [ BatchExecution.for_finished_jobs, BatchExecution.for_failed_jobs ].each do |leaked|
           leaked.find_each(batch_size: batch_size) do |batch_execution|
             payload[:repaired] += 1
@@ -103,9 +103,8 @@ module SolidQueue
           end
         end
 
-        # Completion checks are idempotent and single-winner, so batches whose
-        # finishing transaction failed only need a small grace period covering
-        # the started-but-empty-job-still-deferred window
+        # A started batch with no tracking rows can finish, but allow time for a
+        # transaction-deferred EmptyJob enqueue to become visible.
         unfinished.empty_executions.where(enqueued_at: ...COMPLETION_GRACE.ago).find_each(batch_size: batch_size) do |batch|
           payload[:size] += 1
           batch.check_completion
@@ -138,7 +137,8 @@ module SolidQueue
       def finalize_completion
         reload
 
-        # A blocked finisher can win with a stale NOT EXISTS on PostgreSQL; re-check under the row lock
+        # PostgreSQL can let a blocked CAS win from a stale NOT EXISTS snapshot.
+        # Re-check in a new statement while this transaction holds the row lock.
         raise ActiveRecord::Rollback if batch_executions.exists?
 
         SolidQueue.instrument(:finish_batch, batch_id: id) do |payload|
@@ -170,9 +170,8 @@ module SolidQueue
       def enqueue_callback_job(callback_name)
         active_job = ActiveJob::Base.deserialize(send(callback_name))
         active_job.callback_batch_id = id
-        # Enqueued directly so callbacks stay in Solid Queue even when the job
-        # class's adapter differs, and stay atomic with the finishing transaction;
-        # the Active Job enqueue callback chain still runs and can abort
+        # Bypass the job class's adapter so callbacks stay in Solid Queue and
+        # their enqueue stays in this transaction, while honoring enqueue callbacks.
         active_job.run_callbacks(:enqueue) do
           Job.enqueue(active_job, scheduled_at: active_job.scheduled_at || Time.current)
         end

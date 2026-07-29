@@ -16,7 +16,8 @@ module SolidQueue
         return if batch_jobs.empty?
 
         batch_jobs.group_by(&:batch_id).each do |batch_id, jobs|
-          # Incrementing before inserting avoids deadlocking concurrent adders on MySQL
+          # Increment first: inserting tracking rows takes a shared FK lock on
+          # the batch row, then incrementing can deadlock concurrent MySQL adders.
           total = jobs.size
           updated = SolidQueue::Batch.where(id: batch_id).unfinished.update_all([ "total_jobs = total_jobs + ?", total ])
           raise Batch::AlreadyFinished if updated.zero?

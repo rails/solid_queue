@@ -269,12 +269,8 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert batch.reload.finished?
   end
 
-  # Guards the lock-free completion invariants: the CAS conditions on the
-  # finishing update, the current-snapshot execution re-check after winning it
-  # (load-bearing on PostgreSQL READ COMMITTED, where a blocked CAS re-evaluates
-  # NOT EXISTS against a stale snapshot), and completion's atomicity with
-  # callback enqueueing. Every interleaving must produce exactly one finish and
-  # exactly one set of callbacks — if this fails or flakes, a guard was removed.
+  # Competing completion checks must have one CAS winner, one final counter
+  # update, and one set of callback jobs.
   test "concurrent completion checks finish the batch exactly once" do
     batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) do
       NiceJob.perform_later("world")
@@ -302,16 +298,12 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal batch.total_jobs, batch.completed_jobs
     assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
 
-    # And it stays idempotent after the fact
     batch.check_completion
     assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
   end
 
-  # Guards the increment-before-insert ordering in
-  # BatchExecution.create_all_from_jobs: inserting executions first takes a
-  # shared lock on the batch row (FK validation) that the increment then
-  # upgrades to exclusive, deadlocking concurrent adders on MySQL. If this
-  # fails with ActiveRecord::Deadlocked, the statement order was changed.
+  # The increment must precede tracking inserts. On MySQL, FK validation takes
+  # a shared batch-row lock; upgrading it afterward can deadlock concurrent adders.
   test "concurrent adders to the same batch keep exact accounting" do
     batch = SolidQueue::Batch.enqueue { NiceJob.perform_later("seed") }
 
@@ -395,9 +387,6 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal started_at, batch.enqueued_at
   end
 
-  # Batch capture must wrap outside the Rails 7.2+ enqueue deferral: if
-  # EnqueueAfterTransactionCommit ends up outermost, capture runs after the
-  # batch block has exited and jobs silently miss their batch.
   test "batch capture runs before deferred enqueues" do
     ancestors = ApplicationJob.ancestors
     assert_includes ancestors, ActiveJob::BatchId

@@ -2,7 +2,8 @@
 
 module SolidQueue
   class FailedExecution
-    # Failed executions are only created once a job is done retrying — when it stops counting as pending in its batch
+    # A FailedExecution is created only after retries are exhausted, when the
+    # job stops counting as pending in its batch.
     module Batchable
       extend ActiveSupport::Concern
 

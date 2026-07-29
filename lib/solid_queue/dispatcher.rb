@@ -17,7 +17,7 @@ module SolidQueue
 
       @batch_size = options[:batch_size]
 
-      # One shared timer so maintenance costs a single thread and connection
+      # Run both maintenance routines on one timer instead of another thread.
       if options[:concurrency_maintenance] || options[:batch_maintenance]
         @maintenance = Maintenance.new(options[:concurrency_maintenance_interval], options[:batch_size],
           concurrency: options[:concurrency_maintenance], batches: options[:batch_maintenance])
