@@ -236,8 +236,10 @@ class ForkSupervisorTest < ActiveSupport::TestCase
 
     wait_while_with_timeout(4.seconds) { startup_pids.size < 2 }
 
+    # The stalled fork was terminated and replaced by a new one; the healthy
+    # worker was left alone. The replacement's liveness is not asserted because
+    # it stalls too and will be replaced in turn.
     assert_not process_exists?(startup_pids.first)
-    assert process_exists?(startup_pids.second)
     assert_equal healthy_pid, find_processes_registered_as("Worker").sole.pid
   end
 
@@ -289,7 +291,6 @@ class ForkSupervisorTest < ActiveSupport::TestCase
       end.new(configured_processes, "fork".inquiry)
 
       @stalled_supervisor_pid = fork do
-        ::Process.setpgrp
         SolidQueue::ForkSupervisor.new(configuration).start
       end
     end
@@ -300,21 +301,21 @@ class ForkSupervisorTest < ActiveSupport::TestCase
       []
     end
 
+    # Terminate the supervisor gracefully so it cleans up its own forks first,
+    # including any it's still starting: killing it abruptly instead can leak a
+    # fork spawned concurrently with the kill, which would keep writing to the
+    # database long after this test has finished.
     def terminate_stalled_supervisor
-      return unless @stalled_supervisor_pid
-
-      begin
-        ::Process.kill(:KILL, -@stalled_supervisor_pid)
+      terminate_process(@stalled_supervisor_pid) if @stalled_supervisor_pid && process_exists?(@stalled_supervisor_pid)
+    rescue Timeout::Error
+      # The supervisor didn't terminate in time and got killed without a chance
+      # to clean up its forks: kill any forks it left behind—stalled ones, so
+      # they can't wake up from their stalled boot and write to the database
+      # while other tests run, and healthy ones, so they don't keep polling.
+      orphaned_pids = startup_pids + SolidQueue::Process.where(kind: "Worker").pluck(:pid)
+      orphaned_pids.uniq.each do |pid|
+        ::Process.kill(:KILL, pid)
       rescue Errno::ESRCH
-        begin
-          ::Process.kill(:KILL, @stalled_supervisor_pid)
-        rescue Errno::ESRCH
-        end
-      end
-
-      begin
-        ::Process.waitpid(@stalled_supervisor_pid)
-      rescue Errno::ECHILD
       end
     end
 end
