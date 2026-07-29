@@ -44,7 +44,7 @@ class Minitest::Test
 end
 
 class ActiveSupport::TestCase
-  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper
+  include ConfigurationTestHelper, ProcessesTestHelper, JobsTestHelper, ShardingTestHelper
 
   def destroy_records
     SolidQueue::Job.destroy_all

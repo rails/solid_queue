@@ -2,7 +2,7 @@
 
 module SolidQueue
   class FiberPool < Pool
-    def initialize(size, on_idle: nil, on_unrecoverable_error: nil)
+    def initialize(size, shard: nil, on_idle: nil, on_unrecoverable_error: nil)
       super
 
       @state_mutex = Mutex.new

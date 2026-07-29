@@ -19,7 +19,7 @@ class FiberPoolTest < Minitest::Test
   def test_builds_a_fiber_pool
     pool = mock
 
-    SolidQueue::FiberPool.expects(:new).with(5, on_idle: nil, on_unrecoverable_error: nil).returns(pool)
+    SolidQueue::FiberPool.expects(:new).with(5, shard: nil, on_idle: nil, on_unrecoverable_error: nil).returns(pool)
 
     assert_equal pool, SolidQueue::Pool.build(type: :fiber, size: 5)
   end

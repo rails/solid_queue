@@ -4,18 +4,22 @@ module SolidQueue
   class Pool
     include AppExecutor
 
-    def self.build(type:, size:, on_idle: nil, on_unrecoverable_error: nil)
+    def self.build(type:, size:, shard: nil, on_idle: nil, on_unrecoverable_error: nil)
       SolidQueue.const_get("#{type.to_s.camelize}Pool").new(
         size,
+        shard: shard,
         on_idle: on_idle,
         on_unrecoverable_error: on_unrecoverable_error
       )
     end
 
-    attr_reader :size
+    # The queue database shard this pool's executions are pinned to; nil
+    # operates on the default shard
+    attr_reader :size, :shard
 
-    def initialize(size, on_idle: nil, on_unrecoverable_error: nil)
+    def initialize(size, shard: nil, on_idle: nil, on_unrecoverable_error: nil)
       @size = size
+      @shard = shard
       @on_idle = on_idle
       @on_unrecoverable_error = on_unrecoverable_error
       @available_capacity = size

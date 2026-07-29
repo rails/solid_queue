@@ -8,7 +8,7 @@ module SolidQueue
     before_shutdown :run_stop_hooks
     after_shutdown :run_exit_hooks
 
-    attr_reader :queues, :pool
+    attr_reader :queues, :pool, :shard
 
     def initialize(**options)
       execution_pool_type = options.key?(:fibers) ? :fiber : :thread
@@ -19,9 +19,11 @@ module SolidQueue
       # Ensure that the queues array is deep frozen to prevent accidental modification
       @queues = Array(options[:queues]).map(&:freeze).freeze
 
+      @shard = options[:shard]&.to_sym
       @pool = Pool.build \
         type: execution_pool_type,
         size: execution_pool_size,
+        shard: shard,
         on_idle: -> { wake_up },
         on_unrecoverable_error: -> { request_termination }
 
@@ -29,7 +31,7 @@ module SolidQueue
     end
 
     def metadata
-      super.merge(queues: queues.join(","), pool_type: pool.type, pool_size: pool.size)
+      super.merge(queues: queues.join(","), pool_type: pool.type, pool_size: pool.size, shard: shard)
     end
 
     private

@@ -83,17 +83,4 @@ class ShardedEnqueuingTest < ActiveSupport::TestCase
 
     assert_equal SolidQueue::Job.connection_pool, SolidQueue::Record.connected_to(shard: SolidQueue.shards.first) { SolidQueue::Job.connection_pool }
   end
-
-  private
-    def on_shard(shard, &block)
-      SolidQueue::Record.connected_to(shard: shard, &block)
-    end
-
-    def on_each_shard(&block)
-      SolidQueue.shards.each { |shard| on_shard(shard, &block) }
-    end
-
-    def jobs_count_per_shard
-      SolidQueue.shards.index_with { |shard| on_shard(shard) { SolidQueue::Job.count } }
-    end
 end
