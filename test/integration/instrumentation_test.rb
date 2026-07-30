@@ -164,6 +164,9 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 1, events.count
     assert_event events.first, "fail_many_claimed", process_ids: [ process.id ], job_ids: jobs.map(&:id), size: 3
+
+    error = events.first.last[:error]
+    assert_instance_of SolidQueue::Processes::ProcessPrunedError, error
   end
 
   test "errors when deregistering processes are included in deregister_process events" do

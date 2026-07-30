@@ -48,6 +48,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
           payload[:process_ids] = executions.map(&:process_id).uniq
           payload[:job_ids] = executions.map(&:job_id).uniq
           payload[:size] = executions.size
+          payload[:error] = error
         end
       end
     end

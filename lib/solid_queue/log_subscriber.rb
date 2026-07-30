@@ -16,7 +16,10 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def fail_many_claimed(event)
-    warn formatted_event(event, action: "Fail claimed jobs", **event.payload.slice(:job_ids, :process_ids))
+    attributes = event.payload.slice(:job_ids, :process_ids)
+    attributes[:error] = formatted_error(event.payload[:error]) if event.payload[:error]
+
+    warn formatted_event(event, action: "Fail claimed jobs", **attributes)
   end
 
   def release_claimed(event)
