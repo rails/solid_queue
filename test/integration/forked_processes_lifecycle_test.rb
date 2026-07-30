@@ -124,7 +124,7 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.seconds)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 30.seconds)
 
     wait_while_with_timeout(5.seconds) {
       SolidQueue::ReadyExecution.joins(:job).exists?(solid_queue_jobs: { active_job_id: pause.job_id })

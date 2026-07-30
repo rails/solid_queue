@@ -128,7 +128,7 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
 
   test "term supervisor exceeding timeout while there are jobs in-flight" do
     no_pause = enqueue_store_result_job("no pause")
-    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 10.second)
+    pause = enqueue_store_result_job("pause", pause: SolidQueue.shutdown_timeout + 30.seconds)
 
     # Wait for the "no pause" job to complete and the pause job to start.
     # A claimed execution alone is not enough here because the worker may have
