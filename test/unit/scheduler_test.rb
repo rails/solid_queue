@@ -131,6 +131,26 @@ class SchedulerTest < ActiveSupport::TestCase
     scheduler&.stop
   end
 
+  test "picks up updates to dynamic tasks post-start" do
+    task = SolidQueue::RecurringTask.create!(
+      key: "updatable_task", static: false, class_name: "AddToBufferJob", schedule: "every hour", arguments: [ 42 ]
+    )
+
+    scheduler = SolidQueue::Scheduler.new(recurring_tasks: {}, dynamic_tasks_enabled: true, polling_interval: 0.1).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    task.update!(schedule: "every second")
+
+    wait_while_with_timeout(3.seconds) { SolidQueue::Job.count < 1 }
+
+    skip_active_record_query_cache do
+      assert SolidQueue::Job.count >= 1, "Expected the updated schedule to enqueue jobs without a scheduler restart"
+    end
+  ensure
+    scheduler&.stop
+  end
+
   test "updates metadata after removing dynamic task post-start" do
     old_dynamic_task = SolidQueue::RecurringTask.create!(
       key: "old_dynamic_task",

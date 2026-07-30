@@ -48,8 +48,10 @@ module SolidQueue
 
     def reschedule_dynamic_tasks
       wrap_in_app_executor do
+        previous_tasks = dynamic_tasks.index_by(&:key)
         reload_dynamic_tasks
         schedule_created_dynamic_tasks
+        reschedule_updated_dynamic_tasks(previous_tasks)
         unschedule_deleted_dynamic_tasks
       end
     end
@@ -71,6 +73,16 @@ module SolidQueue
 
       def schedule_created_dynamic_tasks
         RecurringTask.dynamic.where.not(key: scheduled_tasks.keys).each do |task|
+          schedule_task(task)
+        end
+      end
+
+      def reschedule_updated_dynamic_tasks(previous_tasks)
+        dynamic_tasks.each do |task|
+          previous_task = previous_tasks[task.key]
+          next if previous_task.nil? || previous_task.updated_at == task.updated_at
+
+          scheduled_tasks[task.key]&.cancel
           schedule_task(task)
         end
       end
