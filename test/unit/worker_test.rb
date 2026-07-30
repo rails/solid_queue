@@ -215,6 +215,26 @@ class WorkerTest < ActiveSupport::TestCase
     SolidQueue.process_heartbeat_interval = old_heartbeat_interval
   end
 
+  test "terminate when heartbeats have been failing for longer than the alive threshold" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.2.seconds
+    old_alive_threshold, SolidQueue.process_alive_threshold = SolidQueue.process_alive_threshold, 0.5.seconds
+
+    SolidQueue::Process.any_instance.stubs(:heartbeat).raises(ActiveRecord::StatementInvalid.new("connection lost"))
+
+    @worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_not @worker.pool.shutdown?
+
+    # Heartbeats keep failing without the registration being confirmed gone, so
+    # the worker should give up once the failures outlast the alive threshold
+    wait_while_with_timeout(3) { !@worker.pool.shutdown? }
+    assert @worker.pool.shutdown?
+  ensure
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+    SolidQueue.process_alive_threshold = old_alive_threshold
+  end
+
   test "sleeps `10.minutes` if at capacity" do
     3.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 
