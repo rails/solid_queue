@@ -75,10 +75,13 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
     # and B finish quickly, freeing slots that drain D–H; C reads the empty
     # status and pauses far longer than everyone else, so it saves last and its
     # write (built on the empty status) overwrites all the others, leaving "C".
+    # A and B must pause long enough to still hold their semaphore slots while
+    # D–H are being enqueued, even on a slow CI runner — otherwise some of D–H
+    # claim a freed slot instead of blocking.
     assert_no_difference -> { SolidQueue::BlockedExecution.count } do
-      ThrottledUpdateResultJob.perform_later(@result, name: "A", pause: 0.5.seconds)
-      ThrottledUpdateResultJob.perform_later(@result, name: "B", pause: 0.5.seconds)
-      ThrottledUpdateResultJob.perform_later(@result, name: "C", pause: 3.seconds)
+      ThrottledUpdateResultJob.perform_later(@result, name: "A", pause: 1.5.seconds)
+      ThrottledUpdateResultJob.perform_later(@result, name: "B", pause: 1.5.seconds)
+      ThrottledUpdateResultJob.perform_later(@result, name: "C", pause: 4.seconds)
     end
 
     wait_for(timeout: 2.seconds) { SolidQueue::ClaimedExecution.count >= 3 }
