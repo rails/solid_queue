@@ -153,8 +153,15 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     assert_completed_job_results("no pause")
     assert_job_status(no_pause, :finished)
 
-    # The pause job should not have completed
-    assert_not_equal "completed", skip_active_record_query_cache { JobResult.find_by(value: "pause")&.status }
+    # The pause job should not have completed. Its pause is far longer than this
+    # test's entire timeline, so a completed result can only come from outside
+    # the test's own flow — include enough state to tell where it came from.
+    skip_active_record_query_cache do
+      assert_not_equal "completed", JobResult.find_by(value: "pause")&.status,
+        "Expected the pause job not to complete. " \
+        "Job results: #{JobResult.all.map { |r| { id: r.id, queue: r.queue_name, status: r.status, value: r.value, updated_at: r.updated_at } }.inspect}; " \
+        "registered processes: #{SolidQueue::Process.all.map { |p| { id: p.id, kind: p.kind, pid: p.pid, last_heartbeat_at: p.last_heartbeat_at } }.inspect}"
+    end
 
     # After shutdown, the pause job may be either:
     # - claimed (exit! called, no cleanup) OR
