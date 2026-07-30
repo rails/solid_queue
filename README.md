@@ -30,6 +30,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Performance considerations](#performance-considerations)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
+  - [Jobs interrupted by non-graceful process death](#jobs-interrupted-by-non-graceful-process-death)
 - [Puma plugin](#puma-plugin)
 - [Jobs and transactional integrity](#jobs-and-transactional-integrity)
 - [Recurring tasks](#recurring-tasks)
@@ -663,6 +664,27 @@ class ApplicationMailer < ActionMailer::Base
   end
 end
 ```
+
+### Jobs interrupted by non-graceful process death
+
+When a process dies without a clean shutdown (for example, `SIGKILL`ed by the OS or the container runtime because of memory limits), the jobs it was running can't be released back to their queues. Once another process notices the missing heartbeats and prunes the dead process's registration, its in-flight jobs are marked as failed with `SolidQueue::Processes::ProcessPrunedError`. Solid Queue deliberately doesn't retry these automatically: the job itself might be what's killing the process (for example, a job that exhausts the container's memory), and retrying it blindly would just kill the next worker too.
+
+If you know your jobs are idempotent and want to implement your own recovery policy, you can subscribe to the `fail_many_claimed.solid_queue` event, which includes the error and the affected job IDs in its payload:
+
+```ruby
+# config/initializers/solid_queue_recovery.rb
+ActiveSupport::Notifications.subscribe("fail_many_claimed.solid_queue") do |event|
+  if event.payload[:error].is_a?(SolidQueue::Processes::ProcessPrunedError)
+    SolidQueue::FailedExecution.where(job_id: event.payload[:job_ids]).each do |failed_execution|
+      # Apply your own safeguard against retrying the same job in a loop,
+      # e.g. a counter in the job's arguments or a cap stored elsewhere.
+      failed_execution.retry
+    end
+  end
+end
+```
+
+The event is emitted in the process that performs the pruning (or the supervisor when it reaps a crashed fork, with `SolidQueue::Processes::ProcessExitError`), so make sure the subscription is set up in an initializer, where all Solid Queue processes will load it.
 
 ## Puma plugin
 
