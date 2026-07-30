@@ -238,12 +238,15 @@ class ForkedProcessesLifecycleTest < ActiveSupport::TestCase
   end
 
   test "kill worker individually" do
-    killed_pause = enqueue_store_result_job("killed_pause", pause: 2.seconds)
+    killed_pause = enqueue_store_result_job("killed_pause", pause: 5.seconds)
     enqueue_store_result_job("pause", :default, pause: 0.5.seconds)
 
     wait_for_jobs_to_finish_for(1.second, except: [ killed_pause ])
-    # Ensure the long job has written its "started" row before we SIGKILL the worker.
-    wait_while_with_timeout(2.seconds) do
+    # Ensure the long job has written its "started" row before we SIGKILL the
+    # worker. Raise if it never does: proceeding would kill the worker before
+    # it starts the job, so no "started" row would ever exist and the test
+    # would fail later, in a way much harder to trace back here.
+    wait_while_with_timeout!(10.seconds) do
       JobResult.where(status: "started", value: "killed_pause").none?
     end
 
