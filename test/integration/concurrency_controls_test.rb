@@ -177,7 +177,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
   end
 
   test "don't block claimed executions that get released" do
-    NonOverlappingUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 10.seconds)
+    NonOverlappingUpdateResultJob.perform_later(@result, name: "I'll be released to ready", pause: SolidQueue.shutdown_timeout + 30.seconds)
     job = SolidQueue::Job.last
 
     wait_for(timeout: 2.seconds) { job.reload.claimed? }
