@@ -146,14 +146,16 @@ class WorkerTest < ActiveSupport::TestCase
 
   test "polling queries are logged" do
     log = StringIO.new
+    polling_query = /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./
+
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: false) do
         @worker.start
-        sleep 0.2
+        wait_while_with_timeout(3.seconds) { !log.string.match?(polling_query) }
       end
     end
 
-    assert_match /SELECT .* FROM .solid_queue_ready_executions. WHERE .solid_queue_ready_executions...queue_name./, log.string
+    assert_match polling_query, log.string
   end
 
   test "polling queries can be silenced" do

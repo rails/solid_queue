@@ -38,15 +38,17 @@ class DispatcherTest < ActiveSupport::TestCase
 
   test "polling queries are logged" do
     log = StringIO.new
+    polling_query = /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/
+
     with_active_record_logger(ActiveSupport::Logger.new(log)) do
       with_polling(silence: false) do
         rewind_io(log)
         @dispatcher.start
-        sleep 0.5.second
+        wait_while_with_timeout(3.seconds) { !log.string.match?(polling_query) }
       end
     end
 
-    assert_match /SELECT .* FROM .solid_queue_scheduled_executions. WHERE/, log.string
+    assert_match polling_query, log.string
   end
 
   test "polling queries can be silenced" do
