@@ -73,8 +73,16 @@ module SolidQueue
         if terminated_fork = process_instances.delete(pid)
           terminated_fork.mark_as_reaped
           payload[:fork] = terminated_fork
-          error = Processes::ProcessExitError.new(status)
-          release_claimed_jobs_by(terminated_fork, with_error: error)
+
+          begin
+            release_claimed_jobs_by(terminated_fork, with_error: Processes::ProcessExitError.new(status))
+          rescue StandardError => error
+            # The database may be unreachable — likely the same reason the fork
+            # terminated. Starting the replacement can't depend on it: the jobs
+            # claimed by the terminated fork will be failed when its stale
+            # registration is pruned once the database is back.
+            handle_thread_error(error)
+          end
 
           start_process(configured_processes.delete(pid))
         end

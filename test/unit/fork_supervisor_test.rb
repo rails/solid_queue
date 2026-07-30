@@ -129,6 +129,29 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     terminate_process(pid)
   end
 
+  test "replace a terminated fork even if releasing its claimed jobs fails" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "*", processes: 1 } ], dispatchers: [], skip_recurring: true)
+    supervisor = SolidQueue::ForkSupervisor.new(configuration)
+
+    configured_process = configuration.configured_processes.first
+    terminated_fork = stub(kind: "Worker", name: "worker-42", hostname: "localhost", mark_as_reaped: true)
+
+    supervisor.send(:process_instances)[42] = terminated_fork
+    supervisor.send(:configured_processes)[42] = configured_process
+
+    # The database is unreachable when the supervisor tries to fail the
+    # terminated fork's claimed jobs, like right after a database restart
+    # that also crashed the fork
+    supervisor.expects(:release_claimed_jobs_by).raises(ActiveRecord::ConnectionNotEstablished.new("connection is closed"))
+    supervisor.expects(:start_process).with(configured_process)
+
+    status = stub(exited?: true, exitstatus: 1, pid: 42, signaled?: false, stopsig: nil, termsig: nil)
+
+    assert_nothing_raised do
+      supervisor.send(:replace_fork, 42, status)
+    end
+  end
+
   test "fail orphaned executions" do
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
