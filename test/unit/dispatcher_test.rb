@@ -110,7 +110,9 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 3, SolidQueue::ScheduledExecution.count
 
     dispatcher.start
-    wait_while_with_timeout(1.second) { SolidQueue::ScheduledExecution.any? }
+    # Give the dispatcher thread enough margin to boot and run its first polls
+    # on a slow runner; the wait returns as soon as everything is dispatched.
+    wait_while_with_timeout(5.seconds) { SolidQueue::ScheduledExecution.any? }
 
     skip_active_record_query_cache do
       assert_equal 0, SolidQueue::ScheduledExecution.count
