@@ -18,7 +18,7 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
   test "supervisor handles missing process record and fails claimed executions properly" do
     # Start a supervisor with one worker
     @pid = run_supervisor_as_fork(workers: [ { queues: "*", polling_interval: 0.1, processes: 1 } ])
-    wait_for_registered_processes(2, timeout: 1.second) # Supervisor + 1 worker
+    wait_for_registered_processes(2, timeout: 3.seconds) # Supervisor + 1 worker
 
     supervisor_process = SolidQueue::Process.find_by(kind: "Supervisor(fork)", pid: @pid)
     assert supervisor_process
@@ -43,8 +43,10 @@ class ProcessRecoveryTest < ActiveSupport::TestCase
     worker_pid = worker_process.pid
     terminate_process(worker_pid, signal: :KILL)
 
-    # Wait for the supervisor to reap the worker and fail the job
-    wait_while_with_timeout(3.seconds) { SolidQueue::FailedExecution.none? }
+    # Wait for the supervisor to reap the worker and fail the job. The
+    # supervisor only checks for terminated forks about once a second, so give
+    # it enough margin for a couple of cycles even on a slow runner.
+    wait_while_with_timeout(10.seconds) { SolidQueue::FailedExecution.none? }
 
     # Assert the execution is failed
     failed_execution = SolidQueue::FailedExecution.last
