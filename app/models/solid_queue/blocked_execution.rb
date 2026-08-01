@@ -46,7 +46,12 @@ module SolidQueue
     def release
       SolidQueue.instrument(:release_blocked, job_id: job.id, concurrency_key: concurrency_key, released: false) do |payload|
         transaction do
-          if acquire_concurrency_lock
+          if job.job_class.nil?
+            # The job's class no longer resolves (renamed/removed between deploys).
+            # Destroy the orphan row so the dispatcher stops retrying it forever.
+            destroy!
+            payload[:orphaned] = true
+          elsif acquire_concurrency_lock
             promote_to_ready
             destroy!
 
@@ -58,7 +63,8 @@ module SolidQueue
 
     private
       def set_expires_at
-        self.expires_at = job.concurrency_duration.from_now
+        duration = job.job_class ? job.concurrency_duration : SolidQueue.default_concurrency_control_period
+        self.expires_at = duration.from_now
       end
 
       def acquire_concurrency_lock
