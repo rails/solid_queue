@@ -33,6 +33,10 @@ module SolidQueue
         blocked_execution.present?
       end
 
+      def job_class
+        @job_class ||= class_name.safe_constantize
+      end
+
       private
         def concurrency_on_conflict
           job_class.concurrency_on_conflict.to_s.inquiry
@@ -64,10 +68,6 @@ module SolidQueue
 
         def release_next_blocked_job
           BlockedExecution.release_one(concurrency_key)
-        end
-
-        def job_class
-          @job_class ||= class_name.safe_constantize
         end
 
         def execution
