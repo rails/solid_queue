@@ -10,7 +10,13 @@ module SolidQueue
 
     class << self
       def enqueue_all(active_jobs)
-        active_jobs.each { |job| job.scheduled_at ||= Time.current }
+        # Bulk enqueues bypass ActiveJob#enqueue, so batch membership is captured here
+        current_batch_id = Batch.current_batch_id
+
+        active_jobs.each do |job|
+          job.scheduled_at ||= Time.current
+          job.batch_id = current_batch_id || job.batch_id
+        end
         active_jobs_by_job_id = active_jobs.index_by(&:job_id)
 
         transaction do

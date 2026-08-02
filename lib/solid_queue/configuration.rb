@@ -27,7 +27,8 @@ module SolidQueue
       batch_size: 500,
       polling_interval: 1,
       concurrency_maintenance: true,
-      concurrency_maintenance_interval: 600
+      concurrency_maintenance_interval: 600,
+      batch_maintenance: true
     }
 
     SCHEDULER_DEFAULTS = {

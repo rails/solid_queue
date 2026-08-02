@@ -29,8 +29,8 @@ module SolidQueue
           return unless batch_id.present?
 
           batch_execution&.destroy!
-        rescue => e
-          Rails.logger.error "[SolidQueue] Failed to update batch #{batch_id} progress for job #{id}: #{e.message}"
+        rescue ActiveRecord::ActiveRecordError => e
+          SolidQueue.instrument(:batch_progress_error, batch_id: batch_id, job_id: id, error: e)
         end
     end
   end

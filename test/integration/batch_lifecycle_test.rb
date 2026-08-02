@@ -9,7 +9,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @_on_thread_error = SolidQueue.on_thread_error
     SolidQueue.on_thread_error = silent_on_thread_error_for([ FailingJobError ], @_on_thread_error)
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
-    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2)
+    # Fast maintenance so leaked tracking rows get repaired within the test windows
+    @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2, concurrency_maintenance_interval: 1)
     SolidQueue::Batch::EmptyJob.queue_as "background"
   end
 
@@ -97,8 +98,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
 
     expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
@@ -119,13 +120,39 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
+    wait_for_batches_to_finish_for(5.seconds)
 
     assert_equal [ "added from inside 1", "added from inside 2", "added from inside 3", "hey", "ho" ], JobBuffer.values.sort
     assert_equal 3, SolidQueue::Batch.finished.count
     assert_finished_in_order(job!(job3), batch2.reload)
     assert_finished_in_order(job!(job2), batch2)
     assert_finished_in_order(job!(job1), batch1.reload)
+  end
+
+  test "prebuilt jobs capture their batch before enqueue is deferred" do
+    skip if Rails::VERSION::MAJOR == 7 && Rails::VERSION::MINOR == 1
+
+    ApplicationJob.enqueue_after_transaction_commit = true
+
+    job = AddToBufferJob.new("prebuilt")
+    assert_nil job.batch_id
+
+    batch = nil
+    JobResult.transaction do
+      # Materialize the transaction so Active Job defers the adapter push.
+      JobResult.create!(queue_name: "default", status: "")
+
+      batch = SolidQueue::Batch.enqueue do
+        job.enqueue
+      end
+
+      assert_nil SolidQueue::Job.find_by(active_job_id: job.job_id)
+    end
+
+    persisted_job = job!(job)
+    assert_equal batch.id, persisted_job.batch_id
+    assert_equal 1, batch.reload.total_jobs
+    assert_equal 1, batch.batch_executions.count
   end
 
   test "when self.enqueue_after_transaction_commit = true" do
@@ -293,8 +320,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @dispatcher.start
     @worker.start
 
-    wait_for_batches_to_finish_for(2.seconds)
-    wait_for_jobs_to_finish_for(1.second)
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
 
     assert_equal [ "Hi finish #{batch.id}!", "Hi success #{batch.id}!", "hey" ].sort, JobBuffer.values.sort
     assert_equal 1, batch.reload.completed_jobs

@@ -18,10 +18,11 @@ module SolidQueue
 
       class_methods do
         def prepare_all_for_execution(jobs)
+          # Track before dispatch so conflict-discarded jobs count like single enqueues.
+          batch_all(jobs)
+
           due, not_yet_due = jobs.partition(&:due?)
-          (dispatch_all(due) + schedule_all(not_yet_due)).tap do |jobs|
-            batch_all(jobs.select { |job| job.batch_id.present? })
-          end
+          dispatch_all(due) + schedule_all(not_yet_due)
         end
 
         def dispatch_all(jobs)

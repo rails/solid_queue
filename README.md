@@ -279,6 +279,7 @@ Here's an overview of the different options:
 It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker thread uses one connection, and two additional connections are reserved for polling and heartbeat.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. **Note**: this option will be ignored if [running in `async` mode](#fork-vs-async-mode).
 - `concurrency_maintenance`: whether the dispatcher will perform the concurrency maintenance work. This is `true` by default, and it's useful if you don't use any [concurrency controls](#concurrency-controls) and want to disable it or if you run multiple dispatchers and want some of them to just dispatch jobs without doing anything else.
+- `batch_maintenance`: whether the dispatcher will sweep stalled [batches](#batch-jobs) as part of its maintenance work, on the same timer as concurrency maintenance (see [batch maintenance](#batch-maintenance)). This is `true` by default; disable it if you don't use batches, or if you run multiple dispatchers and want only some of them doing maintenance work.
 
 
 ### Optional scheduler configuration
@@ -653,6 +654,9 @@ and optionally trigger callbacks based on their status. It supports the followin
 - If a job is part of a batch, it can enqueue more jobs for that batch using `batch#enqueue`
 - Attaching arbitrary metadata to a batch
 
+Callback jobs are regular jobs: they don't receive any extra arguments, and they can access
+the batch they belong to through the `batch` accessor:
+
 ```rb
 class SleepyJob < ApplicationJob
   def perform(seconds_to_sleep)
@@ -662,20 +666,20 @@ class SleepyJob < ApplicationJob
 end
 
 class BatchFinishJob < ApplicationJob
-  def perform(batch) # batch is always the default first argument
-    Rails.logger.info "Good job finishing all jobs"
+  def perform
+    Rails.logger.info "Finished all #{batch.total_jobs} jobs"
   end
 end
 
 class BatchSuccessJob < ApplicationJob
-  def perform(batch) # batch is always the default first argument
-    Rails.logger.info "Good job finishing all jobs, and all of them worked!"
+  def perform
+    Rails.logger.info "All #{batch.completed_jobs} jobs worked!"
   end
 end
 
 class BatchFailureJob < ApplicationJob
-  def perform(batch) # batch is always the default first argument
-    Rails.logger.info "At least one job failed, sorry!"
+  def perform
+    Rails.logger.info "#{batch.failed_jobs} jobs failed, sorry!"
   end
 end
 
@@ -689,15 +693,118 @@ SolidQueue::Batch.enqueue(
 end
 ```
 
+A job joins the batch that's active when its enqueue is requested. This also works when
+Rails defers the actual enqueue until after the surrounding transaction commits.
+
+- A job created outside a batch and enqueued inside one joins that batch.
+- Creating a job inside a batch without enqueueing it doesn't keep the batch open.
+- If a job already carries a batch ID but is enqueued inside another active batch, the
+  active batch takes precedence.
+
+Callbacks can be given as a job class or as a configured job instance, e.g.
+`on_finish: BatchFinishJob.new.set(queue: :batches)`. Note that the job is serialized when
+the batch is created, so options resolved at that point (like `wait_until:` timestamps) are
+relative to batch creation, not to when the callback is eventually enqueued.
+
 ### Batch options
 
 In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued.
 
-By default, this jobs run on the `default` queue. You can specify an alternative queue for it in an initializer:
+By default, this job runs on the `default` queue. You can specify an alternative queue for it in an initializer:
 
 ```rb
 Rails.application.config.after_initialize do # or to_prepare
   SolidQueue::Batch::EmptyJob.queue_as "my_batch_queue"
+end
+```
+
+The empty job and batch callback jobs always enqueue through Solid Queue, even when the
+job classes involved (or the application default) use a different Active Job adapter.
+
+### Batch progress and counters
+
+Batches track `total_jobs`, `completed_jobs`, `failed_jobs` and `pending_jobs`, plus a
+`progress_percentage` helper. A couple of accounting details to be aware of:
+
+- Every *attempt* counts: when a job is retried via `retry_on`, each retry is enqueued as a
+  new job in the batch, so a job that fails twice and then succeeds contributes 3 to
+  `total_jobs` (2 completed retries + 1 success).
+- Jobs discarded via `discard_on`, concurrency's `on_conflict: :discard`, or manual
+  discarding count as completed, not failed.
+- Manually retrying a failed job (via `SolidQueue::FailedExecution#retry`) doesn't re-add it
+  to its batch: if the batch already finished as failed, a successful manual retry won't
+  change the batch's status.
+
+### Batch maintenance
+
+Batch completion is normally detected as jobs finish, without ever locking the batch row
+outside a single once-per-batch moment. A few edge cases can't trigger that detection: jobs
+removed via bulk discards (which delete jobs without callbacks), a process that crashed
+after enqueueing jobs but before starting its batch, or a completion whose callback
+enqueueing failed and rolled back.
+
+The dispatcher sweeps these up automatically via `SolidQueue::Batch.sweep_stalled`, as part
+of its regular maintenance (every `concurrency_maintenance_interval` seconds, sharing a
+single maintenance timer and database connection). If you disable `batch_maintenance` (or
+don't run a dispatcher), you can run the sweep yourself, for example as a
+[recurring task](#recurring-tasks):
+
+```yml
+batch_maintenance:
+  command: "SolidQueue::Batch.sweep_stalled"
+  schedule: every 5 minutes
+```
+
+### Clearing batches
+
+Finished, non-failed batches are cleared after `config.solid_queue.clear_finished_jobs_after`,
+but only when you invoke it: like jobs, batches are cleared with
+`SolidQueue::Batch.clear_finished_in_batches`, which you'd typically run periodically
+alongside `SolidQueue::Job.clear_finished_in_batches`. Failed batches are kept, like failed
+jobs, so you can inspect them.
+
+### Upgrading existing installations
+
+If you installed Solid Queue before batches existed, add the new tables with a migration in
+`db/queue_migrate`:
+
+```ruby
+class AddSolidQueueBatches < ActiveRecord::Migration[7.1]
+  def change
+    create_table :solid_queue_batches do |t|
+      t.string :active_job_batch_id
+      t.string :description
+      t.text :on_finish
+      t.text :on_success
+      t.text :on_failure
+      t.text :metadata
+      t.integer :total_jobs, default: 0, null: false
+      t.integer :completed_jobs, default: 0, null: false
+      t.integer :failed_jobs, default: 0, null: false
+      t.datetime :enqueued_at
+      t.datetime :finished_at
+      t.datetime :failed_at
+      t.timestamps
+
+      t.index :active_job_batch_id, unique: true
+      t.index :finished_at
+    end
+
+    create_table :solid_queue_batch_executions do |t|
+      t.bigint :job_id, null: false
+      t.bigint :batch_id, null: false
+      t.datetime :created_at, null: false
+
+      t.index :job_id, unique: true
+      t.index :batch_id
+    end
+
+    add_column :solid_queue_jobs, :batch_id, :bigint
+    add_index :solid_queue_jobs, :batch_id
+
+    add_foreign_key :solid_queue_batch_executions, :solid_queue_batches, column: :batch_id, on_delete: :cascade
+    add_foreign_key :solid_queue_batch_executions, :solid_queue_jobs, column: :job_id, on_delete: :cascade
+  end
 end
 ```
 

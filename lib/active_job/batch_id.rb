@@ -11,13 +11,26 @@ module ActiveJob
       attr_accessor :callback_batch_id
     end
 
+    # Seed membership at construction for enqueue paths deferred until after the
+    # batch context ends, notably bulk enqueue. Enqueueing inside another batch
+    # rebinds membership; enqueueing without a batch preserves it.
+    # SolidQueue::Job.enqueue_all repeats this capture because bulk enqueue
+    # bypasses #enqueue.
     def initialize(*arguments, **kwargs)
       super
       self.batch_id = SolidQueue::Batch.current_batch_id if solid_queue_job?
     end
 
+    def enqueue(options = {})
+      self.batch_id = SolidQueue::Batch.current_batch_id || batch_id if solid_queue_job?
+      super
+    end
+
     def serialize
-      super.merge("batch_id" => batch_id, "callback_batch_id" => callback_batch_id)
+      super.tap do |data|
+        data["batch_id"] = batch_id if batch_id
+        data["callback_batch_id"] = callback_batch_id if callback_batch_id
+      end
     end
 
     def deserialize(job_data)
@@ -27,7 +40,12 @@ module ActiveJob
     end
 
     def batch
-      @batch ||= SolidQueue::Batch.find_by(id: callback_batch_id || batch_id)
+      batch_id_to_load = callback_batch_id || batch_id
+      return if batch_id_to_load.nil?
+      return @batch if defined?(@batch) && @loaded_batch_id == batch_id_to_load
+
+      @loaded_batch_id = batch_id_to_load
+      @batch = SolidQueue::Batch.find_by(id: batch_id_to_load)
     end
 
     private

@@ -2,7 +2,11 @@
 
 module SolidQueue
   class Batch < Record
-    class AlreadyFinished < StandardError; end
+    class AlreadyFinished < StandardError
+      def initialize(message = "You cannot enqueue a batch that is already finished")
+        super
+      end
+    end
 
     include Trackable, Clearable
 
@@ -18,7 +22,9 @@ module SolidQueue
       end
     end
 
-    after_initialize :set_active_job_batch_id
+    # Provider-agnostic batch identifier, analogous to jobs.active_job_id.
+    before_create :set_active_job_batch_id
+
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     class << self
@@ -50,7 +56,9 @@ module SolidQueue
     end
 
     def enqueue(&block)
-      raise AlreadyFinished, "You cannot enqueue a batch that is already finished" if finished?
+      # Fast-fail for the common case. create_all_from_jobs atomically guards
+      # concurrent additions when it creates their tracking rows.
+      raise AlreadyFinished if finished?
 
       transaction do
         save! if new_record?
@@ -73,27 +81,51 @@ module SolidQueue
 
     def check_completion
       return if finished? || !enqueued?
-      return if batch_executions.any?
-      rows = Batch
-        .where(id: id)
-        .unfinished
-        .empty_executions
-        .update_all(finished_at: Time.current)
+      return if batch_executions.exists?
 
-      return if rows.zero?
-
-      with_lock do
-        failed = jobs.joins(:failed_execution).count
-        finished_attributes = {}
-        if failed > 0
-          finished_attributes[:failed_at] = Time.current
-          finished_attributes[:failed_jobs] = failed
-        end
-        finished_attributes[:completed_jobs] = total_jobs - failed
-
-        update!(finished_attributes)
-        enqueue_callback_jobs
+      transaction do
+        finished_rows = Batch.where(id: id).unfinished.enqueued.empty_executions.update_all(finished_at: Time.current)
+        finalize_completion if finished_rows.positive?
       end
+    end
+
+    COMPLETION_GRACE = 3.seconds
+
+    def self.sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
+      SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
+        # BatchExecution rows represent outstanding work. A row for a resolved
+        # job violates that invariant, so remove it immediately; destroy's
+        # after_commit callback retries the batch completion check.
+        [ BatchExecution.for_finished_jobs, BatchExecution.for_failed_jobs ].each do |leaked|
+          leaked.find_each(batch_size: batch_size) do |batch_execution|
+            payload[:repaired] += 1
+            batch_execution.destroy
+          end
+        end
+
+        # A started batch with no tracking rows can finish, but allow time for a
+        # transaction-deferred EmptyJob enqueue to become visible.
+        unfinished.empty_executions.where(enqueued_at: ...COMPLETION_GRACE.ago).find_each(batch_size: batch_size) do |batch|
+          payload[:size] += 1
+          batch.check_completion
+        end
+
+        unfinished.where(enqueued_at: nil).where(created_at: ...stalled_for.ago).find_each(batch_size: batch_size) do |batch|
+          payload[:started] += 1
+          batch.start_batch
+        end
+      end
+    end
+
+    def start_batch
+      # Single-winner start so concurrent sweepers can't enqueue duplicate empty jobs
+      transaction do
+        if Batch.where(id: id, enqueued_at: nil).update_all(enqueued_at: Time.current).positive?
+          enqueue_empty_job if reload.total_jobs == 0
+        end
+      end
+
+      check_completion
     end
 
     private
@@ -102,8 +134,28 @@ module SolidQueue
         self.active_job_batch_id ||= SecureRandom.uuid
       end
 
-      def as_active_job(active_job_klass)
-        active_job_klass.is_a?(ActiveJob::Base) ? active_job_klass : active_job_klass.new
+      def finalize_completion
+        reload
+
+        # PostgreSQL can let a blocked CAS win from a stale NOT EXISTS snapshot.
+        # Re-check in a new statement while this transaction holds the row lock.
+        raise ActiveRecord::Rollback if batch_executions.exists?
+
+        SolidQueue.instrument(:finish_batch, batch_id: id) do |payload|
+          failed = jobs.failed.count
+          finished_attributes = { completed_jobs: total_jobs - failed }
+          if failed > 0
+            finished_attributes[:failed_at] = Time.current
+            finished_attributes[:failed_jobs] = failed
+          end
+
+          update_columns(finished_attributes)
+          enqueue_callback_jobs
+
+          payload[:total_jobs] = total_jobs
+          payload[:completed_jobs] = self[:completed_jobs]
+          payload[:failed_jobs] = failed
+        end
       end
 
       def serialize_callback(value)
@@ -118,7 +170,11 @@ module SolidQueue
       def enqueue_callback_job(callback_name)
         active_job = ActiveJob::Base.deserialize(send(callback_name))
         active_job.callback_batch_id = id
-        active_job.enqueue
+        # Bypass the job class's adapter so callbacks stay in Solid Queue and
+        # their enqueue stays in this transaction, while honoring enqueue callbacks.
+        active_job.run_callbacks(:enqueue) do
+          Job.enqueue(active_job, scheduled_at: active_job.scheduled_at || Time.current)
+        end
       end
 
       def enqueue_callback_jobs
@@ -135,11 +191,6 @@ module SolidQueue
         Batch.wrap_in_batch_context(id) do
           EmptyJob.perform_later
         end
-      end
-
-      def start_batch
-        enqueue_empty_job if reload.total_jobs == 0
-        update!(enqueued_at: Time.current)
       end
   end
 end
