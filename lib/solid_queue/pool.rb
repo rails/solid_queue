@@ -4,51 +4,72 @@ module SolidQueue
   class Pool
     include AppExecutor
 
-    attr_reader :size
+    def self.build(type:, size:, on_idle: nil)
+      SolidQueue.const_get("#{type.to_s.camelize}Pool").new(size, on_idle: on_idle)
+    end
 
-    delegate :shutdown, :shutdown?, :wait_for_termination, to: :executor
+    attr_reader :size
 
     def initialize(size, on_idle: nil)
       @size = size
       @on_idle = on_idle
-      @available_threads = Concurrent::AtomicFixnum.new(size)
+      @available_capacity = size
       @mutex = Mutex.new
     end
 
-    def post(execution)
-      available_threads.decrement
+    def type
+      self.class.name.demodulize.delete_suffix("Pool").underscore.to_sym
+    end
 
-      Concurrent::Promises.future_on(executor, execution) do |thread_execution|
-        wrap_in_app_executor do
-          thread_execution.perform
-        ensure
-          available_threads.increment
-          mutex.synchronize { on_idle.try(:call) if idle? }
-        end
-      end.on_rejection! do |e|
-        handle_thread_error(e)
+    def post(execution)
+      reserve_capacity!
+
+      begin
+        schedule(execution)
+      rescue Exception
+        restore_capacity
+        raise
       end
     end
 
-    def idle_threads
-      available_threads.value
+    def available_capacity
+      mutex.synchronize { @available_capacity }
     end
 
     def idle?
-      idle_threads > 0
+      available_capacity.positive?
     end
 
     private
-      attr_reader :available_threads, :on_idle, :mutex
+      attr_reader :mutex, :on_idle
 
-      DEFAULT_OPTIONS = {
-        min_threads: 0,
-        idletime: 60,
-        fallback_policy: :abort
-      }
+      def schedule(execution)
+        raise NotImplementedError
+      end
 
-      def executor
-        @executor ||= Concurrent::ThreadPoolExecutor.new DEFAULT_OPTIONS.merge(max_threads: size, max_queue: size)
+      def perform_execution(execution)
+        wrap_in_app_executor { execution.perform }
+      rescue Exception => error
+        handle_thread_error(error)
+      ensure
+        restore_capacity
+      end
+
+      def reserve_capacity!
+        mutex.synchronize do
+          raise RuntimeError, "Execution pool is at capacity" if @available_capacity <= 0
+
+          @available_capacity -= 1
+        end
+      end
+
+      def restore_capacity
+        should_notify = mutex.synchronize do
+          @available_capacity += 1
+          @available_capacity.positive?
+        end
+
+        on_idle&.call if should_notify
       end
   end
 end

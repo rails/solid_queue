@@ -1,17 +1,39 @@
 require "test_helper"
 
 class ForkSupervisorTest < ActiveSupport::TestCase
+  class StalledWorker < SolidQueue::Worker
+    def initialize(startup_log:, startup_delay:, **options)
+      @startup_log = startup_log
+      @startup_delay = startup_delay
+      super(**options)
+    end
+
+    private
+      attr_reader :startup_log, :startup_delay
+
+      def register
+        File.open(startup_log, "a") { |file| file.puts(::Process.pid) }
+        sleep startup_delay
+        super
+      end
+  end
+
   self.use_transactional_tests = false
 
   setup do
     @previous_pidfile = SolidQueue.supervisor_pidfile
+    @previous_fork_boot_timeout = SolidQueue.fork_boot_timeout
     @pidfile = Rails.application.root.join("tmp/pids/pidfile_#{SecureRandom.hex}.pid")
     SolidQueue.supervisor_pidfile = @pidfile
+    @startup_log = Rails.application.root.join("tmp/pids/startup_#{SecureRandom.hex}.log")
   end
 
   teardown do
+    terminate_stalled_supervisor
     SolidQueue.supervisor_pidfile = @previous_pidfile
+    SolidQueue.fork_boot_timeout = @previous_fork_boot_timeout
     File.delete(@pidfile) if File.exist?(@pidfile)
+    File.delete(@startup_log) if File.exist?(@startup_log)
   end
 
   test "start" do
@@ -206,6 +228,34 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     assert_equal "RuntimeError", failed.exception_class
   end
 
+  test "replace only the fork that does not finish booting" do
+    SolidQueue.fork_boot_timeout = 0.2.seconds
+    run_stalled_supervisor(startup_delay: 60.seconds, with_healthy_worker: true)
+    wait_for_registered_processes(2, timeout: 2.seconds)
+    healthy_pid = find_processes_registered_as("Worker").sole.pid
+
+    wait_while_with_timeout(4.seconds) { startup_pids.size < 2 }
+
+    # The stalled fork was terminated and replaced by a new one; the healthy
+    # worker was left alone. The replacement's liveness is not asserted because
+    # it stalls too and will be replaced in turn.
+    assert_not process_exists?(startup_pids.first)
+    assert_equal healthy_pid, find_processes_registered_as("Worker").sole.pid
+  end
+
+  test "preserve a fork that finishes booting before the timeout" do
+    SolidQueue.fork_boot_timeout = 0.5.seconds
+    run_stalled_supervisor(startup_delay: 0.1.seconds)
+    wait_for_registered_processes(2, timeout: 2.seconds)
+    worker_pid = find_processes_registered_as("StalledWorker").sole.pid
+
+    sleep 1.1.seconds
+
+    assert_equal [ worker_pid ], startup_pids
+    assert process_exists?(worker_pid)
+    assert_equal worker_pid, find_processes_registered_as("StalledWorker").sole.pid
+  end
+
   private
     def assert_registered_workers(supervisor_pid: nil, count: 1)
       assert_registered_processes(kind: "Worker", count: count, supervisor_pid: supervisor_pid)
@@ -221,6 +271,51 @@ class ForkSupervisorTest < ActiveSupport::TestCase
         assert_equal 1, processes.count
         assert_nil processes.first.supervisor
         assert_equal pid, processes.first.pid
+      end
+    end
+
+    def run_stalled_supervisor(startup_delay:, with_healthy_worker: false)
+      configured_process_class = Struct.new(:process_class, :attributes) do
+        def instantiate
+          process_class.new(**attributes)
+        end
+      end
+      configured_processes = [
+        configured_process_class.new(StalledWorker, { startup_log: @startup_log.to_s, startup_delay: })
+      ]
+      configured_processes << configured_process_class.new(SolidQueue::Worker, {}) if with_healthy_worker
+      configuration = Struct.new(:configured_processes, :mode) do
+        def standalone?
+          true
+        end
+      end.new(configured_processes, "fork".inquiry)
+
+      @stalled_supervisor_pid = fork do
+        SolidQueue::ForkSupervisor.new(configuration).start
+      end
+    end
+
+    def startup_pids
+      File.readlines(@startup_log).map(&:to_i)
+    rescue Errno::ENOENT
+      []
+    end
+
+    # Terminate the supervisor gracefully so it cleans up its own forks first,
+    # including any it's still starting: killing it abruptly instead can leak a
+    # fork spawned concurrently with the kill, which would keep writing to the
+    # database long after this test has finished.
+    def terminate_stalled_supervisor
+      terminate_process(@stalled_supervisor_pid) if @stalled_supervisor_pid && process_exists?(@stalled_supervisor_pid)
+    rescue Timeout::Error
+      # The supervisor didn't terminate in time and got killed without a chance
+      # to clean up its forks: kill any forks it left behind—stalled ones, so
+      # they can't wake up from their stalled boot and write to the database
+      # while other tests run, and healthy ones, so they don't keep polling.
+      orphaned_pids = startup_pids + SolidQueue::Process.where(kind: "Worker").pluck(:pid)
+      orphaned_pids.uniq.each do |pid|
+        ::Process.kill(:KILL, pid)
+      rescue Errno::ESRCH
       end
     end
 end

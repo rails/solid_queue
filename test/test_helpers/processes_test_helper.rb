@@ -75,8 +75,22 @@ module ProcessesTestHelper
   # rolling back the AUTOINCREMENT sequence bump too, so a later test's rows
   # get the same ids and the leaked thread overwrites them when it wakes up.
   # Kill the leaked threads instead, like a forked worker's exit would.
+  #
+  # A thread killed in the middle of a database write can skip the rollback in
+  # the transaction's ensure block and return its connection to the pool with
+  # the transaction still open. On SQLite that blocks every other writer until
+  # the pool reaper flushes the idle connection minutes later, so drop all
+  # connections to roll leaked transactions back. Transactional tests don't
+  # need this: they pin all threads to the test's own connection.
   def kill_running_jobs_in(worker)
-    worker&.pool&.send(:executor)&.kill
+    if pool = worker&.pool
+      pool.send(:executor).kill
+      pool.wait_for_termination(5)
+
+      unless self.class.use_transactional_tests
+        [ ActiveRecord::Base, SolidQueue::Record ].each { |base| base.connection_pool.disconnect! }
+      end
+    end
   end
 
   def wait_for_process_termination_with_timeout(pid, timeout: 10, exitstatus: 0, signaled: nil)

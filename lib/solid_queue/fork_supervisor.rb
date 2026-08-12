@@ -31,6 +31,21 @@ module SolidQueue
 
         replace_fork(pid, status)
       end
+
+      check_boot_timeouts
+    end
+
+    def check_boot_timeouts
+      process_instances.each do |pid, instance|
+        terminate_unready_process(pid) if instance.boot_timed_out?
+      end
+    end
+
+    def terminate_unready_process(pid)
+      SolidQueue.instrument(:fork_boot_timeout, process: process_instances[pid], pid: pid) do
+        # A child stuck in boot cannot reach its run loop to stop gracefully
+        signal_process(pid, :KILL)
+      end
     end
 
     def reap_terminated_forks
@@ -38,9 +53,13 @@ module SolidQueue
         pid, status = ::Process.waitpid2(-1, ::Process::WNOHANG)
         break unless pid
 
-        if (terminated_fork = process_instances.delete(pid)) && (!status.exited? || status.exitstatus.to_i > 0)
-          error = Processes::ProcessExitError.new(status)
-          release_claimed_jobs_by(terminated_fork, with_error: error)
+        if terminated_fork = process_instances.delete(pid)
+          terminated_fork.mark_as_reaped
+
+          if !status.exited? || status.exitstatus.to_i > 0
+            error = Processes::ProcessExitError.new(status)
+            release_claimed_jobs_by(terminated_fork, with_error: error)
+          end
         end
 
         configured_processes.delete(pid)
@@ -52,6 +71,7 @@ module SolidQueue
     def replace_fork(pid, status)
       SolidQueue.instrument(:replace_fork, supervisor_pid: ::Process.pid, pid: pid, status: status) do |payload|
         if terminated_fork = process_instances.delete(pid)
+          terminated_fork.mark_as_reaped
           payload[:fork] = terminated_fork
           error = Processes::ProcessExitError.new(status)
           release_claimed_jobs_by(terminated_fork, with_error: error)

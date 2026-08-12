@@ -161,6 +161,11 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     end
   end
 
+  def fork_boot_timeout(event)
+    process = event.payload[:process]
+    warn formatted_event(event, action: "Terminate #{process.kind} that failed to boot in time", **event.payload.slice(:pid).merge(hostname: process.hostname, name: process.name))
+  end
+
   private
     def formatted_event(event, action:, **attributes)
       "SolidQueue-#{SolidQueue::VERSION} #{action} (#{event.duration.round(1)}ms)  #{formatted_attributes(**attributes)}"
