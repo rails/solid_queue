@@ -722,7 +722,7 @@ The empty job and batch callback jobs always enqueue through Solid Queue, even w
 
 Batches track `total_jobs`, `completed_jobs`, `failed_jobs` and `pending_jobs`, plus a `progress_percentage` helper. A couple of accounting details to be aware of:
 
-- Every *attempt* counts: when a job is retried via `retry_on`, each retry is enqueued as a new job in the batch, so a job that fails twice and then succeeds contributes 3 to `total_jobs`—the two retried attempts count as completed, plus the final success.
+- Counters track *logical* jobs, matching what you enqueued: a retry via `retry_on` keeps the job's Active Job ID, so a job that fails twice and then succeeds still contributes 1 to `total_jobs`. Each attempt does get its own row in the batch's `jobs` relation, though.
 - Jobs discarded via `discard_on`, concurrency's `on_conflict: :discard`, or manual discarding count as completed, not failed.
 - Manually retrying a failed job (via `SolidQueue::FailedExecution#retry`) doesn't re-add it to its batch: if the batch already finished as failed, a successful manual retry won't change the batch's status.
 

@@ -43,20 +43,23 @@ module SolidQueue
 
       # Failed jobs no longer have tracking rows, so exclude them from the completed count.
       def completed_jobs
-        finished? ? self[:completed_jobs] : total_jobs - pending_jobs - failed_jobs
+        finished? ? self[:completed_jobs] : [ total_jobs - pending_jobs - failed_jobs, 0 ].max
       end
 
       def failed_jobs
         finished? ? self[:failed_jobs] : jobs.failed.count
       end
 
+      # Pending counts attempts, not logical jobs: while a retry is enqueued
+      # and its previous attempt hasn't finished yet, both have tracking rows,
+      # so the counts derived from it clamp at the logical totals.
       def pending_jobs
         finished? ? 0 : batch_executions.count
       end
 
       def progress_percentage
         return 0 if total_jobs == 0
-        ((total_jobs - pending_jobs) * 100.0 / total_jobs).round(2)
+        ([ total_jobs - pending_jobs, 0 ].max * 100.0 / total_jobs).round(2)
       end
     end
   end

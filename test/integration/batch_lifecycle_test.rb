@@ -214,18 +214,40 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     assert_equal 2, SolidQueue::Batch.count
     assert_equal 2, SolidQueue::Batch.finished.count
 
-    assert_equal 3, job_batch1.total_jobs  # 1 original + 2 retries
+    assert_equal 1, job_batch1.total_jobs  # 1 logical job, despite 2 retries
     assert_equal 1, job_batch1.failed_jobs  # Final failure
-    assert_equal 2, job_batch1.completed_jobs  # 2 retries marked as "finished"
+    assert_equal 0, job_batch1.completed_jobs
     assert_equal 0, job_batch1.pending_jobs
+    assert_equal 3, job_batch1.jobs.count  # Each attempt still gets its own job
 
-    assert_equal 3, job_batch2.total_jobs  # 1 original + 2 retries
+    assert_equal 1, job_batch2.total_jobs  # 1 logical job, despite 2 retries
     assert_equal 1, job_batch2.failed_jobs  # Final failure
-    assert_equal 2, job_batch2.completed_jobs  # 2 retries marked as "finished"
+    assert_equal 0, job_batch2.completed_jobs
     assert_equal 0, job_batch2.pending_jobs
+    assert_equal 3, job_batch2.jobs.count  # Each attempt still gets its own job
 
     assert_equal [ true, true ].sort, SolidQueue::Batch.all.map(&:failed?)
     assert_equal [ "0: 1 jobs failed!", "1: 1 jobs failed!" ], JobBuffer.values.sort
+  end
+
+  test "jobs that succeed after retrying count once toward the batch totals" do
+    batch = SolidQueue::Batch.enqueue do
+      RaisingJob.perform_later(RaisingJob::DefaultError, "A")
+      AddToBufferJob.perform_later("hey")
+    end
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_batches_to_finish_for(5.seconds)
+    wait_for_jobs_to_finish_for(5.seconds)
+
+    batch.reload
+    assert batch.succeeded?
+    assert_equal 2, batch.total_jobs
+    assert_equal 2, batch.completed_jobs
+    assert_equal 0, batch.failed_jobs
+    assert_equal 3, batch.jobs.count  # The retried attempt gets its own job
   end
 
   test "executes the same with perform_all_later as it does a normal enqueue" do
@@ -243,8 +265,8 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_batches_to_finish_for(5.seconds)
     wait_for_jobs_to_finish_for(5.second)
 
-    assert_equal 6, batch1.reload.jobs.count
-    assert_equal 6, batch1.total_jobs
+    assert_equal 6, batch1.reload.jobs.count  # Each retried attempt gets its own job
+    assert_equal 2, batch1.total_jobs
     assert_equal 2, SolidQueue::Batch.finished.count
     assert_equal true, batch1.failed?
     assert_equal 2, batch2.reload.jobs.count
