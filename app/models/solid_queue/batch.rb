@@ -153,8 +153,13 @@ module SolidQueue
       def finalize_completion
         reload
 
-        # PostgreSQL can let a blocked CAS win from a stale NOT EXISTS snapshot.
-        # Re-check in a new statement while this transaction holds the row lock.
+        # PostgreSQL can let a blocked CAS win from a stale NOT EXISTS snapshot:
+        # after a lock wait, READ COMMITTED re-checks the target row's conditions
+        # against the latest data but keeps the original snapshot for subqueries.
+        # Re-check in a new statement, which gets a fresh snapshot while this
+        # transaction's row lock keeps adders out, since they increment before
+        # inserting their executions. MySQL doesn't need this: it reads DML
+        # subqueries from the latest committed data, so its CAS can't win wrongly.
         raise ActiveRecord::Rollback if batch_executions.exists?
 
         SolidQueue.instrument(:finish_batch, batch_id: id) do |payload|
