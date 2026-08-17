@@ -8,7 +8,7 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        after_create :destroy_job_batch_execution, if: -> { job.batch_id? }
+        after_create :destroy_job_batch_execution, if: -> { Batch.migrated? && job.batch_id? }
       end
 
       private

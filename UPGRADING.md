@@ -1,3 +1,13 @@
+# Upgrading to version 1.7.x
+This version introduces support for grouping jobs into batches, which needs new tables. Fresh installs get them with the base schema; existing installations need to copy the migration that adds them and run it:
+
+```bash
+bin/rails solid_queue:update
+bin/rails db:migrate
+```
+
+The migration is optional for now: until you run it, everything works as before, batches aside. It will become part of the required schema in Solid Queue 2.0.
+
 # Upgrading to version 1.5.x
 Ruby 3.1 is no longer supported, as it reached end-of-life in March 2025. Solid Queue now requires Ruby 3.2 or newer. If you're still on Ruby 3.1, Bundler will continue to resolve solid_queue 1.4.x for you, but you won't receive any new versions until you upgrade Ruby.
 

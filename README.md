@@ -750,47 +750,14 @@ clear_solid_queue_finished_batches:
 
 ### Upgrading existing installations
 
-If you installed Solid Queue before batches existed, add the new tables with a migration in `db/queue_migrate`:
+If you installed Solid Queue before batches existed, copy the migration that adds the new tables to your app and run it:
 
-```ruby
-class AddSolidQueueBatches < ActiveRecord::Migration[7.1]
-  def change
-    create_table :solid_queue_batches do |t|
-      t.string :active_job_batch_id
-      t.string :description
-      t.text :on_finish
-      t.text :on_success
-      t.text :on_failure
-      t.text :metadata
-      t.integer :total_jobs, default: 0, null: false
-      t.integer :completed_jobs, default: 0, null: false
-      t.integer :failed_jobs, default: 0, null: false
-      t.datetime :enqueued_at
-      t.datetime :finished_at
-      t.datetime :failed_at
-      t.timestamps
-
-      t.index :active_job_batch_id, unique: true
-      t.index :finished_at
-    end
-
-    create_table :solid_queue_batch_executions do |t|
-      t.bigint :job_id, null: false
-      t.bigint :batch_id, null: false
-      t.datetime :created_at, null: false
-
-      t.index :job_id, unique: true
-      t.index :batch_id
-    end
-
-    add_column :solid_queue_jobs, :batch_id, :bigint
-    add_index :solid_queue_jobs, :batch_id
-
-    add_foreign_key :solid_queue_batch_executions, :solid_queue_batches, column: :batch_id, on_delete: :cascade
-    add_foreign_key :solid_queue_batch_executions, :solid_queue_jobs, column: :job_id, on_delete: :cascade
-  end
-end
+```bash
+bin/rails solid_queue:update
+bin/rails db:migrate
 ```
+
+Until you do, Solid Queue works exactly as before—jobs enqueue and run without any batch bookkeeping, trying to start a batch raises, and the dispatcher logs a deprecation warning to remind you the migration is pending. It becomes part of the base schema in Solid Queue 2.0.
 
 ## Puma plugin
 

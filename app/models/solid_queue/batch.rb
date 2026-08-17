@@ -8,6 +8,12 @@ module SolidQueue
       end
     end
 
+    class PendingMigrations < StandardError
+      def initialize(message = "The batches schema hasn't been installed yet. Run `bin/rails solid_queue:update` to copy the pending migrations to your application, and then `bin/rails db:migrate` to run them")
+        super
+      end
+    end
+
     include Trackable, Clearable
 
     has_many :jobs
@@ -28,7 +34,17 @@ module SolidQueue
     after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     class << self
+      # The batches schema ships as an optional migration in Solid Queue 1.x
+      # and becomes part of the base schema in 2.0. Until the app has run the
+      # migration, jobs enqueue without any batch bookkeeping and batches
+      # themselves can't be used.
+      def migrated?
+        @migrated ||= table_exists? && BatchExecution.table_exists? && Job.column_names.include?("batch_id")
+      end
+
       def enqueue(description: nil, on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
+        raise PendingMigrations unless migrated?
+
         new.tap do |batch|
           batch.assign_attributes(
             description: description,
