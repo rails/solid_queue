@@ -2,11 +2,7 @@
 
 module SolidQueue
   class Batch < Record
-    class AlreadyFinished < StandardError
-      def initialize(message = "You cannot enqueue a batch that is already finished")
-        super
-      end
-    end
+    class AlreadyFinished < StandardError; end
 
     class PendingMigrations < StandardError
       def initialize(message = "The batches schema hasn't been installed yet. Run `bin/rails solid_queue:update` to copy the pending migrations to your application, and then `bin/rails db:migrate` to run them")
@@ -14,12 +10,13 @@ module SolidQueue
       end
     end
 
-    include Trackable, Clearable
+    include Trackable, Clearable, Sweepable
 
     has_many :jobs
     has_many :batch_executions, class_name: "SolidQueue::BatchExecution", dependent: :destroy
 
     serialize :metadata, coder: JSON
+
     %w[ finish success failure ].each do |callback_type|
       serialize "on_#{callback_type}", coder: JSON
 
@@ -74,7 +71,9 @@ module SolidQueue
     def enqueue(&block)
       # Fast-fail for the common case. create_all_from_jobs atomically guards
       # concurrent additions when it creates their tracking rows.
-      raise AlreadyFinished if finished?
+      if finished?
+        raise AlreadyFinished, "Can't enqueue an already finished batch"
+      end
 
       transaction do
         save! if new_record?
@@ -105,34 +104,6 @@ module SolidQueue
       end
     end
 
-    COMPLETION_GRACE = 3.seconds
-
-    def self.sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
-      SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
-        # BatchExecution rows represent outstanding work. A row for a resolved
-        # job violates that invariant, so remove it immediately; destroy's
-        # after_commit callback retries the batch completion check.
-        [ BatchExecution.for_finished_jobs, BatchExecution.for_failed_jobs ].each do |leaked|
-          leaked.find_each(batch_size: batch_size) do |batch_execution|
-            payload[:repaired] += 1
-            batch_execution.destroy
-          end
-        end
-
-        # A started batch with no tracking rows can finish, but allow time for a
-        # transaction-deferred EmptyJob enqueue to become visible.
-        unfinished.empty_executions.where(enqueued_at: ...COMPLETION_GRACE.ago).find_each(batch_size: batch_size) do |batch|
-          payload[:size] += 1
-          batch.check_completion
-        end
-
-        unfinished.where(enqueued_at: nil).where(created_at: ...stalled_for.ago).find_each(batch_size: batch_size) do |batch|
-          payload[:started] += 1
-          batch.start_batch
-        end
-      end
-    end
-
     def start_batch
       # Single-winner start so concurrent sweepers can't enqueue duplicate empty jobs
       transaction do
@@ -145,7 +116,6 @@ module SolidQueue
     end
 
     private
-
       def set_active_job_batch_id
         self.active_job_batch_id ||= SecureRandom.uuid
       end
