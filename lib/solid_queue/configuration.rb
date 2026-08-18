@@ -100,6 +100,12 @@ module SolidQueue
 
           errors.add(:base, "Invalid recurring tasks:\n#{error_messages.join("\n")}")
         end
+      rescue ActiveRecord::ActiveRecordError
+        # Validating recurring tasks needs the solid_queue_recurring_tasks schema, and this
+        # environment has no usable database connection to load it from. Don't fail the whole
+        # check over that, but don't stay quiet about it either.
+        warnings.add(:base, "Warning: recurring tasks couldn't be validated because there's no usable " \
+          "database connection. Run `bin/jobs check` with the Solid Queue database reachable to validate them.")
       end
 
       def warn_about_incorrectly_sized_database_pool
@@ -156,6 +162,7 @@ module SolidQueue
         {
           mode: ENV["SOLID_QUEUE_SUPERVISOR_MODE"] || :fork,
           standalone: true,
+          env: Rails.env,
           config_file: Rails.root.join(ENV["SOLID_QUEUE_CONFIG"] || DEFAULT_CONFIG_FILE_PATH),
           recurring_schedule_file: Rails.root.join(ENV["SOLID_QUEUE_RECURRING_SCHEDULE"] || DEFAULT_RECURRING_SCHEDULE_FILE_PATH),
           only_work: false,
@@ -207,8 +214,8 @@ module SolidQueue
       def schedulers
         return [] if skip_recurring_tasks?
 
-        if recurring_tasks.any? || dynamic_recurring_tasks_enabled?
-          [ Process.new(:scheduler, { recurring_tasks: recurring_tasks, **scheduler_options.with_defaults(SCHEDULER_DEFAULTS) }) ]
+        if recurring_task_definitions.any? || dynamic_recurring_tasks_enabled?
+          [ Process.new(:scheduler, { recurring_tasks: recurring_task_definitions, **scheduler_options.with_defaults(SCHEDULER_DEFAULTS) }) ]
         else
           []
         end
@@ -232,16 +239,24 @@ module SolidQueue
         scheduler_options.fetch(:dynamic_tasks_enabled, SCHEDULER_DEFAULTS[:dynamic_tasks_enabled])
       end
 
+      # Raw [ key, options ] pairs, with no database dependency: instantiating RecurringTask
+      # requires loading its schema, which isn't possible in an environment without a usable
+      # database connection. The scheduler wraps these in RecurringTask objects when it boots.
+      def recurring_task_definitions
+        @recurring_task_definitions ||= recurring_tasks_config.filter_map do |id, options|
+          [ id, options.merge(static: true) ] if options&.has_key?(:schedule)
+        end
+      end
+
       def recurring_tasks
-        @recurring_tasks ||= recurring_tasks_config.map do |id, options|
-          RecurringTask.from_configuration(id, **options.merge(static: true)) if options&.has_key?(:schedule)
-        end.compact
+        @recurring_tasks ||= recurring_task_definitions.map { |definition| RecurringTask.wrap(definition) }
       end
 
       def processes_config
         @processes_config ||= config_from \
           options.slice(:workers, :dispatchers, :scheduler).presence || options[:config_file],
           keys: [ :workers, :dispatchers, :scheduler ],
+          env: env,
           fallback: {
             workers: [ WORKER_DEFAULTS ],
             dispatchers: [ DISPATCHER_DEFAULTS ],
@@ -251,8 +266,12 @@ module SolidQueue
 
       def recurring_tasks_config
         @recurring_tasks_config ||= begin
-          config_from options[:recurring_schedule_file]
+          config_from options[:recurring_schedule_file], env: env
         end
+      end
+
+      def env
+        options[:env].presence || Rails.env
       end
 
       def config_from(file_or_hash, keys: [], fallback: {}, env: Rails.env)
