@@ -62,6 +62,11 @@ module SolidQueue
       end
 
       def acquire_concurrency_lock
+        # A job whose class no longer resolves can't check its concurrency limits, but it
+        # can't hold a semaphore either. Release it without one so it fails on execution
+        # instead of crashing the dispatcher's concurrency maintenance forever.
+        return true unless job.concurrency_limited?
+
         Semaphore.wait(job)
       end
 
