@@ -5,6 +5,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   scope :orphaned, -> { where.missing(:process) }
 
+  FINALIZATION_RETRY_DELAYS = [ 0.5.seconds, 1.second, 2.seconds, 4.seconds ]
+
   class Result < Struct.new(:success, :error)
     def success?
       success
@@ -66,9 +68,9 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     result = execute
 
     if result.success?
-      finished
+      retrying_finalization { finished }
     else
-      failed_with(result.error)
+      retrying_finalization { failed_with(result.error) }
       raise result.error
     end
   end
@@ -100,6 +102,29 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
     def finished
       finalize { job.finished! }
+    end
+
+    # The job has already run by the time we record its outcome. If recording it
+    # fails (e.g. a transient DB error), the execution would stay claimed forever:
+    # claimed executions are only recovered when their process is gone, and this
+    # one's worker is still alive. Finalization is idempotent, so wait out the
+    # hiccup and try again before giving up.
+    def retrying_finalization(&block)
+      attempts = 0
+
+      begin
+        block.call
+      rescue StandardError => error
+        if delay = FINALIZATION_RETRY_DELAYS[attempts]
+          attempts += 1
+          SolidQueue.instrument(:retry_finalization, job_id: job_id, process_id: process_id, attempt: attempts, error: error)
+
+          sleep(delay)
+          retry
+        else
+          raise
+        end
+      end
     end
 
     def finalize

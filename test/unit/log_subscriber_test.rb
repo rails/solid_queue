@@ -59,6 +59,13 @@ class LogSubscriberTest < ActiveSupport::TestCase
     assert_match_logged :warn, "Terminate Worker that failed to boot in time", "pid: 42, hostname: \"#{worker.hostname}\", name: \"#{worker.name}\""
   end
 
+  test "retry finalizing claimed job" do
+    attach_log_subscriber
+    instrument "retry_finalization.solid_queue", job_id: 42, process_id: 43, attempt: 1, error: ActiveRecord::ConnectionNotEstablished.new("connection lost")
+
+    assert_match_logged :warn, "Retry finalizing claimed job", "job_id: 42, process_id: 43, attempt: 1, error: \"ActiveRecord::ConnectionNotEstablished connection lost\""
+  end
+
   test "deregister process" do
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, hostname: "localhost", name: "worker-123")
     last_heartbeat_at = process.last_heartbeat_at.iso8601

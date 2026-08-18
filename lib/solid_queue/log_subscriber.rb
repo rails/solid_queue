@@ -26,6 +26,13 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     info formatted_event(event, action: "Release claimed job", **event.payload.slice(:job_id, :process_id))
   end
 
+  def retry_finalization(event)
+    attributes = event.payload.slice(:job_id, :process_id, :attempt)
+    attributes[:error] = formatted_error(event.payload[:error]) if event.payload[:error]
+
+    warn formatted_event(event, action: "Retry finalizing claimed job", **attributes)
+  end
+
   def retry_all(event)
     debug formatted_event(event, action: "Retry failed jobs", **event.payload.slice(:jobs_size, :size))
   end
