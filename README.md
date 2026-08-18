@@ -684,6 +684,8 @@ class ApplicationMailer < ActionMailer::Base
 
 When a process dies without a clean shutdown (for example, `SIGKILL`ed by the OS or the container runtime because of memory limits), the jobs it was running can't be released back to their queues. Once another process notices the missing heartbeats and prunes the dead process's registration, its in-flight jobs are marked as failed with `SolidQueue::Processes::ProcessPrunedError`. Solid Queue deliberately doesn't retry these automatically: the job itself might be what's killing the process (for example, a job that exhausts the container's memory), and retrying it blindly would just kill the next worker too.
 
+Note that Active Job's `retry_on` and `rescue_from` have no effect on these errors: they only intercept exceptions raised while your job's `perform` method runs, and `ProcessPrunedError` (as well as `ProcessExitError` and `ProcessMissingError`) is never raised inside the job. The process that was running the job is gone by then — the error is recorded directly as a failed execution by a *different* process, after the fact, so there's no job execution left for Active Job's retry machinery to hook into. To retry these jobs, act on the failed executions from the outside instead: manually, via [Mission Control — Jobs](https://github.com/rails/mission_control-jobs), or automatically, with a subscription like the one below.
+
 If you know your jobs are idempotent and want to implement your own recovery policy, you can subscribe to the `fail_many_claimed.solid_queue` event, which includes the error and the affected job IDs in its payload:
 
 ```ruby
