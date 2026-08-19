@@ -7,7 +7,7 @@ module SolidQueue
 
       included do
         belongs_to :batch, optional: true
-        has_one :batch_execution, foreign_key: :job_id
+        has_one :batch_execution
 
         after_create :create_batch_execution, if: :batched?
         after_update :update_batch_progress, if: :batched?
@@ -20,13 +20,13 @@ module SolidQueue
         end
       end
 
-      private
-        # Also guards against the batches schema not being installed: without
-        # its migration, jobs don't even have a batch_id.
-        def batched?
-          Batch.migrated? && batch_id?
-        end
+      # Also guards against the batches schema not being installed: without
+      # its migration, jobs don't even have a batch_id.
+      def batched?
+        Batch.migrated? && batch_id?
+      end
 
+      private
         def create_batch_execution
           BatchExecution.create_all_from_jobs([ self ])
         end

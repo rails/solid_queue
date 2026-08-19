@@ -15,7 +15,7 @@ module SolidQueue
             # BatchExecution rows represent outstanding work. A row for a resolved
             # job violates that invariant, so remove it immediately; destroy's
             # after_commit callback retries the batch completion check.
-            [ BatchExecution.for_finished_jobs, BatchExecution.for_failed_jobs ].each do |leaked|
+            [ BatchExecution.with_finished_jobs, BatchExecution.with_failed_jobs ].each do |leaked|
               leaked.find_each(batch_size: batch_size) do |batch_execution|
                 payload[:repaired] += 1
                 batch_execution.destroy
