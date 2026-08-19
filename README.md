@@ -701,7 +701,7 @@ A job joins the batch that's active *when its enqueue is requested*—this also 
 - Creating a job inside a batch without enqueueing it doesn't keep the batch open: if the batch finishes before the job is finally enqueued, the enqueue raises `SolidQueue::Batch::AlreadyFinished`.
 - If a job already carries a batch ID but is enqueued inside another active batch, the active batch takes precedence.
 
-Besides the callbacks, `SolidQueue::Batch.enqueue` accepts a `description:`, to label the batch, and stores any other keyword arguments (like `user_id: 123` above) as the batch's `metadata`.
+Besides the callbacks, `SolidQueue::Batch.enqueue` accepts a `description:`, to label the batch, and a `metadata:` hash; any other keyword arguments (like `user_id: 123` above) are merged into the batch's `metadata`.
 
 Callbacks can be given as a job class or as a configured job instance—for example, `on_finish: BatchFinishJob.new.set(queue: :batches)` or `on_success: BatchSuccessJob.new("some argument")`. Note that the job is serialized when the batch is created, so options resolved at that point (like `wait_until:` timestamps) are relative to batch creation, not to when the callback is eventually enqueued.
 

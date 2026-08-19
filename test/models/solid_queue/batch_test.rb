@@ -79,6 +79,15 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal SolidQueue::Batch.last.metadata["user_id"], 123
   end
 
+  test "merges an explicit metadata hash with extra keyword arguments" do
+    SolidQueue::Batch.enqueue(metadata: { source: "test" }, user_id: 123) do
+      NiceJob.perform_later("world")
+    end
+
+    assert_equal "test", SolidQueue::Batch.last.metadata["source"]
+    assert_equal 123, SolidQueue::Batch.last.metadata["user_id"]
+  end
+
   test "creates batch with description" do
     SolidQueue::Batch.enqueue(
       description: "Process user imports for account 123",

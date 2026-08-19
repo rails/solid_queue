@@ -34,11 +34,11 @@ module SolidQueue
         @migrated ||= table_exists? && BatchExecution.table_exists? && Job.column_names.include?("batch_id")
       end
 
-      def enqueue(description: nil, on_success: nil, on_failure: nil, on_finish: nil, **metadata, &block)
+      def enqueue(description: nil, on_success: nil, on_failure: nil, on_finish: nil, metadata: nil, **extra_metadata, &block)
         raise PendingMigrations unless migrated?
 
         new.tap do |batch|
-          batch.assign_attributes(description:, on_success:, on_failure:, on_finish:, metadata:)
+          batch.assign_attributes(description:, on_success:, on_failure:, on_finish:, metadata: (metadata || {}).merge(extra_metadata))
           batch.enqueue(&block)
         end
       end
