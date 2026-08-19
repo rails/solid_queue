@@ -249,7 +249,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal 66.67, batch.progress_percentage
   end
 
-  test "start_batch completes batches whose jobs finished before the batch was started" do
+  test "start completes batches whose jobs finished before the batch was started" do
     batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) do
       NiceJob.perform_later("world")
     end
@@ -260,7 +260,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
     assert_not batch.reload.finished?
 
-    batch.send(:start_batch)
+    batch.send(:start)
 
     assert batch.reload.finished?
   end
@@ -283,7 +283,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
       Thread.new do
         SolidQueue::Record.connection_pool.with_connection do
           barrier.wait
-          3.times { SolidQueue::Batch.find(batch.id).check_completion }
+          3.times { SolidQueue::Batch.find(batch.id).finish }
         end
       end
     end
@@ -294,7 +294,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal batch.total_jobs, batch.completed_jobs
     assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
 
-    batch.check_completion
+    batch.finish
     assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
   end
 
@@ -356,14 +356,14 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     end
 
     adder_started.pop
-    SolidQueue::Batch.find(batch.id).check_completion
+    SolidQueue::Batch.find(batch.id).finish
     adder.join
 
     assert_not batch.reload.finished?
     assert_equal 1, SolidQueue::BatchExecution.where(batch_id: batch.id).count
   end
 
-  test "start_batch is single-winner: stale instances cannot restart a started batch" do
+  test "start is single-winner: stale instances cannot restart a started batch" do
     batch = SolidQueue::Batch.create!(on_finish: BatchCompletionJob)
     batch.update_columns(enqueued_at: nil, finished_at: nil, total_jobs: 0)
     # Includes the callback enqueued when creation already started the batch:
@@ -373,7 +373,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     stale_a = SolidQueue::Batch.find(batch.id)
     stale_b = SolidQueue::Batch.find(batch.id)
 
-    stale_a.start_batch
+    stale_a.start
     started_at = batch.reload.enqueued_at
 
     # A batch that starts with no jobs finishes right away, firing its callbacks
@@ -382,7 +382,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
 
     travel 1.second do
-      stale_b.start_batch
+      stale_b.start
     end
 
     assert_equal started_at, batch.reload.enqueued_at
@@ -467,7 +467,7 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
   test "sweep_stalled starts batches whose creating process died before starting them" do
     batch = SolidQueue::Batch.enqueue { NiceJob.perform_later("world") }
 
-    # Simulate a process that crashed after committing jobs but before start_batch
+    # Simulate a process that crashed after committing jobs but before start
     batch.update_columns(enqueued_at: nil, created_at: 10.minutes.ago)
     batch.jobs.sole.finished!
 

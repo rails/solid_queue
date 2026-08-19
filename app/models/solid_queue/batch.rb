@@ -10,25 +10,20 @@ module SolidQueue
       end
     end
 
-    include Trackable, Clearable, Sweepable
+    include Callbacks, Status
+    include Clearable, Sweepable
 
     has_many :jobs
-    has_many :batch_executions, class_name: "SolidQueue::BatchExecution", dependent: :destroy
+    has_many :batch_executions, dependent: :destroy
 
-    serialize :metadata, coder: JSON
+    store :metadata, coder: JSON
 
-    %w[ finish success failure ].each do |callback_type|
-      serialize "on_#{callback_type}", coder: JSON
-
-      define_method("on_#{callback_type}=") do |callback|
-        super serialize_callback(callback)
-      end
-    end
+    # Join-free so update_all keeps this condition in the completion update's own WHERE
+    scope :without_executions, -> { where.not(id: BatchExecution.select(:batch_id)) }
 
     # Provider-agnostic batch identifier, analogous to jobs.active_job_id.
     before_create :set_active_job_batch_id
-
-    after_commit :start_batch, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
+    after_commit :start, on: :create, unless: -> { ActiveRecord.respond_to?(:after_all_transactions_commit) }
 
     class << self
       # The batches schema ships as an optional migration in Solid Queue 1.x
@@ -43,14 +38,7 @@ module SolidQueue
         raise PendingMigrations unless migrated?
 
         new.tap do |batch|
-          batch.assign_attributes(
-            description: description,
-            on_success: on_success,
-            on_failure: on_failure,
-            on_finish: on_finish,
-            metadata: metadata
-          )
-
+          batch.assign_attributes(description:, on_success:, on_failure:, on_finish:, metadata:)
           batch.enqueue(&block)
         end
       end
@@ -78,14 +66,10 @@ module SolidQueue
       transaction do
         save! if new_record?
 
-        Batch.wrap_in_batch_context(id) do
-          block&.call(self)
-        end
+        self.class.wrap_in_batch_context(id) { block&.call(self) }
 
         if ActiveRecord.respond_to?(:after_all_transactions_commit)
-          ActiveRecord.after_all_transactions_commit do
-            start_batch
-          end
+          ActiveRecord.after_all_transactions_commit { start }
         end
       end
     end
@@ -94,23 +78,23 @@ module SolidQueue
       (super || {}).with_indifferent_access
     end
 
-    def check_completion
+    def start
+      mark_as_enqueued
+
+      # Refresh enqueued_at after marking as enqueued, and let a batch that started
+      # with no jobs finish right away
+      reload
+      finish
+    end
+
+    def finish
       return if finished? || !enqueued?
       return if batch_executions.exists?
 
       transaction do
-        finished_rows = Batch.where(id: id).unfinished.enqueued.empty_executions.update_all(finished_at: Time.current)
-        finalize_completion if finished_rows.positive?
+        updated = Batch.where(id: id).unfinished.enqueued.without_executions.update_all(finished_at: Time.current)
+        finalize if updated > 0
       end
-    end
-
-    def start_batch
-      Batch.where(id: id, enqueued_at: nil).update_all(enqueued_at: Time.current)
-
-      # Refresh enqueued_at after the update_all, and let a batch that started
-      # with no jobs finish right away
-      reload
-      check_completion
     end
 
     private
@@ -118,7 +102,11 @@ module SolidQueue
         self.active_job_batch_id ||= SecureRandom.uuid
       end
 
-      def finalize_completion
+      def mark_as_enqueued
+        Batch.where(id: id, enqueued_at: nil).update_all(enqueued_at: Time.current)
+      end
+
+      def finalize
         reload
 
         # PostgreSQL can let a blocked CAS win from a stale NOT EXISTS snapshot:
@@ -131,49 +119,15 @@ module SolidQueue
         raise ActiveRecord::Rollback if batch_executions.exists?
 
         SolidQueue.instrument(:finish_batch, batch_id: id) do |payload|
-          failed = jobs.failed.count
-          finished_attributes = { completed_jobs: total_jobs - failed }
-          if failed > 0
-            finished_attributes[:failed_at] = Time.current
-            finished_attributes[:failed_jobs] = failed
-          end
+          failed_jobs = jobs.failed.count
+          failed_at = Time.current if failed_jobs > 0
+          completed_jobs = total_jobs - failed_jobs
 
-          update_columns(finished_attributes)
+          update_columns(failed_jobs:, failed_at:, completed_jobs:)
           enqueue_callback_jobs
 
-          payload[:total_jobs] = total_jobs
-          payload[:completed_jobs] = self[:completed_jobs]
-          payload[:failed_jobs] = failed
+          payload.merge!(total_jobs:, failed_jobs:, completed_jobs:)
         end
-      end
-
-      def serialize_callback(value)
-        if value.present?
-          active_job = value.is_a?(ActiveJob::Base) ? value : value.new
-          # We can pick up batch ids from context, but callbacks should never be considered a part of the batch
-          active_job.batch_id = nil
-          active_job.serialize
-        end
-      end
-
-      def enqueue_callback_job(callback_name)
-        active_job = ActiveJob::Base.deserialize(send(callback_name))
-        active_job.callback_batch_id = id
-        # Bypass the job class's adapter so callbacks stay in Solid Queue and
-        # their enqueue stays in this transaction, while honoring enqueue callbacks.
-        active_job.run_callbacks(:enqueue) do
-          Job.enqueue(active_job, scheduled_at: active_job.scheduled_at || Time.current)
-        end
-      end
-
-      def enqueue_callback_jobs
-        if failed_at?
-          enqueue_callback_job(:on_failure) if on_failure.present?
-        else
-          enqueue_callback_job(:on_success) if on_success.present?
-        end
-
-        enqueue_callback_job(:on_finish) if on_finish.present?
       end
   end
 end

@@ -81,6 +81,7 @@ module SolidQueue
 
       def finished!
         if SolidQueue.preserve_finished_jobs?
+          # update! rather than touch so the batch tracking callbacks run
           update!(finished_at: Time.current)
         else
           destroy!

@@ -23,14 +23,14 @@ module SolidQueue
             end
 
             # A started batch with no tracking rows left can finish
-            unfinished.enqueued.empty_executions.find_each(batch_size: batch_size) do |batch|
+            unfinished.enqueued.without_executions.find_each(batch_size: batch_size) do |batch|
               payload[:size] += 1
-              batch.check_completion
+              batch.finish
             end
 
             unfinished.where(enqueued_at: nil).where(created_at: ...stalled_for.ago).find_each(batch_size: batch_size) do |batch|
               payload[:started] += 1
-              batch.start_batch
+              batch.start
             end
           end
         end

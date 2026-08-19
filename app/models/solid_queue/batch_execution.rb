@@ -8,7 +8,7 @@ module SolidQueue
     scope :for_finished_jobs, -> { joins(:job).merge(SolidQueue::Job.finished) }
     scope :for_failed_jobs, -> { joins(job: :failed_execution) }
 
-    after_commit :check_completion, on: :destroy
+    after_commit :finish_batch, on: :destroy
 
     class << self
       def create_all_from_jobs(jobs)
@@ -58,10 +58,10 @@ module SolidQueue
     end
 
     private
-      def check_completion
+      def finish_batch
         # Skip the serialized callback and metadata columns on this hot path
         batch = Batch.select(:id, :finished_at, :enqueued_at).find_by(id: batch_id)
-        batch.check_completion if batch.present?
+        batch.finish if batch.present?
       end
   end
 end

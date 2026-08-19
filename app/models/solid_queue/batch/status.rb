@@ -2,7 +2,7 @@
 
 module SolidQueue
   class Batch
-    module Trackable
+    module Status
       extend ActiveSupport::Concern
 
       included do
@@ -11,8 +11,6 @@ module SolidQueue
         scope :unfinished, -> { where(finished_at: nil) }
         scope :failed, -> { where.not(failed_at: nil) }
         scope :enqueued, -> { where.not(enqueued_at: nil) }
-        # Join-free so update_all keeps this condition in the completion update's own WHERE
-        scope :empty_executions, -> { where.not(id: BatchExecution.select(:batch_id)) }
       end
 
       def status
