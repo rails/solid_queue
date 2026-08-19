@@ -9,8 +9,6 @@ module SolidQueue
     module Sweepable
       extend ActiveSupport::Concern
 
-      COMPLETION_GRACE = 3.seconds
-
       class_methods do
         def sweep_stalled(stalled_for: 5.minutes, batch_size: 500)
           SolidQueue.instrument(:sweep_stalled_batches, stalled_for: stalled_for, size: 0, started: 0, repaired: 0) do |payload|
@@ -24,9 +22,8 @@ module SolidQueue
               end
             end
 
-            # A started batch with no tracking rows can finish, but allow time for a
-            # transaction-deferred EmptyJob enqueue to become visible.
-            unfinished.empty_executions.where(enqueued_at: ...COMPLETION_GRACE.ago).find_each(batch_size: batch_size) do |batch|
+            # A started batch with no tracking rows left can finish
+            unfinished.enqueued.empty_executions.find_each(batch_size: batch_size) do |batch|
               payload[:size] += 1
               batch.check_completion
             end

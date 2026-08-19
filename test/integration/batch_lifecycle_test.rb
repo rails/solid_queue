@@ -11,7 +11,6 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     @worker = SolidQueue::Worker.new(queues: "background", threads: 3)
     # Fast maintenance so leaked tracking rows get repaired within the test windows
     @dispatcher = SolidQueue::Dispatcher.new(batch_size: 10, polling_interval: 0.2, concurrency_maintenance_interval: 1)
-    SolidQueue::Batch::EmptyJob.queue_as "background"
   end
 
   teardown do
@@ -26,7 +25,6 @@ class BatchLifecycleTest < ActiveSupport::TestCase
 
     ApplicationJob.enqueue_after_transaction_commit = false if defined?(ApplicationJob.enqueue_after_transaction_commit)
     SolidQueue.preserve_finished_jobs = true
-    SolidQueue::Batch::EmptyJob.queue_as "default"
   end
 
   class BatchOnSuccessJob < ApplicationJob
@@ -101,7 +99,7 @@ class BatchLifecycleTest < ActiveSupport::TestCase
     wait_for_batches_to_finish_for(5.seconds)
     wait_for_jobs_to_finish_for(5.seconds)
 
-    expected_values = [ "1: 1 jobs succeeded!", "1.1: 1 jobs succeeded!", "2: 1 jobs succeeded!", "3: 1 jobs succeeded!" ]
+    expected_values = [ "1: 0 jobs succeeded!", "1.1: 0 jobs succeeded!", "2: 0 jobs succeeded!", "3: 0 jobs succeeded!" ]
     assert_equal expected_values.sort, JobBuffer.values.sort
     assert_equal 4, SolidQueue::Batch.finished.count
   end

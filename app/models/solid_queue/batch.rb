@@ -105,13 +105,11 @@ module SolidQueue
     end
 
     def start_batch
-      # Single-winner start so concurrent sweepers can't enqueue duplicate empty jobs
-      transaction do
-        if Batch.where(id: id, enqueued_at: nil).update_all(enqueued_at: Time.current).positive?
-          enqueue_empty_job if reload.total_jobs == 0
-        end
-      end
+      Batch.where(id: id, enqueued_at: nil).update_all(enqueued_at: Time.current)
 
+      # Refresh enqueued_at after the update_all, and let a batch that started
+      # with no jobs finish right away
+      reload
       check_completion
     end
 
@@ -176,12 +174,6 @@ module SolidQueue
         end
 
         enqueue_callback_job(:on_finish) if on_finish.present?
-      end
-
-      def enqueue_empty_job
-        Batch.wrap_in_batch_context(id) do
-          EmptyJob.perform_later
-        end
       end
   end
 end

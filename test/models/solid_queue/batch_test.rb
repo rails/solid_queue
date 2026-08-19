@@ -138,15 +138,6 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     def perform; end
   end
 
-  test "empty job stays on solid_queue regardless of the app's default adapter" do
-    original = ApplicationJob.queue_adapter
-    ApplicationJob.queue_adapter = :test
-
-    assert_equal "solid_queue", SolidQueue::Batch::EmptyJob.queue_adapter_name
-  ensure
-    ApplicationJob.queue_adapter = original
-  end
-
   class HookedCallbackJob < ApplicationJob
     cattr_accessor :enqueue_hook_ran, default: false
 
@@ -223,7 +214,12 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
   test "jobs instantiated inside the block keep its batch when enqueued outside any context" do
     job = nil
-    batch = SolidQueue::Batch.enqueue { job = NiceJob.new("inside") }
+    batch = SolidQueue::Batch.enqueue do
+      # A real job keeps the batch running: instantiating one isn't enough,
+      # and a batch that starts empty finishes right away
+      NiceJob.perform_later("anchor")
+      job = NiceJob.new("inside")
+    end
 
     job.enqueue
 
@@ -369,22 +365,28 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
   test "start_batch is single-winner: stale instances cannot restart a started batch" do
     batch = SolidQueue::Batch.create!(on_finish: BatchCompletionJob)
-    batch.update_columns(enqueued_at: nil, total_jobs: 0)
-    SolidQueue::Job.where(batch_id: batch.id).destroy_all
+    batch.update_columns(enqueued_at: nil, finished_at: nil, total_jobs: 0)
+    # Includes the callback enqueued when creation already started the batch:
+    # callback jobs aren't members, so they don't carry the batch's id
+    SolidQueue::Job.destroy_all
 
     stale_a = SolidQueue::Batch.find(batch.id)
     stale_b = SolidQueue::Batch.find(batch.id)
 
     stale_a.start_batch
     started_at = batch.reload.enqueued_at
-    assert_equal 1, batch.total_jobs
+
+    # A batch that starts with no jobs finishes right away, firing its callbacks
+    assert batch.finished?
+    assert_equal 0, batch.total_jobs
+    assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
 
     travel 1.second do
       stale_b.start_batch
     end
 
-    assert_equal 1, batch.reload.total_jobs
-    assert_equal started_at, batch.enqueued_at
+    assert_equal started_at, batch.reload.enqueued_at
+    assert_equal 1, SolidQueue::Job.where(class_name: "BatchCompletionJob").count
   end
 
   test "batch capture runs before deferred enqueues" do

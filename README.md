@@ -31,7 +31,6 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
 - [Batch jobs](#batch-jobs)
-  - [Empty batches](#empty-batches)
   - [Batch progress and counters](#batch-progress-and-counters)
   - [Batch maintenance](#batch-maintenance)
   - [Clearing batches](#clearing-batches)
@@ -699,24 +698,14 @@ end
 A job joins the batch that's active *when its enqueue is requested*—this also works when Rails defers the actual enqueue until after the surrounding transaction commits. In particular:
 
 - A job created outside a batch and enqueued inside one joins that batch.
-- Creating a job inside a batch without enqueueing it doesn't keep the batch open.
+- Creating a job inside a batch without enqueueing it doesn't keep the batch open: if the batch finishes before the job is finally enqueued, the enqueue raises `SolidQueue::Batch::AlreadyFinished`.
 - If a job already carries a batch ID but is enqueued inside another active batch, the active batch takes precedence.
 
 Besides the callbacks, `SolidQueue::Batch.enqueue` accepts a `description:`, to label the batch, and stores any other keyword arguments (like `user_id: 123` above) as the batch's `metadata`.
 
 Callbacks can be given as a job class or as a configured job instance—for example, `on_finish: BatchFinishJob.new.set(queue: :batches)` or `on_success: BatchSuccessJob.new("some argument")`. Note that the job is serialized when the batch is created, so options resolved at that point (like `wait_until:` timestamps) are relative to batch creation, not to when the callback is eventually enqueued.
 
-### Empty batches
-
-In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued, so the batch can still finish and fire its callbacks. By default, this job runs on the `default` queue, and you can specify an alternative queue for it in an initializer:
-
-```ruby
-Rails.application.config.after_initialize do # or to_prepare
-  SolidQueue::Batch::EmptyJob.queue_as "my_batch_queue"
-end
-```
-
-The empty job and batch callback jobs always enqueue through Solid Queue, even when the job classes involved (or the application default) use a different Active Job adapter.
+Callback jobs always enqueue through Solid Queue, even when the job classes involved (or the application default) use a different Active Job adapter. And a batch that ends up with no jobs finishes as soon as it starts, firing its callbacks right away.
 
 ### Batch progress and counters
 
