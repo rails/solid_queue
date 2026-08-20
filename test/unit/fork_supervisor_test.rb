@@ -152,6 +152,28 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     end
   end
 
+  test "reap a terminated fork on shutdown even if releasing its claimed jobs fails" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "*", processes: 1 } ], dispatchers: [], skip_recurring: true)
+    supervisor = SolidQueue::ForkSupervisor.new(configuration)
+
+    terminated_fork = stub(kind: "Worker", name: "worker-42", hostname: "localhost", mark_as_reaped: true)
+    supervisor.send(:process_instances)[42] = terminated_fork
+    supervisor.send(:configured_processes)[42] = configuration.configured_processes.first
+
+    # The fork was killed and the database is unreachable when the supervisor
+    # reaps it during shutdown
+    status = stub(exited?: false, exitstatus: nil, pid: 42, signaled?: true, stopsig: nil, termsig: 9)
+    ::Process.stubs(:waitpid2).returns([ 42, status ]).then.returns(nil)
+    supervisor.expects(:release_claimed_jobs_by).raises(ActiveRecord::ConnectionNotEstablished.new("connection is closed"))
+
+    assert_nothing_raised do
+      supervisor.send(:reap_terminated_forks)
+    end
+
+    assert_empty supervisor.send(:process_instances)
+    assert_empty supervisor.send(:configured_processes)
+  end
+
   test "fail orphaned executions" do
     3.times { |i| StoreResultJob.set(queue: :new_queue).perform_later(i) }
     process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
