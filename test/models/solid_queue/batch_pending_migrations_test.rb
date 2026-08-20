@@ -63,5 +63,11 @@ class BatchPendingMigrationsTest < ActiveSupport::TestCase
 
       SolidQueue::Job.reset_column_information
       SolidQueue::Batch.instance_variable_set(:@migrated, nil)
+
+      # Changing the jobs table's shape invalidates cached prepared statements
+      # whose SQL text didn't change (like SELECT "solid_queue_jobs".*), which
+      # PostgreSQL rejects with PreparedStatementCacheExpired. Drop the pooled
+      # connections so every test starts with a fresh statement cache.
+      SolidQueue::Record.connection_pool.disconnect!
     end
 end
