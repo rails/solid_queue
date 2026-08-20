@@ -29,6 +29,9 @@ module SolidQueue
         end
 
         def process_signal_queue
+          # Embedded supervisors don't own their process's signals
+          return unless standalone?
+
           while signal = signal_queue.shift
             handle_signal(signal)
           end

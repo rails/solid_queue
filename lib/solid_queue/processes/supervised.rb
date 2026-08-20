@@ -25,6 +25,13 @@ module SolidQueue::Processes
         supervisor.present?
       end
 
+      def create_fork(&block)
+        fork do
+          register_signal_handlers
+          block.call
+        end
+      end
+
       def register_signal_handlers
         %w[ INT TERM ].each do |signal|
           trap(signal) do
