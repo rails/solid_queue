@@ -61,7 +61,18 @@ module SolidQueue
 
       def sweep_stalled_batches
         wrap_in_app_executor do
-          Batch.sweep_stalled(batch_size: batch_size)
+          if Batch.migrated?
+            Batch.sweep_stalled(batch_size: batch_size)
+          else
+            warn_once_about_pending_batch_migrations
+          end
+        end
+      end
+
+      def warn_once_about_pending_batch_migrations
+        unless @warned_about_pending_migrations
+          Batch.warn_about_pending_migrations
+          @warned_about_pending_migrations = true
         end
       end
   end
