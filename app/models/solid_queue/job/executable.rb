@@ -18,6 +18,9 @@ module SolidQueue
 
       class_methods do
         def prepare_all_for_execution(jobs)
+          # Track before dispatch so conflict-discarded jobs count like single enqueues.
+          batch_all(jobs)
+
           due, not_yet_due = jobs.partition(&:due?)
           dispatch_all(due) + schedule_all(not_yet_due)
         end
@@ -78,7 +81,7 @@ module SolidQueue
 
       def finished!
         if SolidQueue.preserve_finished_jobs?
-          touch(:finished_at)
+          update!(finished_at: Time.current)
         else
           destroy!
         end

@@ -7,8 +7,8 @@ module SolidQueue
     attr_reader :batch_size
 
     after_boot :run_start_hooks
-    after_boot :start_concurrency_maintenance
-    before_shutdown :stop_concurrency_maintenance
+    after_boot :start_maintenance
+    before_shutdown :stop_maintenance
     before_shutdown :run_stop_hooks
     after_shutdown :run_exit_hooks
 
@@ -17,17 +17,21 @@ module SolidQueue
 
       @batch_size = options[:batch_size]
 
-      @concurrency_maintenance = ConcurrencyMaintenance.new(options[:concurrency_maintenance_interval], options[:batch_size]) if options[:concurrency_maintenance]
+      # Run both maintenance routines on one timer instead of another thread.
+      if options[:concurrency_maintenance] || options[:batch_maintenance]
+        @maintenance = Maintenance.new(options[:concurrency_maintenance_interval], options[:batch_size],
+          concurrency: options[:concurrency_maintenance], batches: options[:batch_maintenance])
+      end
 
       super(**options)
     end
 
     def metadata
-      super.merge(batch_size: batch_size, concurrency_maintenance_interval: concurrency_maintenance&.interval)
+      super.merge(batch_size: batch_size).merge(maintenance&.metadata || {})
     end
 
     private
-      attr_reader :concurrency_maintenance
+      attr_reader :maintenance
 
       def poll
         batch = dispatch_next_batch
@@ -41,12 +45,12 @@ module SolidQueue
         end
       end
 
-      def start_concurrency_maintenance
-        concurrency_maintenance&.start
+      def start_maintenance
+        maintenance&.start
       end
 
-      def stop_concurrency_maintenance
-        concurrency_maintenance&.stop
+      def stop_maintenance
+        maintenance&.stop
       end
 
       def all_work_completed?
