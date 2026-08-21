@@ -68,9 +68,10 @@ module SolidQueue
             scheduled_at: active_job.scheduled_at,
             class_name: active_job.class.name,
             arguments: active_job.serialize,
-            concurrency_key: active_job.concurrency_key,
-            batch_id: active_job.batch_id
-          }
+            concurrency_key: active_job.concurrency_key
+          }.tap do |attributes|
+            attributes[:batch_id] = active_job.batch_id if Batch.migrated?
+          end
         end
     end
   end

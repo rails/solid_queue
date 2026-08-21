@@ -37,9 +37,23 @@ class UpdateGeneratorTest < Rails::Generators::TestCase
   end
 
   test "does nothing when there are no new migrations" do
+    Dir.mktmpdir do |empty_source_root|
+      FileUtils.mkdir_p File.join(empty_source_root, "db")
+      SolidQueue::UpdateGenerator.stubs(:source_root).returns(empty_source_root)
+
+      run_generator
+
+      assert_empty Dir.glob(File.join(destination_root, "db/**/*.rb"))
+    end
+  end
+
+  test "copies the batches migration" do
     run_generator
 
-    assert_empty Dir.glob(File.join(destination_root, "db/**/*.rb"))
+    assert_migration "db/queue_migrate/add_batches_to_solid_queue.rb" do |migration|
+      assert_match(/class AddBatchesToSolidQueue/, migration)
+      assert_match(/create_table :solid_queue_batches, if_not_exists: true/, migration)
+    end
   end
 
   private

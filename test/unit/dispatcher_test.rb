@@ -50,6 +50,21 @@ class DispatcherTest < ActiveSupport::TestCase
     no_batch_maintenance_dispatcher.stop
   end
 
+  test "batch maintenance is skipped with a deprecation warning until the batches schema is migrated" do
+    SolidQueue::Batch.stubs(:migrated?).returns(false)
+    SolidQueue::Batch.expects(:sweep_stalled).never
+
+    maintenance = SolidQueue::Dispatcher::Maintenance.new(600, 10, concurrency: false, batches: true)
+
+    assert_deprecated(/pending database migrations/, SolidQueue.deprecator) do
+      maintenance.send(:sweep_stalled_batches)
+    end
+
+    assert_not_deprecated(SolidQueue.deprecator) do
+      maintenance.send(:sweep_stalled_batches)
+    end
+  end
+
   test "ConcurrencyMaintenance remains constructible with its original signature" do
     maintenance = SolidQueue::Dispatcher::ConcurrencyMaintenance.new(600, 100)
 

@@ -32,7 +32,6 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Error reporting on jobs](#error-reporting-on-jobs)
   - [Jobs interrupted by non-graceful process death](#jobs-interrupted-by-non-graceful-process-death)
 - [Batch jobs](#batch-jobs)
-  - [Empty batches](#empty-batches)
   - [Batch progress and counters](#batch-progress-and-counters)
   - [Batch maintenance](#batch-maintenance)
   - [Clearing batches](#clearing-batches)
@@ -745,30 +744,20 @@ end
 A job joins the batch that's active *when its enqueue is requested*—this also works when Rails defers the actual enqueue until after the surrounding transaction commits. In particular:
 
 - A job created outside a batch and enqueued inside one joins that batch.
-- Creating a job inside a batch without enqueueing it doesn't keep the batch open.
+- Creating a job inside a batch without enqueueing it doesn't keep the batch open: if the batch finishes before the job is finally enqueued, the enqueue raises `SolidQueue::Batch::AlreadyFinished`.
 - If a job already carries a batch ID but is enqueued inside another active batch, the active batch takes precedence.
 
-Besides the callbacks, `SolidQueue::Batch.enqueue` accepts a `description:`, to label the batch, and stores any other keyword arguments (like `user_id: 123` above) as the batch's `metadata`.
+Besides the callbacks, `SolidQueue::Batch.enqueue` accepts a `description:`, to label the batch, and a `metadata:` hash; any other keyword arguments (like `user_id: 123` above) are merged into the batch's `metadata`.
 
 Callbacks can be given as a job class or as a configured job instance—for example, `on_finish: BatchFinishJob.new.set(queue: :batches)` or `on_success: BatchSuccessJob.new("some argument")`. Note that the job is serialized when the batch is created, so options resolved at that point (like `wait_until:` timestamps) are relative to batch creation, not to when the callback is eventually enqueued.
 
-### Empty batches
-
-In the case of an empty batch, a `SolidQueue::Batch::EmptyJob` is enqueued, so the batch can still finish and fire its callbacks. By default, this job runs on the `default` queue, and you can specify an alternative queue for it in an initializer:
-
-```ruby
-Rails.application.config.after_initialize do # or to_prepare
-  SolidQueue::Batch::EmptyJob.queue_as "my_batch_queue"
-end
-```
-
-The empty job and batch callback jobs always enqueue through Solid Queue, even when the job classes involved (or the application default) use a different Active Job adapter.
+Callback jobs always enqueue through Solid Queue, even when the job classes involved (or the application default) use a different Active Job adapter. And a batch that ends up with no jobs finishes as soon as it starts, firing its callbacks right away.
 
 ### Batch progress and counters
 
 Batches track `total_jobs`, `completed_jobs`, `failed_jobs` and `pending_jobs`, plus a `progress_percentage` helper. A couple of accounting details to be aware of:
 
-- Every *attempt* counts: when a job is retried via `retry_on`, each retry is enqueued as a new job in the batch, so a job that fails twice and then succeeds contributes 3 to `total_jobs`—the two retried attempts count as completed, plus the final success.
+- Counters track *logical* jobs, matching what you enqueued: a retry via `retry_on` keeps the job's Active Job ID, so a job that fails twice and then succeeds still contributes 1 to `total_jobs`. Each attempt does get its own row in the batch's `jobs` relation, though.
 - Jobs discarded via `discard_on`, concurrency's `on_conflict: :discard`, or manual discarding count as completed, not failed.
 - Manually retrying a failed job (via `SolidQueue::FailedExecution#retry`) doesn't re-add it to its batch: if the batch already finished as failed, a successful manual retry won't change the batch's status.
 
@@ -796,47 +785,16 @@ clear_solid_queue_finished_batches:
 
 ### Upgrading existing installations
 
-If you installed Solid Queue before batches existed, add the new tables with a migration in `db/queue_migrate`:
+If you installed Solid Queue before batches existed, copy the migration that adds the new tables to your app and run it:
 
-```ruby
-class AddSolidQueueBatches < ActiveRecord::Migration[7.1]
-  def change
-    create_table :solid_queue_batches do |t|
-      t.string :active_job_batch_id
-      t.string :description
-      t.text :on_finish
-      t.text :on_success
-      t.text :on_failure
-      t.text :metadata
-      t.integer :total_jobs, default: 0, null: false
-      t.integer :completed_jobs, default: 0, null: false
-      t.integer :failed_jobs, default: 0, null: false
-      t.datetime :enqueued_at
-      t.datetime :finished_at
-      t.datetime :failed_at
-      t.timestamps
-
-      t.index :active_job_batch_id, unique: true
-      t.index :finished_at
-    end
-
-    create_table :solid_queue_batch_executions do |t|
-      t.bigint :job_id, null: false
-      t.bigint :batch_id, null: false
-      t.datetime :created_at, null: false
-
-      t.index :job_id, unique: true
-      t.index :batch_id
-    end
-
-    add_column :solid_queue_jobs, :batch_id, :bigint
-    add_index :solid_queue_jobs, :batch_id
-
-    add_foreign_key :solid_queue_batch_executions, :solid_queue_batches, column: :batch_id, on_delete: :cascade
-    add_foreign_key :solid_queue_batch_executions, :solid_queue_jobs, column: :job_id, on_delete: :cascade
-  end
-end
+```bash
+bin/rails solid_queue:update
+bin/rails db:migrate
 ```
+
+Until you do, Solid Queue works exactly as before—jobs enqueue and run without any batch bookkeeping, trying to start a batch raises, and the dispatcher logs a deprecation warning to remind you the migration is pending. It becomes part of the base schema in Solid Queue 2.0.
+
+The copied migration is yours to adapt: if you're on PostgreSQL with a large jobs table, consider building the jobs index concurrently—`algorithm: :concurrently` on its `add_index`, with `disable_ddl_transaction!` on the migration—so the build doesn't block enqueues while it runs. Everything in the migration skips what already exists, so it's safe to rerun after a failure; just drop the invalid index a failed concurrent build leaves behind first.
 
 ## Puma plugin
 
