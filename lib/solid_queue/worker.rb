@@ -22,7 +22,8 @@ module SolidQueue
       @pool = Pool.build \
         type: execution_pool_type,
         size: execution_pool_size,
-        on_idle: -> { wake_up }
+        on_idle: -> { wake_up },
+        on_unrecoverable_error: ->(*) { request_termination }
 
       super(**options)
     end
@@ -46,6 +47,14 @@ module SolidQueue
         with_polling_volume do
           SolidQueue::ReadyExecution.claim(queues, pool.available_capacity, process_id)
         end
+      end
+
+      def request_termination
+        # Signal the poller to shut down without joining from the pool thread.
+        # Runnable#stop joins when unsupervised, which would deadlock once
+        # shutdown waits for this pool thread to finish.
+        @stopped = true
+        wake_up
       end
 
       def shutdown

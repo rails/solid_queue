@@ -2,7 +2,7 @@
 
 module SolidQueue
   class FiberPool < Pool
-    def initialize(size, on_idle: nil)
+    def initialize(size, on_idle: nil, on_unrecoverable_error: nil)
       super
 
       @state_mutex = Mutex.new
@@ -108,6 +108,7 @@ module SolidQueue
         handle_thread_error(error)
         register_fatal_error(error)
       rescue Exception => error
+        handle_unrecoverable_error(error)
         handle_thread_error(error)
       ensure
         restore_capacity
