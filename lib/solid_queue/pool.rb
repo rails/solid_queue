@@ -62,11 +62,11 @@ module SolidQueue
       end
 
       def handle_unrecoverable_error(error)
-        return unless error.is_a?(ClaimedExecution::FinalizationError)
+        return unless error.is_a?(Processes::UnrecoverableError)
 
         # Only signal shutdown — do not join the worker from this pool thread,
         # or wait_for_termination during worker shutdown would deadlock.
-        on_unrecoverable_error&.call(error)
+        on_unrecoverable_error&.call
       end
 
       def reserve_capacity!
