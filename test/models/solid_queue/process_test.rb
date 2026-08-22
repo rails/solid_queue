@@ -80,4 +80,17 @@ class SolidQueue::ProcessTest < ActiveSupport::TestCase
       process.heartbeat
     end
   end
+
+  test "a heartbeat that fails to persist doesn't leave a fresh in-memory timestamp" do
+    process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-42")
+    persisted_heartbeat_at = process.last_heartbeat_at
+
+    process.stubs(:_update_row).raises(ActiveRecord::StatementInvalid.new("no connection"))
+
+    travel 1.minute do
+      assert_raises(ActiveRecord::StatementInvalid) { process.heartbeat }
+    end
+
+    assert_equal persisted_heartbeat_at, process.last_heartbeat_at
+  end
 end

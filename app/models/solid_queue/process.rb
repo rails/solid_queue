@@ -21,10 +21,14 @@ class SolidQueue::Process < SolidQueue::Record
 
   def heartbeat
     # Clear any previous changes before locking, for example, in case a previous heartbeat
-    # failed because of a DB issue (with SQLite depending on configuration, a BusyException
-    # is not rare) and we still have the unpersisted value
+    # failed because of a DB issue and we still have the unpersisted value
     restore_attributes
     with_lock { touch(:last_heartbeat_at) }
+  rescue
+    # touch writes the attribute before persisting; don't let a failed
+    # update leave this object claiming a heartbeat that was never persisted
+    restore_attributes
+    raise
   end
 
   def deregister(pruned: false)
