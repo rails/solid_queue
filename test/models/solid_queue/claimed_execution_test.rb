@@ -59,6 +59,69 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert_equal @process, claimed_execution.process
   end
 
+  test "finishing a job is retried when recording the outcome fails transiently" do
+    claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
+    claimed_execution.stubs(:sleep)
+    job = claimed_execution.job
+
+    attempts = 0
+    job.define_singleton_method(:finished!) do
+      attempts += 1
+      raise ActiveRecord::ConnectionNotEstablished if attempts == 1
+      super()
+    end
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count }, -1 do
+      claimed_execution.perform
+    end
+
+    assert_equal 2, attempts
+    assert job.reload.finished?
+  end
+
+  test "failing a job is retried when recording the outcome fails transiently" do
+    claimed_execution = prepare_and_claim_job RaisingJob.perform_later(RuntimeError, "A")
+    claimed_execution.stubs(:sleep)
+    job = claimed_execution.job
+
+    attempts = 0
+    job.define_singleton_method(:failed_with) do |error|
+      attempts += 1
+      raise ActiveRecord::ConnectionNotEstablished if attempts == 1
+      super(error)
+    end
+
+    assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
+      assert_raises RuntimeError do
+        claimed_execution.perform
+      end
+    end
+
+    assert_equal 2, attempts
+    assert job.reload.failed?
+  end
+
+  test "finalization failures are raised once retries are exhausted" do
+    claimed_execution = prepare_and_claim_job AddToBufferJob.perform_later(42)
+    claimed_execution.stubs(:sleep)
+    job = claimed_execution.job
+
+    attempts = 0
+    job.define_singleton_method(:finished!) do
+      attempts += 1
+      raise ActiveRecord::ConnectionNotEstablished
+    end
+
+    assert_no_difference -> { SolidQueue::ClaimedExecution.count } do
+      assert_raises ActiveRecord::ConnectionNotEstablished do
+        claimed_execution.perform
+      end
+    end
+
+    assert_equal SolidQueue::ClaimedExecution::FINALIZATION_RETRY_DELAYS.size + 1, attempts
+    assert_not job.reload.finished?
+  end
+
   test "job failures are reported via Rails error subscriber" do
     subscriber = ErrorBuffer.new
 
