@@ -112,6 +112,26 @@ class AsyncSupervisorTest < ActiveSupport::TestCase
     assert_no_match /the database connection pool is/, log.string
   end
 
+  test "replace a terminated thread even if releasing its claimed jobs fails" do
+    configuration = SolidQueue::Configuration.new(workers: [ { queues: "*", processes: 1 } ], dispatchers: [], skip_recurring: true)
+    supervisor = SolidQueue::AsyncSupervisor.new(configuration)
+
+    configured_process = configuration.configured_processes.first
+    terminated_thread = stub(kind: "Worker", name: "worker-42", hostname: "localhost", alive?: false)
+
+    supervisor.send(:process_instances)[42] = terminated_thread
+    supervisor.send(:configured_processes)[42] = configured_process
+
+    # The database is unreachable when the supervisor tries to fail the
+    # terminated thread's claimed jobs, like right after losing its connection
+    supervisor.expects(:release_claimed_jobs_by).raises(ActiveRecord::ConnectionNotEstablished.new("connection is closed"))
+    supervisor.expects(:start_process).with(configured_process)
+
+    assert_nothing_raised do
+      supervisor.send(:check_and_replace_terminated_processes)
+    end
+  end
+
   private
     def run_supervisor_as_thread(**options)
       SolidQueue::Supervisor.start(mode: :async, standalone: false, **options.with_defaults(skip_recurring: true))

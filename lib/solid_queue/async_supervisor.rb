@@ -27,8 +27,7 @@ module SolidQueue
           if (instance = process_instances.delete(thread_id))
             payload[:thread] = instance
 
-            error = Processes::ThreadTerminatedError.new(instance.name)
-            release_claimed_jobs_by(instance, with_error: error)
+            attempt_to_release_claimed_jobs_by(instance, with_error: Processes::ThreadTerminatedError.new(instance.name))
 
             start_process(configured_processes.delete(thread_id))
           end
