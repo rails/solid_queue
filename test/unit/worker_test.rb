@@ -111,7 +111,7 @@ class WorkerTest < ActiveSupport::TestCase
     subscriber = ErrorBuffer.new
     Rails.error.subscribe(subscriber)
 
-    SolidQueue::ClaimedExecution::Result.expects(:new).raises(ExpectedTestError.new("everything is broken")).at_least_once
+    SolidQueue::ClaimedExecution.any_instance.stubs(:finished).raises(ActiveRecord::StatementInvalid.new("transient DB glitch"))
 
     AddToBufferJob.perform_later "hey!"
 
@@ -120,8 +120,9 @@ class WorkerTest < ActiveSupport::TestCase
     wait_for_jobs_to_finish_for(1.second)
     @worker.wake_up
 
-    assert_equal 1, subscriber.errors.count
-    assert_equal "everything is broken", subscriber.messages.first
+    finalization_errors = subscriber.errors.map(&:first).grep(SolidQueue::ClaimedExecution::FinalizationError)
+    assert_equal 1, finalization_errors.count
+    assert_match(/transient DB glitch/, finalization_errors.first.message)
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
     SolidQueue.on_thread_error = original_on_thread_error
@@ -142,6 +143,41 @@ class WorkerTest < ActiveSupport::TestCase
     assert_equal "This is a ExpectedTestError exception", subscriber.messages.first
   ensure
     Rails.error.unsubscribe(subscriber) if Rails.error.respond_to?(:unsubscribe)
+  end
+
+  test "worker stops and releases the claim when finishing a job fails" do
+    previous_on_thread_error, SolidQueue.on_thread_error = SolidQueue.on_thread_error, ->(*) { }
+
+    SolidQueue::ClaimedExecution.any_instance.stubs(:finished).raises(ActiveRecord::StatementInvalid.new("transient DB glitch"))
+
+    AddToBufferJob.perform_later "hey!"
+
+    @worker.start
+
+    wait_while_with_timeout(2.seconds) { !@worker.pool.shutdown? }
+    assert @worker.pool.shutdown?
+
+    wait_for_registered_processes(0, timeout: 1.second)
+    assert_no_registered_processes
+
+    assert_equal 0, SolidQueue::ClaimedExecution.count
+    assert SolidQueue::Job.last.reload.ready?
+  ensure
+    SolidQueue.on_thread_error = previous_on_thread_error
+  end
+
+  test "worker keeps running after a regular job failure" do
+    RaisingJob.perform_later(ExpectedTestError, "B")
+    AddToBufferJob.perform_later "ok"
+
+    @worker.start
+
+    wait_for_jobs_to_finish_for(2.seconds)
+    @worker.wake_up
+
+    assert_not @worker.pool.shutdown?
+    assert_equal "ok", JobBuffer.last_value
+    assert_equal 0, SolidQueue::ClaimedExecution.count
   end
 
   test "polling queries are logged" do

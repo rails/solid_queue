@@ -17,6 +17,7 @@ module SolidQueue
         end.on_rejection! do |error|
           # Backstop for errors raised outside perform_execution's own rescue,
           # such as when restoring capacity or waking up the worker
+          handle_unrecoverable_error(error)
           handle_thread_error(error)
         end
       end

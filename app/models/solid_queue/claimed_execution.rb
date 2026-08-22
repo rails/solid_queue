@@ -11,6 +11,17 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
     end
   end
 
+  # Raised when a job has already run (or failed) but we couldn't update its
+  # claim/finished state because of a transient error. The claim is still held
+  # by a living worker, so it won't be recovered as orphaned unless the worker
+  # is stopped and replaced.
+  class FinalizationError < RuntimeError
+    def initialize(claimed_execution, cause:)
+      super("Failed to finalize claimed execution #{claimed_execution.id} (job #{claimed_execution.job_id}): #{cause.class}: #{cause.message}")
+      set_backtrace(cause.backtrace) if cause.backtrace
+    end
+  end
+
   class << self
     def claiming(job_ids, process_id, &block)
       job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
@@ -63,14 +74,7 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   def perform
-    result = execute
-
-    if result.success?
-      finished
-    else
-      failed_with(result.error)
-      raise result.error
-    end
+    finalize_result(execute)
   end
 
   def release
@@ -91,6 +95,21 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
   end
 
   private
+    def finalize_result(result)
+      if result.success?
+        finished
+      else
+        failed_with(result.error)
+        raise result.error
+      end
+    rescue FinalizationError
+      raise
+    rescue => error
+      raise FinalizationError.new(self, cause: error) if still_claimed?
+
+      raise
+    end
+
     def execute
       ActiveJob::Base.execute(job.arguments.merge("provider_job_id" => job.id))
       Result.new(true, nil)
@@ -122,5 +141,13 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
         yield
       end
+    end
+
+    def still_claimed?
+      self.class.exists?(id)
+    rescue
+      # If we can't check because the DB is unavailable, assume the claim is
+      # still held so the worker can be stopped and replaced.
+      true
     end
 end

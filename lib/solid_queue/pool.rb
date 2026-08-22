@@ -4,15 +4,20 @@ module SolidQueue
   class Pool
     include AppExecutor
 
-    def self.build(type:, size:, on_idle: nil)
-      SolidQueue.const_get("#{type.to_s.camelize}Pool").new(size, on_idle: on_idle)
+    def self.build(type:, size:, on_idle: nil, on_unrecoverable_error: nil)
+      SolidQueue.const_get("#{type.to_s.camelize}Pool").new(
+        size,
+        on_idle: on_idle,
+        on_unrecoverable_error: on_unrecoverable_error
+      )
     end
 
     attr_reader :size
 
-    def initialize(size, on_idle: nil)
+    def initialize(size, on_idle: nil, on_unrecoverable_error: nil)
       @size = size
       @on_idle = on_idle
+      @on_unrecoverable_error = on_unrecoverable_error
       @available_capacity = size
       @mutex = Mutex.new
     end
@@ -41,7 +46,7 @@ module SolidQueue
     end
 
     private
-      attr_reader :mutex, :on_idle
+      attr_reader :mutex, :on_idle, :on_unrecoverable_error
 
       def schedule(execution)
         raise NotImplementedError
@@ -50,9 +55,18 @@ module SolidQueue
       def perform_execution(execution)
         wrap_in_app_executor { execution.perform }
       rescue Exception => error
+        handle_unrecoverable_error(error)
         handle_thread_error(error)
       ensure
         restore_capacity
+      end
+
+      def handle_unrecoverable_error(error)
+        return unless error.is_a?(ClaimedExecution::FinalizationError)
+
+        # Only signal shutdown — do not join the worker from this pool thread,
+        # or wait_for_termination during worker shutdown would deadlock.
+        on_unrecoverable_error&.call(error)
       end
 
       def reserve_capacity!
