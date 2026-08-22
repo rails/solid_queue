@@ -23,7 +23,7 @@ module SolidQueue
         type: execution_pool_type,
         size: execution_pool_size,
         on_idle: -> { wake_up },
-        on_unrecoverable_error: ->(*) { request_termination }
+        on_unrecoverable_error: -> { request_termination }
 
       super(**options)
     end
