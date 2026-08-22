@@ -43,5 +43,15 @@ module SolidQueue
           end
         end
       end
+
+      # The database may be unreachable — possibly the same reason the
+      # supervised process died. Neither starting a replacement nor shutting
+      # down can depend on it: the jobs claimed by the dead process will be
+      # failed when its stale registration is pruned once the database is back.
+      def attempt_to_release_claimed_jobs_by(terminated_process, with_error:)
+        release_claimed_jobs_by(terminated_process, with_error: with_error)
+      rescue StandardError => error
+        handle_thread_error(error)
+      end
   end
 end
