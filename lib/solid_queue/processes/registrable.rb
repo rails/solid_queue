@@ -55,28 +55,29 @@ module SolidQueue::Processes
 
       def heartbeat
         process&.heartbeat
-        @heartbeats_failing_since = nil
       rescue ActiveRecord::RecordNotFound
-        self.process = nil
-        wake_up
+        # Our registration is gone: a supervisor pruned it
+        stop_to_be_replaced
       rescue => error
-        # Errors other than a missing registration (e.g. the DB connection dropping)
-        # can prevent the heartbeat from going through, and even from finding out
-        # whether the registration is still there. If this persists past the alive
-        # threshold, other processes will have considered this one dead and pruned
-        # its registration, so stop and let the supervisor replace it with a process
-        # that can register afresh, rather than running unregistered indefinitely.
-        @heartbeats_failing_since ||= Time.current
-        if heartbeats_failing_for_too_long?
-          self.process = nil
-          wake_up
-        end
-
+        # Errors like a dropped database connection prevent the
+        # heartbeat from going through, and even from finding out whether the
+        # registration is still there
+        stop_to_be_replaced if presumed_dead?
         raise error
       end
 
-      def heartbeats_failing_for_too_long?
-        @heartbeats_failing_since && Time.current - @heartbeats_failing_since > SolidQueue.process_alive_threshold
+      # Whether this process's registration is prunable: if the last heartbeat that
+      # we were able to persist is older than the alive threshold, supervisors
+      # consider this one dead and would have pruned its registration by now
+      def presumed_dead?
+        process && process.last_heartbeat_at <= SolidQueue.process_alive_threshold.ago
+      end
+
+      # Deregister locally and wake the run loop, which stops when
+      # unregistered, so the supervisor replaces this process
+      def stop_to_be_replaced
+        self.process = nil
+        wake_up
       end
 
       def reload_metadata
