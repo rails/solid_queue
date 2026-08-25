@@ -156,4 +156,61 @@ class SchedulerTest < ActiveSupport::TestCase
   ensure
     scheduler&.stop
   end
+
+  test "reschedules a dynamic task recreated with the same key" do
+    recurring_schedule = nil
+    travel_to Time.zone.local(2026, 8, 25, 10, 15) do
+      SolidQueue.schedule_recurring_task(
+        "dynamic_task",
+        class: "AddToBufferJob",
+        schedule: "every hour",
+        args: [ 42 ]
+      )
+      original_task = SolidQueue::RecurringTask.find_by!(key: "dynamic_task")
+      recurring_schedule = SolidQueue::Scheduler::RecurringSchedule.new({}, dynamic_tasks_enabled: true)
+      recurring_schedule.schedule_tasks
+      original_scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+
+      SolidQueue.unschedule_recurring_task("dynamic_task")
+      SolidQueue.schedule_recurring_task(
+        "dynamic_task",
+        class: "AddToBufferJob",
+        schedule: "every day",
+        args: [ 42 ]
+      )
+      replacement_task = SolidQueue::RecurringTask.find_by!(key: "dynamic_task")
+
+      recurring_schedule.reschedule_dynamic_tasks
+      replacement_scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+
+      assert_instance_of Concurrent::CancelledOperationError, original_scheduled_task.reason
+      assert_not_same original_scheduled_task, replacement_scheduled_task
+      assert_in_delta replacement_task.next_time - Time.current, replacement_scheduled_task.initial_delay, 0.1
+
+      recurring_schedule.send(:schedule_next_task, original_task, run_at: original_task.next_time)
+      assert_same replacement_scheduled_task, recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+    end
+  ensure
+    recurring_schedule&.unschedule_tasks
+  end
+
+  test "does not reschedule a dynamic task updated in place" do
+    task = SolidQueue::RecurringTask.create!(
+      key: "dynamic_task",
+      static: false,
+      class_name: "AddToBufferJob",
+      schedule: "every hour",
+      arguments: [ 42 ]
+    )
+    recurring_schedule = SolidQueue::Scheduler::RecurringSchedule.new({}, dynamic_tasks_enabled: true)
+    recurring_schedule.schedule_tasks
+    scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+
+    task.update!(schedule: "every day")
+    recurring_schedule.reschedule_dynamic_tasks
+
+    assert_same scheduled_task, recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+  ensure
+    recurring_schedule&.unschedule_tasks
+  end
 end
