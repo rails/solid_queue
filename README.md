@@ -540,6 +540,34 @@ SolidQueue::Concurrency.refresh("tenant/123", to: 8)
 
 `refresh` resizes remaining slots, unblocks on increase, and reblocks excess ready jobs on decrease. Claimed jobs finish.
 
+Keep `key:` stable (`"tenant/123"`). Do not stamp the cap into the key (`"tenant/123/8"`). A cap change would then be a new key: two semaphores, jobs stranded on the old string, a remap. The cap belongs on `solid_queue_semaphores.limit` (written on wait and `refresh`).
+
+That stored limit is also how you size a shared fleet without joining Tenant or parsing keys. Per key, useful workers are `min(limit, waiting jobs)`. A tenant with cap 8 and 50k blocked jobs still only needs 8 slots. Scale-out urgency is oldest **ready** age — blocked-only backlog is waiting on the semaphore, not on the fleet.
+
+```ruby
+# Width: how many workers this fleet can usefully run (blocked jobs do not inflate past the cap).
+slots = SolidQueue::Record.connection.select_value(<<~SQL)
+  SELECT COALESCE(SUM(LEAST(COALESCE(s.limit, 1), c.n)), 0)
+  FROM solid_queue_semaphores s
+  INNER JOIN (
+    SELECT j.concurrency_key, COUNT(*) AS n
+    FROM solid_queue_jobs j
+    INNER JOIN (
+      SELECT job_id FROM solid_queue_ready_executions
+      UNION ALL
+      SELECT job_id FROM solid_queue_blocked_executions
+    ) waiting ON waiting.job_id = j.id
+    WHERE j.concurrency_key IS NOT NULL
+    GROUP BY j.concurrency_key
+  ) c ON c.concurrency_key = s.key
+SQL
+
+# Urgency: oldest ready job. Empty ready set → 0, even if blocked rows exist.
+oldest_ready_at = SolidQueue::ReadyExecution.minimum(:created_at)
+```
+
+`COALESCE(s.limit, 1)` matches 1.3.2 until the next wait backfills `limit`.
+
 Integer `to:` (except `0`, which now refuses admit) matches 1.3.2.
 
 ### Scheduled jobs
