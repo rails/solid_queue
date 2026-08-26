@@ -2,7 +2,9 @@
 
 module SolidQueue
   module Concurrency
-    # Process-local memo of evaluated `to:` procs. Not Rails.cache.
+    # One in-process memo of evaluated `to:` procs for this Ruby process.
+    # Threads in the same process share it (`MemoryStore` is Monitor-synchronized).
+    # Forked workers do not — each child has its own store. Not `Rails.cache`.
     class LimitCache
       class << self
         def fetch(key, generation:, &block)

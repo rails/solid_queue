@@ -45,6 +45,17 @@ class SolidQueue::ConcurrencyTest < ActiveSupport::TestCase
     assert_equal 1, DynamicLimitJob.evaluations[3]
   end
 
+  test "proc memo is shared by threads in the same process" do
+    DynamicLimitJob.limits[3] = 5
+    DynamicLimitJob.perform_later(3)
+    assert_equal 1, DynamicLimitJob.evaluations[3]
+
+    threads = 4.times.map { Thread.new { DynamicLimitJob.perform_later(3) } }
+    threads.each(&:join)
+
+    assert_equal 1, DynamicLimitJob.evaluations[3]
+  end
+
   test "refresh to a higher limit unblocks without a job finishing" do
     DynamicLimitJob.limits[4] = 1
     3.times { DynamicLimitJob.perform_later(4) }

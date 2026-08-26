@@ -458,7 +458,7 @@ class MyJob < ApplicationJob
   # ...
 ```
 - `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an Active Record record, the key will be built from its class name and `id`.
-- `to` is `1` by default. Integer, or a proc of the job arguments that returns the current cap for that key. Proc results are memoized in process memory by key (`SolidQueue.concurrency_limit_cache_ttl`, default 30 seconds; `false` to disable). Not `Rails.cache`. `to: 0` refuses admit (pauses that key).
+- `to` is `1` by default. Integer, or a proc of the job arguments that returns the current cap for that key. Proc results are memoized in one process-wide `MemoryStore` (`SolidQueue.concurrency_limit_cache_ttl`, default 30 seconds; `false` to disable), shared by all threads in that process. Not `Rails.cache`. `to: 0` refuses admit (pauses that key).
 - `duration` is set to `SolidQueue.default_concurrency_control_period` by default, which itself defaults to `3 minutes`, but that you can configure as well.
 - `group` is used to control the concurrency of different job classes together. It defaults to the job class name. It only affects the key prefix (who shares a semaphore). It does not change `to`.
 - `on_conflict` controls behaviour when enqueuing a job that conflicts with the concurrency limits configured. It can be set to one of the following:
@@ -518,7 +518,7 @@ Existing installs need the additive migration (`bin/rails solid_queue:install:mi
 
 `to:` may be a proc. That is the extra cost: on admit, deserialize the job arguments and run it (here `Tenant.find`). Integer `to:` skips this.
 
-The proc is **not** run on every job. Each process memoizes the result in memory by concurrency `key` + `generation`, for `SolidQueue.concurrency_limit_cache_ttl` (default `30.seconds`). Not `Rails.cache`. Set the TTL to `false` to eval every admit. After TTL expiry, or after `refresh` bumps `generation`, the next wait runs the proc again. Other processes have their own memo.
+The proc is **not** run on every job. Each Ruby process memoizes the result in one `ActiveSupport::Cache::MemoryStore` (class instance, Monitor-synchronized), keyed by concurrency `key` + `generation`, for `SolidQueue.concurrency_limit_cache_ttl` (default `30.seconds`). All threads in that process share it — it is not thread-local. Not `Rails.cache`. Set the TTL to `false` to eval every admit. After TTL expiry, or after `refresh` bumps `generation`, the next wait runs the proc again. Forked workers each have their own store.
 
 Solid Queue also stores the last evaluated cap on `solid_queue_semaphores.limit` so remaining-slot math can resize without the proc.
 
