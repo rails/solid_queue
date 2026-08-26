@@ -1,13 +1,18 @@
 # Upgrading to 1.3.2 + dynamic concurrency (this fork)
 
-Additive columns on `solid_queue_semaphores`:
+This version adds `limit` and `generation` on `solid_queue_semaphores`. New installs get them from `db/queue_schema.rb`. Existing installs need the migration:
 
-```ruby
-add_column :solid_queue_semaphores, :limit, :integer
-add_column :solid_queue_semaphores, :generation, :integer, default: 0, null: false
+```bash
+bin/rails solid_queue:install:migrations
 ```
 
-Existing rows keep remaining-slot math until the next `wait` backfills `limit`. Integer `to:` is unchanged except `to: 0`, which now refuses admit (1.3.2 treated `0` as `1` via `limit || 1`).
+If Solid Queue uses a separate database:
+
+```bash
+bin/rails solid_queue:install:migrations DATABASE=queue
+```
+
+Then run `db:migrate` (add `--database queue` when the queue DB is separate). Existing rows keep remaining-slot math until the next `wait` backfills `limit`. Integer `to:` is unchanged except `to: 0`, which now refuses admit (1.3.2 treated `0` as `1` via `limit || 1`).
 
 `to:` may be a proc. After a cap change, call `SolidQueue::Concurrency.refresh(key, to: n)`. See README, *Dynamic limits*.
 

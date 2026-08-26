@@ -1,4 +1,4 @@
-ActiveRecord::Schema[7.1].define(version: 1) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_26_120000) do
   create_table "solid_queue_blocked_executions", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "queue_name", null: false

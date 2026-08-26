@@ -513,6 +513,8 @@ Finally, failed jobs that are automatically or manually retried work in the same
 
 ### Dynamic limits
 
+Existing installs need the additive migration (`bin/rails solid_queue:install:migrations`, then `db:migrate`). See `UPGRADING.md`.
+
 `to:` may be a proc. Solid Queue stores the last evaluated cap on `solid_queue_semaphores.limit` and memoizes it in process memory until TTL or `generation` changes.
 
 ```ruby
