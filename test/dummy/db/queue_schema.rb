@@ -124,6 +124,8 @@ ActiveRecord::Schema[7.1].define(version: 1) do
   create_table "solid_queue_semaphores", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "key", null: false
     t.integer "value", default: 1, null: false
+    t.integer "limit"
+    t.integer "generation", default: 0, null: false
     t.datetime "expires_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
