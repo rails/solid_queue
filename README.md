@@ -582,6 +582,14 @@ production:
 
 Or something similar to that depending on your setup. You can also assign a different queue to a job on the moment of enqueuing so you can decide whether to enqueue a job in the throttled queue or another queue depending on the arguments, or pass a block to `queue_as` as explained [here](https://guides.rubyonrails.org/active_job_basics.html#queues).
 
+Proc `to:` and `Concurrency.refresh` sit on that same path. They do not replace a queue + worker-count throttle for a *kind of work*. Extra cost on top of integer `to:`:
+
+- **Admit:** deserialize arguments and run the proc (often an app query). The result is memoized in **process memory** for `SolidQueue.concurrency_limit_cache_ttl` (default 30 seconds), keyed by concurrency key + `generation`. Other processes do not share it.
+- **`refresh` increase:** lock the semaphore, then unblock one blocked job per extra slot (`release_many`).
+- **`refresh` decrease / `to: 0`:** count ready and claimed for that key, then move excess ready jobs back to blocked **one row at a time**. Cost scales with how many ready jobs that key has, not with blocked backlog.
+
+Use a proc when the cap is **per key** on a shared fleet and you accept the semaphore tax for isolation.
+
 
 In addition, mixing concurrency controls with **bulk enqueuing** (Active Job's `perform_all_later`) is not a good idea because concurrency controlled job needs to be enqueued one by one to ensure concurrency limits are respected, so you lose all the benefits of bulk enqueuing.
 
