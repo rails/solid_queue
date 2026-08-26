@@ -388,6 +388,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+- `concurrency_limit_cache_ttl`: how long each process keeps a proc `to:` result in memory. Defaults to 30 seconds. Set to `false` to evaluate the proc on every admit. Not `Rails.cache`; see [Dynamic limits](#dynamic-limits).
 
 
 ## Lifecycle hooks
@@ -515,12 +516,16 @@ Finally, failed jobs that are automatically or manually retried work in the same
 
 Existing installs need the additive migration (`bin/rails solid_queue:install:migrations`, then `db:migrate`). See `UPGRADING.md`.
 
-`to:` may be a proc. Solid Queue stores the last evaluated cap on `solid_queue_semaphores.limit` and memoizes it in process memory until TTL or `generation` changes.
+`to:` may be a proc. That is the extra cost: on admit, deserialize the job arguments and run it (here `Tenant.find`). Integer `to:` skips this.
+
+The proc is **not** run on every job. Each process memoizes the result in memory by concurrency `key` + `generation`, for `SolidQueue.concurrency_limit_cache_ttl` (default `30.seconds`). Not `Rails.cache`. Set the TTL to `false` to eval every admit. After TTL expiry, or after `refresh` bumps `generation`, the next wait runs the proc again. Other processes have their own memo.
+
+Solid Queue also stores the last evaluated cap on `solid_queue_semaphores.limit` so remaining-slot math can resize without the proc.
 
 ```ruby
 class SyncTenant < ApplicationJob
-  limits_concurrency key: ->(tenant_id, *) { "tenant/#{tenant_id}" },
-                     to: ->(tenant_id, *) { Tenant.find(tenant_id).concurrency_limit },
+  limits_concurrency key: ->(tenant_id, *) { "tenant/#{tenant_id}" }, # who shares the pool (enqueue)
+                     to: ->(tenant_id, *) { Tenant.find(tenant_id).concurrency_limit }, # cap; cached per key
                      duration: 1.hour
 
   def perform(tenant_id)
@@ -528,11 +533,12 @@ class SyncTenant < ApplicationJob
   end
 end
 
-# After the cap changes (pass the new value; `to: 0` pauses this key):
+# After the cap changes (pass the new value; `to: 0` pauses this key).
+# Drops this process's memo and bumps generation so others re-eval on the next wait:
 SolidQueue::Concurrency.refresh("tenant/123", to: 8)
 ```
 
-`refresh` bumps `generation`, resizes remaining slots, unblocks on increase, and reblocks excess ready jobs on decrease. Claimed jobs finish. Other processes re-eval on the next `wait`.
+`refresh` resizes remaining slots, unblocks on increase, and reblocks excess ready jobs on decrease. Claimed jobs finish.
 
 Integer `to:` (except `0`, which now refuses admit) matches 1.3.2.
 
@@ -582,13 +588,11 @@ production:
 
 Or something similar to that depending on your setup. You can also assign a different queue to a job on the moment of enqueuing so you can decide whether to enqueue a job in the throttled queue or another queue depending on the arguments, or pass a block to `queue_as` as explained [here](https://guides.rubyonrails.org/active_job_basics.html#queues).
 
-Proc `to:` and `Concurrency.refresh` sit on that same path. They do not replace a queue + worker-count throttle for a *kind of work*. Extra cost on top of integer `to:`:
+The extra cost of a proc `to:` is evaluating that proc on admit (`Tenant.find` in the example above). `SolidQueue.concurrency_limit_cache_ttl` (default 30 seconds) is the lever: within TTL, later jobs for the same `key` reuse the in-process memo and do not run the proc. `false` disables it. `refresh` and TTL expiry are when you pay again.
 
-- **Admit:** deserialize arguments and run the proc (often an app query). The result is memoized in **process memory** for `SolidQueue.concurrency_limit_cache_ttl` (default 30 seconds), keyed by concurrency key + `generation`. Other processes do not share it.
-- **`refresh` increase:** lock the semaphore, then unblock one blocked job per extra slot (`release_many`).
-- **`refresh` decrease / `to: 0`:** count ready and claimed for that key, then move excess ready jobs back to blocked **one row at a time**. Cost scales with how many ready jobs that key has, not with blocked backlog.
+`refresh` decrease / `to: 0` also reblocks excess ready jobs one row at a time (scales with ready jobs for that key, not blocked backlog). That is operational, not the enqueue path.
 
-Use a proc when the cap is **per key** on a shared fleet and you accept the semaphore tax for isolation.
+Use a proc when the cap is **per key** on a shared fleet and you accept the semaphore tax for isolation. It does not replace a queue + worker-count throttle for a *kind of work*.
 
 
 In addition, mixing concurrency controls with **bulk enqueuing** (Active Job's `perform_all_later`) is not a good idea because concurrency controlled job needs to be enqueued one by one to ensure concurrency limits are respected, so you lose all the benefits of bulk enqueuing.
