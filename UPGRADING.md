@@ -1,3 +1,16 @@
+# Upgrading to 1.3.2 + dynamic concurrency (this fork)
+
+Additive columns on `solid_queue_semaphores`:
+
+```ruby
+add_column :solid_queue_semaphores, :limit, :integer
+add_column :solid_queue_semaphores, :generation, :integer, default: 0, null: false
+```
+
+Existing rows keep remaining-slot math until the next `wait` backfills `limit`. Integer `to:` is unchanged except `to: 0`, which now refuses admit (1.3.2 treated `0` as `1` via `limit || 1`).
+
+`to:` may be a proc. After a cap change, call `SolidQueue::Concurrency.refresh(key, to: n)`. See README, *Dynamic limits*.
+
 # Upgrading to version 1.x
 The value returned for `enqueue_after_transaction_commit?` has changed to `true`, and it's no longer configurable. If you want to change this, you need to use Active Job's configuration options.
 

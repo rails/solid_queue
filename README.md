@@ -457,9 +457,9 @@ class MyJob < ApplicationJob
   # ...
 ```
 - `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an Active Record record, the key will be built from its class name and `id`.
-- `to` is `1` by default.
+- `to` is `1` by default. Integer, or a proc of the job arguments that returns the current cap for that key. Proc results are memoized in process memory by key (`SolidQueue.concurrency_limit_cache_ttl`, default 30 seconds; `false` to disable). Not `Rails.cache`. `to: 0` refuses admit (pauses that key).
 - `duration` is set to `SolidQueue.default_concurrency_control_period` by default, which itself defaults to `3 minutes`, but that you can configure as well.
-- `group` is used to control the concurrency of different job classes together. It defaults to the job class name.
+- `group` is used to control the concurrency of different job classes together. It defaults to the job class name. It only affects the key prefix (who shares a semaphore). It does not change `to`.
 - `on_conflict` controls behaviour when enqueuing a job that conflicts with the concurrency limits configured. It can be set to one of the following:
   - (default) `:block`: the job is blocked and is dispatched when another job completes and unblocks it, or when the duration expires.
   - `:discard`: the job is discarded. When you choose this option, bear in mind that if a job runs and fails to remove the concurrency lock (or _semaphore_, read below to know more about this), all jobs conflicting with it will be discarded up to the interval defined by `duration` has elapsed.
@@ -510,6 +510,29 @@ Note that the `duration` setting depends indirectly on the value for `concurrenc
 Jobs are unblocked in order of priority but **queue order is not taken into account for unblocking jobs**. That means that if you have a group of jobs that share a concurrency group but are in different queues, or jobs of the same class that you enqueue in different queues, the queue order you set for a worker is not taken into account when unblocking blocked ones. The reason is that a job that runs unblocks the next one, and the job itself doesn't know about a particular worker's queue order (you could even have different workers with different queue orders), it can only know about priority. Once blocked jobs are unblocked and available for polling, they'll be picked up by a worker following its queue order.
 
 Finally, failed jobs that are automatically or manually retried work in the same way as new jobs that get enqueued: they get in the queue for getting an open semaphore, and whenever they get it, they'll be run. It doesn't matter if they had already gotten an open semaphore in the past.
+
+### Dynamic limits
+
+`to:` may be a proc. Solid Queue stores the last evaluated cap on `solid_queue_semaphores.limit` and memoizes it in process memory until TTL or `generation` changes.
+
+```ruby
+class SyncTenant < ApplicationJob
+  limits_concurrency key: ->(tenant_id, *) { "tenant/#{tenant_id}" },
+                     to: ->(tenant_id, *) { Tenant.find(tenant_id).concurrency_limit },
+                     duration: 1.hour
+
+  def perform(tenant_id)
+    Tenant.find(tenant_id).sync!
+  end
+end
+
+# After the cap changes (pass the new value; `to: 0` pauses this key):
+SolidQueue::Concurrency.refresh("tenant/123", to: 8)
+```
+
+`refresh` bumps `generation`, resizes remaining slots, unblocks on increase, and reblocks excess ready jobs on decrease. Claimed jobs finish. Other processes re-eval on the next `wait`.
+
+Integer `to:` (except `0`, which now refuses admit) matches 1.3.2.
 
 ### Scheduled jobs
 
