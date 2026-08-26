@@ -40,6 +40,7 @@ module SolidQueue
   mattr_accessor :preserve_finished_jobs, default: true
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
+  mattr_accessor :concurrency_limit_cache_ttl, default: 30.seconds
 
   delegate :on_start, :on_stop, :on_exit, to: Supervisor
 

@@ -8,7 +8,7 @@ module SolidQueue
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, :concurrency_duration, to: :job_class
+        delegate :concurrency_duration, to: :job_class
 
         before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
@@ -27,6 +27,16 @@ module SolidQueue
 
       def concurrency_limited?
         concurrency_key.present? && job_class.present?
+      end
+
+      def concurrency_limit(generation: nil)
+        raw = job_class&.concurrency_limit
+        return 1 if raw.nil?
+        return raw unless raw.respond_to?(:call)
+
+        Concurrency::LimitCache.fetch(concurrency_key, generation: generation.to_i) do
+          evaluate_concurrency_limit_proc(raw)
+        end
       end
 
       def blocked?
@@ -68,6 +78,13 @@ module SolidQueue
 
         def job_class
           @job_class ||= class_name.safe_constantize
+        end
+
+        def evaluate_concurrency_limit_proc(raw)
+          payload = arguments
+          serialized_args = payload.is_a?(Hash) ? (payload["arguments"] || payload[:arguments]) : payload
+          args = ActiveJob::Arguments.deserialize(Array(serialized_args))
+          job_class.new.instance_exec(*args, &raw).to_i
         end
 
         def execution
