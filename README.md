@@ -618,6 +618,8 @@ Or something similar to that depending on your setup. You can also assign a diff
 
 The extra cost of a proc `to:` is evaluating that proc on admit (`Tenant.find` in the example above). `SolidQueue.concurrency_limit_cache_ttl` (default 30 seconds) is the lever: within TTL, later jobs for the same `key` reuse the in-process memo and do not run the proc. `false` disables it. `refresh` and TTL expiry are when you pay again.
 
+The bound is **per key, per TTL, per process** — not per thread. Five worker processes with 20 threads each: at most **5** proc/DB hits for `tenant/123` in that window, not 100. A different key is a different bound. Enqueue-side processes (Puma, etc.) each have their own store, so add one miss per those processes too.
+
 `refresh` decrease / `to: 0` also reblocks excess ready jobs one row at a time (scales with ready jobs for that key, not blocked backlog). That is operational, not the enqueue path.
 
 Use a proc when the cap is **per key** on a shared fleet and you accept the semaphore tax for isolation. It does not replace a queue + worker-count throttle for a *kind of work*.
