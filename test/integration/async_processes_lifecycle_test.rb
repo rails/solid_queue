@@ -96,7 +96,12 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :TERM, wait: 0.3.second)
+    # Wait for the "pause" job to start, which means both jobs have been
+    # claimed, before sending TERM, so the worker finishes them while
+    # shutting down instead of stopping before it gets to claim them
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "pause") }
+
+    signal_process(@pid, :TERM, wait: 0.1.second)
     wait_for_jobs_to_finish_for(3.seconds)
 
     assert_completed_job_results("no pause")
@@ -113,7 +118,12 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
     no_pause = enqueue_store_result_job("no pause")
     pause = enqueue_store_result_job("pause", pause: 0.2.seconds)
 
-    signal_process(@pid, :INT, wait: 0.3.second)
+    # Wait for the "pause" job to start, which means both jobs have been
+    # claimed, before sending INT, so the worker finishes them while
+    # shutting down instead of stopping before it gets to claim them
+    wait_while_with_timeout(3.seconds) { !JobResult.exists?(status: "started", value: "pause") }
+
+    signal_process(@pid, :INT, wait: 0.1.second)
     wait_for_jobs_to_finish_for(2.second)
 
     assert_completed_job_results("no pause")
