@@ -418,6 +418,16 @@ You can configure the database used by Solid Queue via the `config.solid_queue.c
 
 All the options available to Active Record for multiple databases can be used here.
 
+If you use MySQL or MariaDB, consider running the queue database with the `READ COMMITTED` transaction isolation level. Under the default `REPEATABLE READ`, InnoDB takes gap locks on the indexes Solid Queue polls, which under heavy load can occasionally deadlock jobs being enqueued against jobs being claimed or dispatched. `READ COMMITTED` avoids these gap locks and is perfectly safe for Solid Queue's own tables, and it's how we run it ourselves. You can set it per connection in your `database.yml`:
+
+```yaml
+queue:
+  <<: *default
+  database: my_app_queue
+  variables:
+    transaction_isolation: READ-COMMITTED
+```
+
 ### Other configuration settings
 
 _Note_: The settings in this section should be set in your `config/application.rb` or your environment config like this: `config.solid_queue.silence_polling = true`
