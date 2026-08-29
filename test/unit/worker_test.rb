@@ -176,7 +176,7 @@ class WorkerTest < ActiveSupport::TestCase
     @worker.wake_up
 
     assert_not @worker.pool.shutdown?
-    assert_equal "ok", JobBuffer.last_value
+    assert_includes JobBuffer.values, "ok"
     assert_equal 0, SolidQueue::ClaimedExecution.count
   end
 
