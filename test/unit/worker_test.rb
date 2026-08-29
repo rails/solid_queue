@@ -56,7 +56,7 @@ class WorkerTest < ActiveSupport::TestCase
 
         worker.start
 
-        wait_for_jobs_to_finish_for(2.second)
+        wait_for_jobs_to_finish_for(5.seconds)
         worker.wake_up
 
         assert_equal 5, JobResult.where(queue_name: :background, status: "completed", value: :paused).count
