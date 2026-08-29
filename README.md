@@ -822,6 +822,8 @@ that you set in production only. This is what Rails 8's default Puma config look
 
 **Note**: phased restarts are not supported currently because the plugin requires [app preloading](https://github.com/puma/puma?tab=readme-ov-file#cluster-mode) to work.
 
+The plugin ties the two processes together: if Puma goes away, the supervisor stops, and if the supervisor exits, the plugin stops Puma so that whatever manages Puma (systemd, Kamal, your container orchestrator...) restarts both. In particular, the queue database needs to be reachable when the supervisor boots, as it registers itself and cleans up after previous runs at that point; if it isn't, the supervisor exits, and Puma with it. Once running, a transient database outage doesn't bring the supervisor down: workers and dispatchers will fail and be replaced until the database is back, and then pick up where they left off.
+
 ### Running as a fork or asynchronously
 
 By default, the Puma plugin will fork additional processes for each worker and dispatcher so that they run in different processes. This provides the best isolation and performance, but can have additional memory usage.
