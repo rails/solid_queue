@@ -20,7 +20,7 @@ class SolidQueue::BlockedExecutionTest < ActiveSupport::TestCase
     JobResult.delete_all
   end
 
-  test "release destroys the blocked row when the job class no longer resolves" do
+  test "release marks the job as failed and destroys the blocked row when the job class no longer resolves" do
     # Enqueue and consume the semaphore so the next job blocks.
     NonOverlappingJob.perform_later(@result)
     blocking_job = SolidQueue::Job.last
@@ -32,13 +32,19 @@ class SolidQueue::BlockedExecutionTest < ActiveSupport::TestCase
     # Simulate the class being renamed/removed between deploys
     blocked_job.update_columns(class_name: "GoneJob")
 
-    assert_difference -> { SolidQueue::BlockedExecution.count }, -1 do
+    assert_difference -> { SolidQueue::BlockedExecution.count } => -1,
+                     -> { SolidQueue::FailedExecution.count } => 1 do
       assert_nothing_raised do
         blocked.reload.release
       end
     end
 
-    # No ready execution was promoted — the orphan row was just cleaned up.
+    # No ready execution was promoted — the orphan is now surfaced as a failed execution.
     assert_nil SolidQueue::ReadyExecution.find_by(job_id: blocked_job.id)
+
+    failed = SolidQueue::FailedExecution.find_by(job_id: blocked_job.id)
+    assert failed, "expected a failed execution to be created for the orphan"
+    assert_equal "SolidQueue::BlockedExecution::JobClassMissingError", failed.exception_class
+    assert_match "GoneJob", failed.message
   end
 end
