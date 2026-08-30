@@ -51,7 +51,7 @@ module ActiveJob
     private
 
       def solid_queue_job?
-        self.class.queue_adapter_name == "solid_queue"
+        self.class.queue_adapter.is_a?(ActiveJob::QueueAdapters::SolidQueueAdapter)
       end
   end
 end

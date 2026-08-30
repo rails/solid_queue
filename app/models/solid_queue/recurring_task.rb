@@ -142,7 +142,7 @@ module SolidQueue
       end
 
       def using_solid_queue_adapter?
-        job_class.queue_adapter_name.inquiry.solid_queue?
+        job_class.queue_adapter.is_a?(ActiveJob::QueueAdapters::SolidQueueAdapter)
       end
 
       def enqueue_and_record(run_at:)

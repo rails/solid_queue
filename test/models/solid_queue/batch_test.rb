@@ -147,6 +147,14 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     def perform; end
   end
 
+  class SubclassedSolidQueueAdapter < ActiveJob::QueueAdapters::SolidQueueAdapter; end
+
+  class SubclassedAdapterJob < ApplicationJob
+    self.queue_adapter = SubclassedSolidQueueAdapter.new
+
+    def perform; end
+  end
+
   class HookedCallbackJob < ApplicationJob
     cattr_accessor :enqueue_hook_ran, default: false
 
@@ -179,6 +187,13 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
 
     assert batch.reload.finished?
     assert_equal 0, SolidQueue::Job.where(class_name: AbortingCallbackJob.name).count
+  end
+
+  test "jobs using a subclass of the Solid Queue adapter belong to the batch" do
+    batch = SolidQueue::Batch.enqueue { SubclassedAdapterJob.perform_later }
+
+    assert_equal 1, batch.jobs.count
+    assert_equal batch.id, SolidQueue::Job.where(class_name: SubclassedAdapterJob.name).sole.batch_id
   end
 
   test "callback jobs enqueue through solid_queue regardless of their class adapter" do

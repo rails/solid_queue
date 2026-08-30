@@ -41,6 +41,16 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class SubclassedSolidQueueAdapter < ActiveJob::QueueAdapters::SolidQueueAdapter; end
+
+  class JobUsingSubclassedSolidQueueAdapter < ApplicationJob
+    self.queue_adapter = SubclassedSolidQueueAdapter.new
+
+    def perform
+      JobBuffer.add "job_using_subclassed_solid_queue_adapter"
+    end
+  end
+
   class JobWithConcurrencyControlsAndDiscard < ApplicationJob
     limits_concurrency key: -> { true }, on_conflict: :discard
 
@@ -85,6 +95,14 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     wait_while_with_timeout!(0.5.seconds) { JobBuffer.size == previous_size }
 
     assert_equal "job_using_async_adapter", JobBuffer.last_value
+  end
+
+  test "job using a subclass of the Solid Queue adapter" do
+    task = recurring_task_with(class_name: "JobUsingSubclassedSolidQueueAdapter")
+
+    assert_difference -> { SolidQueue::RecurringExecution.count }, +1 do
+      enqueue_and_assert_performed_with_result task, "job_using_subclassed_solid_queue_adapter"
+    end
   end
 
   test "error when enqueuing job before recording task" do
