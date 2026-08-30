@@ -129,8 +129,9 @@ Puma::Plugin.create do
 
     def log(...)
       log_writer.log(...)
-    rescue Errno::EIO
-      # The controlling terminal can disappear before the monitor thread shuts
-      # down the child process. Keep shutdown moving even when logging cannot.
+    rescue Errno::EIO, Errno::EPIPE, Errno::EBADF
+      # The controlling terminal can disappear, or the output pipe close, before
+      # the monitor thread shuts down the child process. Keep shutdown moving
+      # even when logging cannot.
     end
 end
