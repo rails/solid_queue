@@ -115,6 +115,8 @@ module SolidQueue
       end
 
       def execute
+        raise Job::ClassMissingError.for(job) if job.job_class.nil?
+
         ActiveJob::Base.execute(job.arguments.merge("provider_job_id" => job.id))
         Result.new(true, nil)
       rescue Exception => e

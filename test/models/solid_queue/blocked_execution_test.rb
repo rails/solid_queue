@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "test_helper"
 
 class SolidQueue::BlockedExecutionTest < ActiveSupport::TestCase
@@ -44,7 +46,7 @@ class SolidQueue::BlockedExecutionTest < ActiveSupport::TestCase
 
     failed = SolidQueue::FailedExecution.find_by(job_id: blocked_job.id)
     assert failed, "expected a failed execution to be created for the orphan"
-    assert_equal "SolidQueue::BlockedExecution::JobClassMissingError", failed.exception_class
+    assert_equal "SolidQueue::Job::ClassMissingError", failed.exception_class
     assert_match "GoneJob", failed.message
   end
 end

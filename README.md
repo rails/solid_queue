@@ -555,6 +555,8 @@ It's important to note that after one or more candidate jobs are unblocked (eith
 
 When using `discard` as the behaviour to handle conflicts, you might have jobs discarded for until the `duration` interval if something happens and a running job fails to release the semaphore.
 
+If a job's class no longer exists by the time its concurrency controls are checked—say it was renamed or removed in a deploy while jobs referencing it were still in the queue—the job is marked as failed with a `SolidQueue::Job::ClassMissingError`, so it shows up in [failed jobs](#failed-jobs-and-retries), where it can be retried once the class is back, or discarded. Jobs with a missing class picked up by a worker fail with the same error.
+
 
 For example:
 ```ruby
