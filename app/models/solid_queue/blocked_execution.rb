@@ -2,8 +2,6 @@
 
 module SolidQueue
   class BlockedExecution < Execution
-    class JobClassMissingError < RuntimeError; end
-
     assumes_attributes_from_job :concurrency_key
     before_create :set_expires_at
 
@@ -49,12 +47,9 @@ module SolidQueue
       SolidQueue.instrument(:release_blocked, job_id: job.id, concurrency_key: concurrency_key, released: false) do |payload|
         transaction do
           if job.job_class.nil?
-            # The job's class no longer resolves (renamed/removed between deploys).
-            # Mark the job as failed so it surfaces in Mission Control (where it can
-            # be retried once the class is restored, or discarded), and destroy the
-            # orphan row so the dispatcher stops retrying it forever.
-            job.failed_with(JobClassMissingError.new("Job class #{job.class_name.inspect} could not be resolved"))
+            job.failed_with(Job::ClassMissingError.for(job))
             destroy!
+
             payload[:failed] = true
           elsif acquire_concurrency_lock
             promote_to_ready

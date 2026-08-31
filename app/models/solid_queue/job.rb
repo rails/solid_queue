@@ -4,6 +4,15 @@ module SolidQueue
   class Job < Record
     class EnqueueError < StandardError; end
 
+    # Raised when a job's class can't be resolved anymore, typically because it
+    # was renamed or removed in a deploy while jobs referencing it were in
+    # flight. It subclasses NameError, which is what resolving the class raises.
+    class ClassMissingError < NameError
+      def self.for(job)
+        new("Job class #{job.class_name.inspect} could not be resolved")
+      end
+    end
+
     include Executable, Clearable, Recurrable, Batchable
 
     serialize :arguments, coder: JSON

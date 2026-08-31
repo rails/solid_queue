@@ -146,7 +146,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      assert_raises NameError do
+      assert_raises SolidQueue::Job::ClassMissingError do
         claimed_execution.perform
       end
     end
@@ -159,7 +159,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     claimed_execution = claim_job(job)
 
     assert_difference -> { SolidQueue::ClaimedExecution.count } => -1, -> { SolidQueue::FailedExecution.count } => 1 do
-      assert_raises NameError do
+      assert_raises SolidQueue::Job::ClassMissingError do
         claimed_execution.perform
       end
     end

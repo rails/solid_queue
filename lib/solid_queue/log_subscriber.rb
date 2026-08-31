@@ -59,7 +59,7 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
   end
 
   def release_blocked(event)
-    debug formatted_event(event, action: "Release blocked job", **event.payload.slice(:job_id, :concurrency_key, :released))
+    debug formatted_event(event, action: "Release blocked job", **event.payload.slice(:job_id, :concurrency_key, :released, :failed))
   end
 
   def enqueue_recurring_task(event)
