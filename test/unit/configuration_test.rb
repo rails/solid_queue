@@ -283,6 +283,31 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert configuration.valid?
   end
 
+  test "validate another environment's section of the config files with the env option" do
+    # Without env targeting, the production-only section is invisible from the test env
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_production_only))
+    assert_processes configuration, :scheduler, 0
+
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_production_only), env: "production")
+    assert configuration.valid?
+    assert_processes configuration, :scheduler, 1
+
+    scheduler = configuration.configured_processes.detect { |process| process.kind == :scheduler }.instantiate
+    assert_has_recurring_task scheduler, key: "periodic_store_result", class_name: "StoreResultJob", schedule: "every second"
+  end
+
+  test "check warns instead of erroring when recurring tasks can't be validated without a database" do
+    configuration = SolidQueue::Configuration.new(recurring_schedule_file: config_file_path(:recurring_with_invalid))
+    SolidQueue::RecurringTask.stubs(:from_configuration)
+      .raises(ActiveRecord::StatementInvalid.new("Could not find table 'solid_queue_recurring_tasks'"))
+
+    # The scheduler is still detected from the raw configuration, with no database involved
+    assert_processes configuration, :scheduler, 1
+
+    assert configuration.valid?
+    assert_match /recurring tasks couldn't be validated/, configuration.warnings.full_messages.join
+  end
+
   test "reports an undersized database pool as a warning rather than an error" do
     configuration = SolidQueue::Configuration.new(workers: [ { queues: "background", threads: 50, polling_interval: 10 } ], skip_recurring: true)
 
