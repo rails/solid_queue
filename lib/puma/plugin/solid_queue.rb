@@ -33,6 +33,11 @@ Puma::Plugin.create do
           @solid_queue_pid = fork do
             Thread.new { monitor_puma }
             SolidQueue::Supervisor.start(mode: :fork)
+
+            # Same as Processes::Supervised#create_fork: skip at-exit
+            # finalization, which can deadlock on database handles when a
+            # thread was killed while inside a query
+            exit!(0)
           end
         end
 
@@ -43,6 +48,11 @@ Puma::Plugin.create do
           @solid_queue_pid = fork do
             Thread.new { monitor_puma }
             start_solid_queue(mode: :fork)
+
+            # Same as Processes::Supervised#create_fork: skip at-exit
+            # finalization, which can deadlock on database handles when a
+            # thread was killed while inside a query
+            exit!(0)
           end
         end
 
