@@ -208,7 +208,7 @@ module SolidQueue
       def schedulers
         return [] if skip_recurring_tasks?
 
-        if recurring_tasks.any? || dynamic_recurring_tasks_enabled?
+        if recurring_tasks.any? || dynamic_recurring_tasks_enabled? || static_recurring_tasks_exist?
           [ Process.new(:scheduler, { recurring_tasks: recurring_tasks, **scheduler_options.with_defaults(SCHEDULER_DEFAULTS) }) ]
         else
           []
@@ -231,6 +231,10 @@ module SolidQueue
 
       def dynamic_recurring_tasks_enabled?
         scheduler_options.fetch(:dynamic_tasks_enabled, SCHEDULER_DEFAULTS[:dynamic_tasks_enabled])
+      end
+
+      def static_recurring_tasks_exist?
+        RecurringTask.static.exists?
       end
 
       def recurring_tasks
