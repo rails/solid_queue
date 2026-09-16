@@ -68,6 +68,29 @@ class SchedulerTest < ActiveSupport::TestCase
     scheduler.stop
   end
 
+  test "removes recurring tasks no longer present in the configuration" do
+    previous_scheduler = SolidQueue::Scheduler.new(
+      recurring_tasks: { removed_task: { class: "AddToBufferJob", schedule: "every hour" } }
+    ).tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+    wait_for { SolidQueue::RecurringTask.exists?(key: "removed_task") }
+
+    previous_scheduler.stop
+
+    configuration = SolidQueue::Configuration.new(
+      recurring_schedule_file: config_file_path(:empty_configuration),
+      scheduler: { dynamic_tasks_enabled: false }
+    )
+
+    scheduler = configuration.configured_processes.find { |process| process.kind == :scheduler }.instantiate.tap(&:start)
+
+    wait_for_registered_processes(1, timeout: 1.second)
+    wait_for { !SolidQueue::RecurringTask.exists?(key: "removed_task") }
+  ensure
+    scheduler.stop
+  end
+
   test "run more than one instance of the scheduler with recurring tasks" do
     recurring_tasks = { example_task: { class: "AddToBufferJob", schedule: "every second", args: 42 } }
     schedulers = 2.times.collect do
