@@ -87,6 +87,21 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_equal solid_queue_job.scheduled_at, execution.scheduled_at
   end
 
+  test "scheduling a single future job does not SELECT the job record back" do
+    active_job = AddToBufferJob.new(1)
+    job_selects = 0
+
+    subscriber = ->(*, payload) do
+      job_selects += 1 if payload[:sql].match?(/\ASELECT.*FROM.*solid_queue_jobs/i)
+    end
+
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      SolidQueue::Job.enqueue(active_job, scheduled_at: 5.minutes.from_now)
+    end
+
+    assert_equal 0, job_selects
+  end
+
   test "enqueue jobs within a connected_to block for the primary DB" do
     ShardedRecord.connected_to(role: :writing, shard: :shard_two) do
       ShardedJobResult.create!(value: "in shard two")

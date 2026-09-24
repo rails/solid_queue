@@ -63,7 +63,7 @@ module SolidQueue
         end
 
         def block
-          BlockedExecution.create_or_find_by!(job_id: id)
+          BlockedExecution.create_or_find_by!(job_id: id) { |e| e.job = self }
         end
 
         def release_next_blocked_job
