@@ -148,6 +148,40 @@ module SolidQueue
         end
       end
 
+      # Deregister locally and stop. Registrable's version deregisters locally
+      # and wakes the run loop so the supervisor replaces this process, but
+      # nothing supervises a supervisor and #supervise never looks at the
+      # registration: stopping, and leaving a replacement to whatever runs this
+      # supervisor, is all it can do. Reached when this supervisor's
+      # registration is gone -- pruned by another supervisor -- and when its
+      # heartbeat or maintenance watchdog trips.
+      #
+      # The database may be unresponsive -- that is what trips the watchdogs --
+      # so the way out must not depend on it. Dropping the registration locally
+      # first makes shutdown's deregister callback a no-op instead of a
+      # round-trip that could block exactly like the stalled task did; a stale
+      # row is left for another supervisor to prune.
+      #
+      # A standalone supervisor stops through the signal pipeline, so that
+      # handle_signal pairs stop with terminate_gracefully on the supervise
+      # thread: a bare stop would exit without ever signalling the forks, whose
+      # only other way of noticing is polling their parent pid once per run
+      # loop iteration. An embedded supervisor never drains its signal queue,
+      # but it already terminates its threads from an after_shutdown hook, so a
+      # plain stop is enough there.
+      def stop_to_be_replaced
+        return if stopped?
+
+        self.process = nil
+
+        if standalone?
+          signal_queue << :TERM
+          interrupt
+        else
+          stop
+        end
+      end
+
       def set_procline
         # Embedded supervisors don't own their process's title
         if standalone?

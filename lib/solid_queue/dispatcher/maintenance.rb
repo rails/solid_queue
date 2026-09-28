@@ -25,15 +25,14 @@ module SolidQueue
       { concurrency_maintenance_interval: (interval if concurrency?), batch_maintenance: batches? }
     end
 
-    def start
-      @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: interval) do
-        if concurrency?
-          expire_semaphores
-          unblock_blocked_executions
-        end
+    # How far past its own interval a maintenance run is allowed to go before we
+    # treat it as stalled rather than slow. One full missed cycle of slack.
+    STALL_FACTOR = 2
 
-        sweep_stalled_batches if batches?
-      end
+    def start
+      @last_run_returned_at = Concurrent::AtomicReference.new(SolidQueue::Timer.monotonic_time_now)
+
+      @maintenance_task = Concurrent::TimerTask.new(run_now: true, execution_interval: interval) { run }
 
       @maintenance_task.add_observer do |_, _, error|
         handle_thread_error(error) if error
@@ -42,11 +41,31 @@ module SolidQueue
       @maintenance_task.execute
     end
 
+    # Whether maintenance has stopped returning altogether, as opposed to
+    # failing: a run that raises is reported by the task's observer and gets
+    # rescheduled, but one blocked on an unresponsive database never returns to
+    # its TimerTask, which reschedules only once its task completes, so no
+    # maintenance would run ever again.
+    def stalled?
+      SolidQueue::Timer.monotonic_time_now - @last_run_returned_at.get > STALL_FACTOR * interval
+    end
+
     def stop
       @maintenance_task&.shutdown
     end
 
     private
+      def run
+        if concurrency?
+          expire_semaphores
+          unblock_blocked_executions
+        end
+
+        sweep_stalled_batches if batches?
+      ensure
+        @last_run_returned_at.set(SolidQueue::Timer.monotonic_time_now)
+      end
+
       def expire_semaphores
         wrap_in_app_executor do
           Semaphore.expired.in_batches(of: batch_size, &:delete_all)

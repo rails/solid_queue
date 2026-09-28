@@ -65,6 +65,40 @@ class DispatcherTest < ActiveSupport::TestCase
     end
   end
 
+  test "stop to be replaced when maintenance stops returning for longer than the stall threshold" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.1.seconds
+
+    # A maintenance run that never returns, so its TimerTask is never
+    # rescheduled and semaphores would never be expired again
+    unblock_maintenance = Concurrent::Event.new
+    SolidQueue::Dispatcher::Maintenance.class_eval do
+      alias_method :run_without_blocking, :run
+      define_method(:run) { unblock_maintenance.wait }
+    end
+
+    dispatcher = SolidQueue::Dispatcher.new(polling_interval: 0.1, batch_size: 10, concurrency_maintenance_interval: 0.5)
+    dispatcher.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert dispatcher.alive?
+
+    # The dispatcher deregisters locally and stops its run loop, so a
+    # supervisor would replace it, maintenance task and all
+    wait_while_with_timeout(3) { dispatcher.alive? }
+    assert_not dispatcher.alive?
+  ensure
+    unblock_maintenance.set
+    SolidQueue::Dispatcher::Maintenance.class_eval do
+      if private_method_defined?(:run_without_blocking) || method_defined?(:run_without_blocking)
+        remove_method :run
+        alias_method :run, :run_without_blocking
+        remove_method :run_without_blocking
+      end
+    end
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval if old_heartbeat_interval
+    dispatcher&.stop
+  end
+
   test "ConcurrencyMaintenance remains constructible with its original signature" do
     maintenance = SolidQueue::Dispatcher::ConcurrencyMaintenance.new(600, 100)
 
