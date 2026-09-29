@@ -26,6 +26,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
   - [Validating the configuration](#validating-the-configuration)
 - [Lifecycle hooks](#lifecycle-hooks)
 - [Errors when enqueuing](#errors-when-enqueuing)
+  - [Holding jobs while the database is unreachable](#holding-jobs-while-the-database-is-unreachable)
 - [Concurrency controls](#concurrency-controls)
   - [Performance considerations](#performance-considerations)
 - [Failed jobs and retries](#failed-jobs-and-retries)
@@ -453,6 +454,8 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+- `buffer_enqueues_on_database_error`: whether to hold jobs in memory when the queue database can't be reached, and enqueue them once it's back, instead of raising—defaults to `false`. See [Holding jobs while the database is unreachable](#holding-jobs-while-the-database-is-unreachable).
+- `enqueue_buffer_size`: how many jobs each process can hold while the queue database can't be reached, when `buffer_enqueues_on_database_error` is enabled—defaults to 1,000.
 
 ### Validating the configuration
 
@@ -524,6 +527,15 @@ These can be called several times to add multiple hooks, but it needs to happen 
 Solid Queue will raise a `SolidQueue::Job::EnqueueError` for any Active Record errors that happen when enqueuing a job. The reason for not raising `ActiveJob::EnqueueError` is that this one gets handled by Active Job, causing `perform_later` to return `false` and set `job.enqueue_error`, yielding the job to a block that you need to pass to `perform_later`. This works very well for your own jobs, but makes failure very hard to handle for jobs enqueued by Rails or other gems, such as `Turbo::Streams::BroadcastJob` or `ActiveStorage::AnalyzeJob`, because you don't control the call to `perform_later` in that cases.
 
 In the case of recurring tasks, if such error is raised when enqueuing the job corresponding to the task, it'll be handled and logged but it won't bubble up.
+
+### Holding jobs while the database is unreachable
+
+If the queue database goes down, every `perform_later` raises and the job is lost. With `config.solid_queue.buffer_enqueues_on_database_error = true`, Solid Queue instead holds jobs in memory when enqueuing fails because the database can't be reached (`ActiveRecord::ConnectionNotEstablished` or `ActiveRecord::ConnectionFailed`), reports them as enqueued, and enqueues them from a background thread once the database is back, retrying with increasing waits of up to 30 seconds. This applies to `perform_later` and `perform_all_later` alike. Any other error raises as usual.
+
+Keep in mind:
+- Held jobs live in the process that enqueued them. If that process crashes, they're lost. On a normal exit, Solid Queue tries once more to enqueue them.
+- Each process holds at most `enqueue_buffer_size` jobs. Once that's reached, enqueuing raises `SolidQueue::Job::EnqueueError` as it does without buffering.
+- A held job has no `provider_job_id` until it's actually enqueued.
 
 ## Concurrency controls
 

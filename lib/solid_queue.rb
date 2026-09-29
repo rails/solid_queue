@@ -43,6 +43,9 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  mattr_accessor :buffer_enqueues_on_database_error, default: false
+  mattr_accessor :enqueue_buffer_size, default: 1_000
+
   mattr_reader :time_zone
 
   def time_zone=(zone)
