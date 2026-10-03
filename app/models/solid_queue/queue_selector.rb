@@ -53,7 +53,18 @@ module SolidQueue
       def prefixed_names
         if prefixes.empty? then []
         else
-          relation.where(([ "queue_name LIKE ? ESCAPE '\\'" ] * prefixes.count).join(" OR "), *prefixes).distinct_values_of(:queue_name)
+          pattern = "queue_name LIKE ? #{like_escape_clause}"
+          relation.where(([ pattern ] * prefixes.count).join(" OR "), *prefixes).distinct_values_of(:queue_name)
+        end
+      end
+
+      # MySQL string literals treat a backslash as an escape, so the single-character
+      # ESCAPE value is written with a doubled backslash. SQLite and PostgreSQL take one.
+      def like_escape_clause
+        if relation.connection.adapter_name.match?(/mysql|trilogy/i)
+          "ESCAPE '\\\\'"
+        else
+          "ESCAPE '\\'"
         end
       end
 
