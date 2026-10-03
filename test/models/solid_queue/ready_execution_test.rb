@@ -67,6 +67,34 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
     assert @jobs.none?(&:claimed?)
   end
 
+  test "prefixes escape LIKE wildcards so only literal queue names match" do
+    AddToBufferJob.set(queue: "mailbox").perform_later(1)
+    AddToBufferJob.set(queue: "mail-ops").perform_later(1)
+
+    assert_claimed_jobs(0) do
+      SolidQueue::ReadyExecution.claim("mail_*", SolidQueue::Job.count + 1, 42)
+    end
+
+    AddToBufferJob.set(queue: "mail_ops").perform_later(1)
+    AddToBufferJob.set(queue: "100x_done").perform_later(1)
+
+    assert_claimed_jobs(1) do
+      SolidQueue::ReadyExecution.claim("mail_*", SolidQueue::Job.count + 1, 42)
+    end
+    assert_equal "mail_ops", SolidQueue::ClaimedExecution.last.job.queue_name
+
+    assert_claimed_jobs(0) do
+      SolidQueue::ReadyExecution.claim("100%_*", SolidQueue::Job.count + 1, 42)
+    end
+
+    AddToBufferJob.set(queue: "100%_done").perform_later(1)
+
+    assert_claimed_jobs(1) do
+      SolidQueue::ReadyExecution.claim("100%_*", 1, 42)
+    end
+    assert_equal "100%_done", SolidQueue::ClaimedExecution.last.job.queue_name
+  end
+
   test "claim jobs using a wildcard and having paused queues" do
     AddToBufferJob.perform_later("hey")
 
