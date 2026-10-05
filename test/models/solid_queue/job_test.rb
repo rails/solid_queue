@@ -227,6 +227,21 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     assert_not not_enqueued.successfully_enqueued?
   end
 
+  test "enqueue jobs in bulk acquiring their concurrency locks by key" do
+    results = 3.times.map { JobResult.create!(queue_name: "default") }
+
+    acquired = []
+    SolidQueue::Semaphore.stubs(:wait).with { |job| acquired << [ job.concurrency_key, job.id ] }.returns(true)
+
+    # Two jobs for each key, with the keys in descending order
+    active_jobs = (results.reverse + results.reverse).map { |result| NonOverlappingJob.new(result) }
+    ActiveJob.perform_all_later(active_jobs)
+
+    # By key and, within a key, in the order they were enqueued
+    assert_equal 6, acquired.size
+    assert_equal acquired.sort, acquired
+  end
+
   test "discard ready job" do
     AddToBufferJob.perform_later(1)
     job = SolidQueue::Job.last

@@ -39,8 +39,12 @@ module SolidQueue
             ReadyExecution.create_all_from_jobs jobs
           end
 
+          # Each job acquires its concurrency lock here, and holds it until the
+          # transaction dispatching the whole set ends. Going through them by
+          # concurrency key makes everyone dispatching at the same time acquire
+          # the locks they share in the same order, so they can't deadlock.
           def dispatch_all_one_by_one(jobs)
-            jobs.each(&:dispatch)
+            jobs.sort_by { |job| [ job.concurrency_key, job.id ] }.each(&:dispatch)
           end
 
           def successfully_dispatched(jobs)
