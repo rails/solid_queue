@@ -49,6 +49,9 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     end
   end
 
+  class CustomRecurringCommandJob < SolidQueue::RecurringJob
+  end
+
   test "job without arguments" do
     task = recurring_task_with(class_name: "JobWithoutArguments")
     enqueue_and_assert_performed_with_result task, "job_without_arguments"
@@ -220,6 +223,37 @@ class SolidQueue::RecurringTaskTest < ActiveSupport::TestCase
     enqueue_and_assert_performed_with_result(task, "from_a_command")
 
     assert_equal "SolidQueue::RecurringJob", SolidQueue::Job.last.class_name
+  end
+
+  test "task configured with a command uses a custom recurring task job class" do
+    SolidQueue.stubs(:recurring_task_job_class).returns(CustomRecurringCommandJob)
+
+    task = recurring_task_with(command: "JobBuffer.add('from_a_command')")
+    enqueue_and_assert_performed_with_result(task, "from_a_command")
+
+    assert_equal "SolidQueue::RecurringTaskTest::CustomRecurringCommandJob", SolidQueue::Job.last.class_name
+  end
+
+  test "task configured with a command uses a custom recurring task job class given as a string" do
+    SolidQueue.stubs(:recurring_task_job_class).returns("SolidQueue::RecurringTaskTest::CustomRecurringCommandJob")
+
+    task = recurring_task_with(command: "JobBuffer.add('from_a_command')")
+    enqueue_and_assert_performed_with_result(task, "from_a_command")
+
+    assert_equal "SolidQueue::RecurringTaskTest::CustomRecurringCommandJob", SolidQueue::Job.last.class_name
+  end
+
+  test "default_job_class is deprecated in favor of SolidQueue.recurring_task_job_class" do
+    SolidQueue.with(recurring_task_job_class: SolidQueue.recurring_task_job_class) do
+      assert_deprecated(SolidQueue.deprecator) do
+        SolidQueue::RecurringTask.default_job_class = "SolidQueue::RecurringTaskTest::CustomRecurringCommandJob"
+      end
+      assert_equal "SolidQueue::RecurringTaskTest::CustomRecurringCommandJob", SolidQueue.recurring_task_job_class
+
+      assert_deprecated(SolidQueue.deprecator) do
+        assert_equal "SolidQueue::RecurringTaskTest::CustomRecurringCommandJob", SolidQueue::RecurringTask.default_job_class
+      end
+    end
   end
 
   test "schedule recurring tasks dynamically" do
