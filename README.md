@@ -453,6 +453,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+- `recurring_task_job_class`: the name of the job class that runs [recurring tasks](#recurring-tasks) defined as a `command`—defaults to `"SolidQueue::RecurringJob"`.
 
 ### Validating the configuration
 
@@ -916,12 +917,12 @@ MyJob.perform_later(42, status: "custom_status")
 
 Tasks are enqueued at their corresponding times by the scheduler, and each task schedules the next one. This is pretty much [inspired by what GoodJob does](https://github.com/bensheldon/good_job/blob/994ecff5323bf0337e10464841128fda100750e6/lib/good_job/cron_manager.rb).
 
-For recurring tasks defined as a `command`, you can also change the job class that runs them as follows:
+For recurring tasks defined as a `command`, you can also change the job class that runs them by setting its name in `config/application.rb` or your environment config:
 ```ruby
-Rails.application.config.after_initialize do # or to_prepare
-  SolidQueue::RecurringTask.default_job_class = MyRecurringCommandJob
-end
+config.solid_queue.recurring_task_job_class = "MyRecurringCommandJob"
 ```
+
+The class is resolved when a task is first enqueued, so your app's job class isn't loaded at boot.
 
 It's possible to run multiple schedulers with the same `recurring_tasks` configuration, for example, if you have multiple servers for redundancy, and you run the `scheduler` in more than one of them. To avoid enqueuing duplicate tasks at the same time, an entry in a new `solid_queue_recurring_executions` table is created in the same transaction as the job is enqueued. This table has a unique index on `task_key` and `run_at`, ensuring only one entry per task per time will be created. This only works if you have `preserve_finished_jobs` set to `true` (the default), and the guarantee applies as long as you keep the jobs around.
 

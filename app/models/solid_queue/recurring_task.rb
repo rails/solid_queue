@@ -15,10 +15,17 @@ module SolidQueue
 
     has_many :recurring_executions, foreign_key: :task_key, primary_key: :key
 
-    mattr_accessor :default_job_class
-    self.default_job_class = RecurringJob
-
     class << self
+      def default_job_class
+        warn_about_default_job_class_deprecation
+        SolidQueue.recurring_task_job_class
+      end
+
+      def default_job_class=(job_class)
+        warn_about_default_job_class_deprecation
+        SolidQueue.recurring_task_job_class = job_class
+      end
+
       def wrap(args)
         args.is_a?(self) ? args : from_configuration(args.first, **args.second)
       end
@@ -54,6 +61,14 @@ module SolidQueue
           upsert_all tasks.map(&:attributes_for_upsert)
         end
       end
+
+      private
+        def warn_about_default_job_class_deprecation
+          SolidQueue.deprecator.warn(<<~DEPRECATION)
+            `SolidQueue::RecurringTask.default_job_class` is deprecated and will be removed in Solid Queue #{SolidQueue.next_major_version}.0.
+            Use `config.solid_queue.recurring_task_job_class` or `SolidQueue.recurring_task_job_class` instead.
+          DEPRECATION
+        end
     end
 
 
@@ -190,7 +205,12 @@ module SolidQueue
       end
 
       def job_class
-        @job_class ||= class_name.present? ? class_name.safe_constantize : self.class.default_job_class
+        @job_class ||= class_name.present? ? class_name.safe_constantize : resolve_recurring_task_job_class
+      end
+
+      def resolve_recurring_task_job_class
+        job_class = SolidQueue.recurring_task_job_class
+        job_class.is_a?(String) ? job_class.constantize : job_class
       end
 
       def enqueue_options
