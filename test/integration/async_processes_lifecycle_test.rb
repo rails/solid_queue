@@ -173,14 +173,11 @@ class AsyncProcessesLifecycleTest < ActiveSupport::TestCase
         "registered processes: #{SolidQueue::Process.all.map { |p| { id: p.id, kind: p.kind, pid: p.pid, last_heartbeat_at: p.last_heartbeat_at } }.inspect}"
     end
 
-    # After shutdown, the pause job may be either:
-    # - claimed (exit! called, no cleanup) OR
-    # - ready (graceful exit, job released back to queue)
-    # Both are valid outcomes depending on the timing race between supervisor and worker timeouts.
-    skip_active_record_query_cache do
-      job = SolidQueue::Job.find_by(active_job_id: pause.job_id)
-      assert job.claimed? || job.ready?, "Expected pause job to be claimed or ready, but was neither"
-    end
+    # Workers were shutdown without a chance to terminate orderly, but
+    # since they're linked to the supervisor, the supervisor deregistering
+    # also deregistered them and released claimed jobs
+    assert_job_status(pause, :ready)
+    assert_clean_termination
   end
 
   test "process some jobs that raise errors" do
