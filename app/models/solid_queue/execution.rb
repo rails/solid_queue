@@ -28,13 +28,15 @@ module SolidQueue
       end
 
       def discard_all_in_batches(batch_size: 500)
-        pending = count
+        # Newly unblocked executions must survive later discard batches.
+        last_id = maximum(:id) || 0
+        pending = where(id: ..last_id).count
         discarded = 0
 
         SolidQueue.instrument(:discard_all, batch_size: batch_size, status: type, batches: 0, size: 0) do |payload|
           loop do
             transaction do
-              job_ids = limit(batch_size).order(:job_id).lock.pluck(:job_id)
+              job_ids = where(id: ..last_id).limit(batch_size).order(:job_id).lock.pluck(:job_id)
               discarded = discard_jobs job_ids
 
               where(job_id: job_ids).delete_all
