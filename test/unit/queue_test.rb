@@ -28,6 +28,26 @@ class QueueTest < ActiveSupport::TestCase
     end
   end
 
+  %w[ default background ].each do |next_queue|
+    test "clear queue unblocks the next job in #{next_queue}" do
+      result = JobResult.create!
+      [ "default", next_queue, next_queue ].each do |queue|
+        NonOverlappingUpdateResultJob.set(queue: queue).perform_later(result, name: "A")
+      end
+      ready_job, next_job, blocked_job = SolidQueue::Job.last(3)
+
+      assert_difference -> { SolidQueue::Job.count }, -1 do
+        @default_queue.clear
+      end
+
+      assert_not SolidQueue::Job.exists?(ready_job.id)
+      assert next_job.reload.ready?
+      assert_not next_job.blocked?
+      assert blocked_job.reload.blocked?
+      assert_equal 0, SolidQueue::Semaphore.find_by!(key: ready_job.concurrency_key).value
+    end
+  end
+
   test "all existing queues" do
     assert_equal [ @background_queue ], SolidQueue::Queue.all
   end

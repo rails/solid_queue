@@ -252,8 +252,8 @@ class InstrumentationTest < ActiveSupport::TestCase
 
     assert_equal 2, events.size
     assert_event events.first, "discard_all", jobs_size: 9, status: :ready, size: 6
-    # Only 3 blocked jobs remaining for the second discard_all_from_jobs call
-    assert_event events.second, "discard_all", jobs_size: 3, status: :ready, size: 0
+    # 1 newly ready job and 2 blocked jobs remain for the second call.
+    assert_event events.second, "discard_all", jobs_size: 3, status: :ready, size: 1
   end
 
   test "discarding jobs in batches emits a discard_all event" do
