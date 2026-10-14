@@ -13,7 +13,10 @@ module SolidQueue
     def self.retry_all(jobs)
       SolidQueue.instrument(:retry_all, jobs_size: jobs.size) do |payload|
         transaction do
-          payload[:size] = dispatch_jobs lock_all_from_jobs(jobs)
+          job_ids = lock_all_from_jobs(jobs)
+          Job.where(id: job_ids).find_each(&:reset_execution_counters)
+
+          payload[:size] = dispatch_jobs(job_ids)
         end
       end
     end
