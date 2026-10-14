@@ -47,6 +47,9 @@ module SolidQueue
         if batch = Batch.select(:id, :finished_at, :enqueued_at).find_by(id: batch_id)
           batch.finish
         end
+      rescue => error
+        # The job is already committed; let the sweeper retry batch completion.
+        SolidQueue.instrument(:batch_progress_error, batch_id: batch_id, job_id: job_id, error: error)
       end
   end
 end
