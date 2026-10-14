@@ -45,7 +45,7 @@ module SolidQueue
 
 
         def discard_jobs(job_ids)
-          Job.release_all_concurrency_locks Job.where(id: job_ids)
+          Job.where(id: job_ids).find_each(&:unblock_next_blocked_job)
           super
         end
     end
