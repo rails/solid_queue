@@ -53,12 +53,23 @@ module SolidQueue
       def prefixed_names
         if prefixes.empty? then []
         else
-          relation.where(([ "queue_name LIKE ?" ] * prefixes.count).join(" OR "), *prefixes).distinct_values_of(:queue_name)
+          pattern = "queue_name LIKE ? #{like_escape_clause}"
+          relation.where(([ pattern ] * prefixes.count).join(" OR "), *prefixes).distinct_values_of(:queue_name)
+        end
+      end
+
+      # MySQL string literals treat a backslash as an escape, so the single-character
+      # ESCAPE value is written with a doubled backslash. SQLite and PostgreSQL take one.
+      def like_escape_clause
+        if relation.connection.adapter_name.match?(/mysql|trilogy/i)
+          "ESCAPE '\\\\'"
+        else
+          "ESCAPE '\\'"
         end
       end
 
       def prefixes
-        @prefixes ||= raw_queues.select { |queue| prefixed_name?(queue) }.map { |queue| queue.tr("*", "%") }
+        @prefixes ||= raw_queues.select { |queue| prefixed_name?(queue) }.map { |queue| relation.sanitize_sql_like(queue).tr("*", "%") }
       end
 
       def exact_name?(queue)
@@ -74,9 +85,9 @@ module SolidQueue
       end
 
       def in_raw_order(queues)
-        # Only need to sort if we have prefixes and more than one queue name.
-        # Exact names are selected in the same order as they're found
-        if queues.one? || prefixes.empty?
+        # Exact names are already in configuration order. Prefix matches always
+        # go through the literal filter so a single false LIKE hit is not returned.
+        if prefixes.empty?
           queues
         else
           queues = queues.dup
