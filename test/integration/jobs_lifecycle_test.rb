@@ -87,6 +87,39 @@ class JobsLifecycleTest < ActiveSupport::TestCase
     assert_equal 1, SolidQueue::FailedExecution.count
   end
 
+  test "bulk retries reset the automatic retry attempts of failed jobs" do
+    RaisingJob.perform_later(RaisingJob::DefaultError, "A", 5)
+    RaisingJob.perform_later(RaisingJob::DefaultError, "B", 5)
+
+    @dispatcher.start
+    @worker.start
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 4, SolidQueue::Job.finished.count
+    assert_equal 2, SolidQueue::FailedExecution.count
+    failed_jobs = SolidQueue::Job.failed.to_a
+    finished_jobs = SolidQueue::Job.finished.to_a
+
+    # Check the reset before workers can claim the retried jobs.
+    SolidQueue::Record.transaction do
+      SolidQueue::FailedExecution.retry_all(SolidQueue::Job.all)
+
+      failed_jobs.each do |job|
+        assert_equal 0, job.reload.arguments["executions"]
+        assert_equal({}, job.arguments["exception_executions"])
+      end
+      finished_jobs.each do |job|
+        assert_equal job.arguments, job.reload.arguments
+      end
+    end
+
+    wait_for_jobs_to_finish_for(3.seconds)
+
+    assert_equal 8, SolidQueue::Job.finished.count
+    assert_equal 2, SolidQueue::FailedExecution.count
+  end
+
   test "enqueue and run jobs that fail and it's discarded" do
     RaisingJob.perform_later(RaisingJob::DiscardableError, "A")
 
