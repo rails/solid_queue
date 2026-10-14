@@ -315,16 +315,16 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
       ActiveJob.perform_all_later(active_jobs)
     end
 
+    assert_job_counts(blocked: -2) do
+      SolidQueue::BlockedExecution.discard_all_from_jobs(SolidQueue::Job.all)
+    end
+
     assert_job_counts(ready: -5) do
       SolidQueue::ReadyExecution.discard_all_from_jobs(SolidQueue::Job.all)
     end
 
     assert_job_counts(scheduled: -2) do
       SolidQueue::ScheduledExecution.discard_all_from_jobs(SolidQueue::Job.all)
-    end
-
-    assert_job_counts(blocked: -2) do
-      SolidQueue::BlockedExecution.discard_all_from_jobs(SolidQueue::Job.all)
     end
   end
 
