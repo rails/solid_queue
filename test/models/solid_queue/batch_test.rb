@@ -192,6 +192,61 @@ class SolidQueue::BatchTest < ActiveSupport::TestCase
     assert_equal 1, SolidQueue::Job.where(class_name: OtherAdapterCallbackJob.name).count
   end
 
+  [ :finished, :failed, :destroyed ].each do |outcome|
+    [ SolidQueue::Job::EnqueueError, ActiveRecord::Deadlocked, NameError ].each do |error_class|
+      test "batch completion #{error_class} does not prevent #{outcome} jobs from unblocking the next job" do
+        result = JobResult.create!(queue_name: "default", status: "")
+        batch = SolidQueue::Batch.enqueue(on_finish: BatchCompletionJob) do
+          NonOverlappingUpdateResultJob.perform_later(result, name: "A", exception: outcome == :failed ? ExpectedTestError : nil)
+        end
+        job = batch.jobs.sole
+        next_active_job = NonOverlappingUpdateResultJob.perform_later(result, name: "B")
+        next_job = SolidQueue::Job.find_by!(active_job_id: next_active_job.job_id)
+        process = SolidQueue::Process.register(kind: "Worker", pid: 42, name: "worker-123")
+        claimed_execution = SolidQueue::ReadyExecution.claim(job.queue_name, 1, process.id).sole
+        callback_error = error_class.new("batch callback failed")
+        events = []
+
+        assert next_job.blocked?
+        SolidQueue::Batch.any_instance.stubs(:enqueue_callback_jobs).raises(callback_error)
+
+        SolidQueue.with(preserve_finished_jobs: outcome != :destroyed) do
+          ActiveSupport::Notifications.subscribed(->(event) { events << event }, "batch_progress_error.solid_queue") do
+            if outcome == :failed
+              assert_raises(ExpectedTestError) { claimed_execution.perform }
+            else
+              assert_nothing_raised { claimed_execution.perform }
+            end
+          end
+        end
+
+        assert_not SolidQueue::ClaimedExecution.exists?(claimed_execution.id)
+        if outcome == :destroyed
+          assert_not SolidQueue::Job.exists?(job.id)
+        else
+          assert_equal outcome, job.reload.status
+        end
+        assert next_job.reload.ready?
+        assert_not next_job.blocked?
+        assert_equal 0, SolidQueue::Semaphore.find_by!(key: job.concurrency_key).value
+        assert_not batch.reload.finished?
+        assert_empty batch.batch_executions
+        assert_equal 0, SolidQueue::Job.where(class_name: BatchCompletionJob.name).count
+        assert_equal 1, events.size
+        assert_equal batch.id, events.sole.payload[:batch_id]
+        assert_equal job.id, events.sole.payload[:job_id]
+        assert_same callback_error, events.sole.payload[:error]
+
+        SolidQueue::Batch.any_instance.unstub(:enqueue_callback_jobs)
+        SolidQueue::Batch.sweep_stalled
+
+        assert batch.reload.finished?
+        assert_equal outcome == :failed ? 1 : 0, batch.failed_jobs
+        assert_equal 1, SolidQueue::Job.where(class_name: BatchCompletionJob.name).count
+      end
+    end
+  end
+
   test "assigns a reserved active_job_batch_id on create" do
     batch = SolidQueue::Batch.enqueue { NiceJob.perform_later("world") }
 
