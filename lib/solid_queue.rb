@@ -45,6 +45,24 @@ module SolidQueue
   mattr_accessor :clear_finished_jobs_after, default: 1.day
   mattr_accessor :default_concurrency_control_period, default: 3.minutes
 
+  # When a concurrency-limited job acquires its semaphore:
+  # - :on_enqueue, as soon as it's enqueued.
+  # - :on_dispatch, when the dispatcher picks it up, after enqueuing it as a scheduled job.
+  # - :outside_transaction, :on_enqueue unless the job is enqueued inside an open
+  #   transaction on Solid Queue's connection, :on_dispatch otherwise.
+  CONCURRENCY_LOCK_ACQUISITIONS = %i[ on_enqueue on_dispatch outside_transaction ]
+
+  mattr_reader :concurrency_lock_acquisition, default: :on_enqueue
+
+  def concurrency_lock_acquisition=(value)
+    @@concurrency_lock_acquisition = validate_concurrency_lock_acquisition!(value)
+  end
+
+  def validate_concurrency_lock_acquisition!(value)
+    value.try(:to_sym).presence_in(CONCURRENCY_LOCK_ACQUISITIONS) or
+      raise ArgumentError, "Unknown concurrency lock acquisition #{value.inspect}, expected one of #{CONCURRENCY_LOCK_ACQUISITIONS.inspect}"
+  end
+
   mattr_reader :time_zone
 
   def time_zone=(zone)

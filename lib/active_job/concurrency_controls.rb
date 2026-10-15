@@ -14,16 +14,30 @@ module ActiveJob
       class_attribute :concurrency_limit
       class_attribute :concurrency_duration, default: SolidQueue.default_concurrency_control_period
       class_attribute :concurrency_on_conflict, default: :block
+      class_attribute :concurrency_acquisition, instance_accessor: false
     end
 
     class_methods do
-      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period, on_conflict: :block)
+      def limits_concurrency(key:, to: 1, group: DEFAULT_CONCURRENCY_GROUP, duration: SolidQueue.default_concurrency_control_period, on_conflict: :block, acquire: nil)
         self.concurrency_key = key
         self.concurrency_limit = to
         self.concurrency_group = group
         self.concurrency_duration = duration
         self.concurrency_on_conflict = on_conflict.presence_in(CONCURRENCY_ON_CONFLICT_BEHAVIOUR) || :block
+        self.concurrency_acquisition = acquire && SolidQueue.validate_concurrency_lock_acquisition!(acquire)
       end
+    end
+
+    # Accepts +acquire+ on top of Active Job's own options, to choose when this
+    # particular enqueue acquires the concurrency lock:
+    #
+    #   MyJob.set(acquire: :on_dispatch).perform_later(record)
+    def set(options = {})
+      if options.key?(:acquire)
+        @concurrency_acquisition = options[:acquire] && SolidQueue.validate_concurrency_lock_acquisition!(options[:acquire])
+      end
+
+      super
     end
 
     def concurrency_key
@@ -41,6 +55,12 @@ module ActiveJob
 
     def concurrency_limited?
       concurrency_key.present?
+    end
+
+    # When this job acquires its concurrency lock: set for this enqueue, for the
+    # job class, or globally, in that order.
+    def concurrency_lock_acquisition
+      @concurrency_acquisition || self.class.concurrency_acquisition || SolidQueue.concurrency_lock_acquisition
     end
 
     private
