@@ -38,7 +38,7 @@ module SolidQueue
 
       private
         def schedule
-          ScheduledExecution.create_or_find_by!(job_id: id)
+          ScheduledExecution.create_or_find_by!(job: self)
         end
 
         def execution
