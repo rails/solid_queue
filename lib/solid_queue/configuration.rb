@@ -8,6 +8,7 @@ module SolidQueue
     validate :ensure_configured_processes, :ensure_valid_recurring_tasks
     validate :ensure_valid_worker_execution_options
     validate :ensure_fiber_workers_have_required_dependency, :ensure_fiber_workers_use_supported_isolation_level
+    validate :ensure_reactor_workers_have_required_dependency
     validate :warn_about_incorrectly_sized_database_pool, :warn_about_missing_config_files
 
     before_validation { warnings.clear }
@@ -130,6 +131,10 @@ module SolidQueue
           if options.key?(:threads) && options.key?(:fibers)
             errors.add(:base, "Workers can specify either `threads` or `fibers`, but not both.")
           end
+
+          if options[:reactor] && fiber_worker?(options)
+            errors.add(:base, "`reactor` applies to thread workers. Fiber workers already run their jobs on a reactor.")
+          end
         end
       end
 
@@ -141,6 +146,15 @@ module SolidQueue
       rescue LoadError
         errors.add(:base, "Fiber workers require the `async` gem. " \
           "Add `gem \"async\"` to your Gemfile to configure workers with `fibers`.")
+      end
+
+      def ensure_reactor_workers_have_required_dependency
+        return unless workers_options.any? { |options| reactor_thread_worker?(options) }
+
+        require "async"
+      rescue LoadError
+        errors.add(:base, "Reactor thread workers require the `async` gem. " \
+          "Add `gem \"async\"` to your Gemfile to configure workers with `reactor: true`.")
       end
 
       def ensure_fiber_workers_use_supported_isolation_level
@@ -317,6 +331,10 @@ module SolidQueue
 
       def fiber_worker?(options)
         options.key?(:fibers)
+      end
+
+      def reactor_thread_worker?(options)
+        options[:reactor] && !fiber_worker?(options)
       end
 
       def worker_defaults_for(options)

@@ -289,6 +289,7 @@ Here's an overview of the different options:
 
 - `threads`: configures a worker to execute jobs in a thread pool of this size. By default, workers use `threads: 3`. Only workers have this setting, and it can't be combined with `fibers`.
 It is recommended to set this value less than or equal to the queue database's connection pool size minus 2, as each worker uses connections for polling and heartbeat and thread mode may use additional connections for job execution.
+- `reactor`: when `true`, a thread worker runs each of its threads' jobs inside an [Async](https://github.com/socketry/async) reactor that lives as long as the thread, one job at a time per thread. See [reactor thread workers](#reactor-thread-workers). Requires the `async` gem, and can't be combined with `fibers`.
 - `fibers`: configures a worker to execute jobs as fibers on a single fiber reactor thread, with this value as the maximum number of in-flight jobs. It can't be combined with `threads`.
   Fiber workers require fiber-scoped isolated execution state. In Rails apps, set `config.active_support.isolation_level = :fiber` before using `fibers`. Solid Queue refuses to boot fiber workers when isolation remains thread-scoped. On Rails 7.2 and later, a practical starting point is usually `3-5` queue database connections per worker process rather than matching the `fibers` value, because ordinary Active Record query paths can release connections between non-blocking waits. On Rails 7.1, size the queue database pool more conservatively, as in-flight fiber jobs may still retain connections roughly in proportion to `fibers`.
 - `processes`: this is the number of worker processes that will be forked by the supervisor with the settings given. By default, this is `1`, just a single process. This setting is useful if you want to dedicate more than one CPU core to a queue or queues with the same configuration. Only workers have this setting. This works with both `threads` and `fibers` workers as long as the supervisor is running in the default `fork` mode. **Note**: this option is ignored only when the supervisor itself is [running in `async` mode](#fork-vs-async-mode).
@@ -410,6 +411,20 @@ Worker heartbeats are driven by a separate timer task, not by the worker executi
 This means finished and failed jobs still follow the normal Solid Queue lifecycle, but a single stuck job can remain claimed if the worker process itself is still alive. If you need stronger stuck-job detection, that requires an explicit timeout or watchdog mechanism on top of process heartbeats.
 
 In a similar way, if a worker is terminated in any other way not initiated by the above signals (e.g. a worker is sent a `KILL` signal), jobs in progress will be marked as failed so that they can be inspected, with a `SolidQueue::Processes::ProcessExitError`. Sometimes a job in particular is responsible for this, for example, if it has a memory leak and you have a mechanism to kill processes over a certain memory threshold, so this will help identifying this kind of situation.
+
+
+#### Reactor thread workers
+
+Jobs on a thread worker run without a reactor, so a client built on Async, such as `async-http`, starts one for every call and pays for a new connection and TLS handshake each time. Fiber workers avoid that, but they run every job on one thread, so a job that blocks without yielding, such as a C extension decoding an image, stalls the others. Setting `reactor: true` on a thread worker keeps the thread pool and gives each thread a reactor that lives as long as the thread, so those clients reuse their connections across calls and across jobs:
+
+```yml
+workers:
+  - queues: [ api_sync, webhooks ]
+    threads: 5
+    reactor: true
+```
+
+Each thread still runs one job at a time, so database pool sizing is the same as for `threads`, and fiber-scoped isolated execution state isn't required.
 
 
 ### Database configuration
