@@ -13,6 +13,10 @@ class WorkerTest < ActiveSupport::TestCase
     {
       name: "fiber",
       options: { fibers: 3 }
+    },
+    {
+      name: "reactor_thread",
+      options: { threads: 3, reactor: true }
     }
   ].freeze
 
