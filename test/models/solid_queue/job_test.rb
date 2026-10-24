@@ -41,6 +41,21 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     )
   end
 
+  test "enqueue does not reload the job to create its execution" do
+    job_selects = []
+    callback = ->(*, payload) { job_selects << payload[:sql] if payload[:sql].match?(/\ASELECT .*solid_queue_jobs/i) }
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      AddToBufferJob.perform_later(1)
+      AddToBufferJob.set(wait: 1.minute).perform_later(2)
+      2.times { NonOverlappingJob.perform_later(@result) }
+    end
+
+    assert SolidQueue::BlockedExecution.exists?
+
+    assert_empty job_selects
+  end
+
   test "enqueue active job to be executed right away" do
     active_job = AddToBufferJob.new(1).set(priority: 8, queue: "test")
 
