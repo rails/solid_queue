@@ -91,6 +91,38 @@ class ConfigurationTest < ActiveSupport::TestCase
     end
   end
 
+  test "reactor configures thread workers to run each thread's jobs on a reactor" do
+    configuration = SolidQueue::Configuration.new(
+      workers: [ { queues: "api*", threads: 3, reactor: true } ],
+      dispatchers: [],
+      skip_recurring: true
+    )
+
+    assert configuration.valid?
+    assert_processes configuration, :worker, 1, threads: 3, reactor: true
+  end
+
+  test "workers reject reactor with fibers" do
+    with_execution_isolation(:fiber) do
+      configuration = SolidQueue::Configuration.new(
+        workers: [ { queues: "llm*", fibers: 10, reactor: true } ],
+        dispatchers: [],
+        skip_recurring: true
+      )
+
+      assert_not configuration.valid?
+      assert_match /`reactor` applies to thread workers/, configuration.errors.full_messages.first
+    end
+  end
+
+  test "reactor thread workers require the async gem" do
+    configuration = SolidQueue::Configuration.new(skip_recurring: true, dispatchers: [], workers: [ { threads: 3, reactor: true } ])
+    configuration.expects(:require).with("async").raises(LoadError.new("cannot load such file -- async"))
+
+    assert_not configuration.valid?
+    assert_match /Reactor thread workers require the `async` gem/, configuration.errors.full_messages.first
+  end
+
   test "fiber worker size inflates required database pool size on Rails 7.1" do
     skip if fiber_workers_release_connections_between_queries?
 
