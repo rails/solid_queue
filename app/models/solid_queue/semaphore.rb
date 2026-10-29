@@ -85,7 +85,7 @@ module SolidQueue
         end
 
         def expires_at
-          job.concurrency_duration.from_now
+          (job.concurrency_duration || SolidQueue.default_concurrency_control_period).from_now
         end
 
         def limit
