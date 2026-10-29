@@ -158,6 +158,23 @@ class SolidQueue::ClaimedExecutionConcurrencyTest < ActiveSupport::TestCase
     end
   end
 
+  test "a job whose class is gone by the time it runs releases its concurrency lock" do
+    first_job, claimed_execution, concurrency_key = enqueue_blocked_group
+    assert_equal 0, SolidQueue::Semaphore.find_by!(key: concurrency_key).value
+
+    # A worker on a release that no longer defines the class claims the job.
+    first_job.update_columns(class_name: "RemovedJobClass")
+    claimed_execution.reload
+
+    assert_raises SolidQueue::Job::ClassMissingError do
+      claimed_execution.perform
+    end
+
+    assert first_job.reload.failed?
+    assert SolidQueue::ReadyExecution.where(job_id: SolidQueue::Job.where(concurrency_key: concurrency_key).select(:id)).exists?,
+      "the failed job should release the next blocked job of its key"
+  end
+
   private
     # Enqueues three concurrency-limited jobs over the same key. The first is
     # claimed; the other two are blocked. Returns the first job, its claimed

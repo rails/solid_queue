@@ -8,7 +8,7 @@ module SolidQueue
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, :concurrency_duration, to: :job_class
+        delegate :concurrency_limit, :concurrency_duration, to: :job_class, allow_nil: true
 
         before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
@@ -48,8 +48,10 @@ module SolidQueue
           Semaphore.wait(self)
         end
 
+        # A job whose class can't be loaded where it runs still holds the lock its
+        # key took when it was dispatched, so release by key alone.
         def release_concurrency_lock
-          return false unless concurrency_limited?
+          return false unless concurrency_key.present?
 
           Semaphore.signal(self)
         end
