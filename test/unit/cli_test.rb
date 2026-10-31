@@ -2,8 +2,22 @@
 
 require "test_helper"
 require "solid_queue/cli"
+require "open3"
 
 class CliTest < ActiveSupport::TestCase
+  test "eager loading leaves the CLI to bin/jobs" do
+    script = <<~SCRIPT
+      require #{File.expand_path("../dummy/config/environment", __dir__).dump}
+      Zeitwerk::Loader.eager_load_all
+      print SolidQueue.autoload?(:Cli) ? "not loaded" : "loaded"
+    SCRIPT
+
+    out, err, status = Open3.capture3(RbConfig.ruby, "-e", script)
+
+    assert status.success?, err
+    assert_equal "not loaded", out
+  end
+
   test "mode defaults to fork when no env var or option" do
     with_env("SOLID_QUEUE_SUPERVISOR_MODE" => nil) do
       config = configuration_from_cli
