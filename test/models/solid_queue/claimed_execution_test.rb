@@ -187,6 +187,16 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
     assert_equal "provider_job_id: #{job.provider_job_id}", JobBuffer.last_value
   end
 
+  test "discarding claimed executions in bulk raises UndiscardableError" do
+    assert_raises SolidQueue::Execution::UndiscardableError do
+      SolidQueue::ClaimedExecution.discard_all_in_batches
+    end
+
+    assert_raises SolidQueue::Execution::UndiscardableError do
+      SolidQueue::ClaimedExecution.discard_all_from_jobs([])
+    end
+  end
+
   private
     def prepare_and_claim_job(active_job, process: @process)
       job = SolidQueue::Job.find_by(active_job_id: active_job.job_id)
