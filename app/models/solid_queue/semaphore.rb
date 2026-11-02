@@ -14,10 +14,6 @@ module SolidQueue
         Proxy.new(job).signal
       end
 
-      def signal_all(jobs)
-        Proxy.signal_all(jobs)
-      end
-
       # Requires a unique index on key
       def create_unique_by(attributes)
         if supports_insert_conflict_target?
@@ -31,16 +27,6 @@ module SolidQueue
     end
 
     class Proxy
-      def self.signal_all(jobs)
-        # Guard against incrementing a semaphore's value beyond its limit. Jobs can
-        # have different limits, so group them and cap each group with `value < limit`.
-        jobs.group_by { |job| job.concurrency_limit || 1 }.each do |limit, grouped_jobs|
-          Semaphore.where(key: grouped_jobs.map(&:concurrency_key))
-            .where(value: ...limit)
-            .update_all("value = value + 1")
-        end
-      end
-
       def initialize(job)
         @job = job
       end
