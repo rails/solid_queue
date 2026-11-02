@@ -58,7 +58,7 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
 
   test "account for JSON escaping when fitting the error column" do
     with_error_column_limit(1_000) do
-      # Quotes take two bytes once escaped, and HTML characters up to six
+      # Quotes take two bytes once escaped. The error column uses Ruby's JSON, which leaves <, > and & as they are
       execution = fail_job_with ExpectedTestError.new("\"<>&" * 200), backtrace: [ "app/models/thing.rb:1:in 'do_it'" ]
 
       assert_fits_error_column execution, limit: 1_000
