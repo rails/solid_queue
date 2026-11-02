@@ -168,6 +168,13 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       claimed_jobs.map(&:queue_name)
   end
 
+  test "queues matched by a prefix are selected only once" do
+    AddToBufferJob.set(queue: "background").perform_later(1)
+
+    assert_equal 6, SolidQueue::ReadyExecution.aggregated_count_across(%w[ back* backend ])
+    assert_equal 6, SolidQueue::ReadyExecution.aggregated_count_across(%w[ back* backe* ])
+  end
+
   test "distinct_values_of returns all distinct queue names" do
     AddToBufferJob.perform_later("hey") # goes to background queue
 
