@@ -66,11 +66,11 @@ module SolidQueue
       end
 
       def discard_all_in_batches(*)
-        raise UndiscardableError, "Can't discard jobs in progress"
+        raise SolidQueue::Execution::UndiscardableError, "Can't discard jobs in progress"
       end
 
       def discard_all_from_jobs(*)
-        raise UndiscardableError, "Can't discard jobs in progress"
+        raise SolidQueue::Execution::UndiscardableError, "Can't discard jobs in progress"
       end
     end
 
