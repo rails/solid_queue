@@ -14,8 +14,8 @@ module SolidQueue
       end
 
       class_methods do
-        def release_all_concurrency_locks(jobs)
-          Semaphore.signal_all(jobs.select(&:concurrency_limited?))
+        def unblock_next_blocked_jobs(jobs)
+          jobs.find_each(&:unblock_next_blocked_job)
         end
       end
 
