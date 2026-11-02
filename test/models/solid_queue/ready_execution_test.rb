@@ -196,6 +196,13 @@ class SolidQueue::ReadyExecutionTest < ActiveSupport::TestCase
       claimed_jobs.map(&:queue_name)
   end
 
+  test "queues matched by more than one entry in the list are selected once" do
+    AddToBufferJob.set(queue: "queue_b1").perform_later(1)
+
+    assert_equal 1, SolidQueue::ReadyExecution.aggregated_count_across(%w[ queue_* queue_b* ])
+    assert_equal 1, SolidQueue::ReadyExecution.aggregated_count_across(%w[ queue_b* queue_b1 ])
+  end
+
   test "distinct_values_of returns all distinct queue names" do
     AddToBufferJob.perform_later("hey") # goes to background queue
 

@@ -34,7 +34,7 @@ module SolidQueue
       def eligible_queues
         if include_all_queues? then all_queues
         else
-          in_raw_order(exact_names + prefixed_names)
+          in_raw_order(exact_names | prefixed_names)
         end
       end
 
@@ -89,9 +89,7 @@ module SolidQueue
           queues.delete(raw_queue)
         elsif prefixed_name?(raw_queue)
           prefix = raw_queue.tr("*", "")
-          queues.select { |queue| queue.start_with?(prefix) }.tap do |matches|
-            queues -= matches
-          end
+          queues.extract! { |queue| queue.start_with?(prefix) }
         end
       end
   end
