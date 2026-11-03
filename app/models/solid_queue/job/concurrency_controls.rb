@@ -39,7 +39,7 @@ module SolidQueue
       def acquire_concurrency_lock
         if concurrency_limited?
           if semaphore_id = Semaphore.wait(self)
-            record_concurrency_lock(semaphore_id:, limit: concurrency_limit)
+            record_concurrency_lock(semaphore_id:, limit: concurrency_limit || 1)
           end
         else
           # A job whose class doesn't load skips its limits. Record that it holds no slot,
