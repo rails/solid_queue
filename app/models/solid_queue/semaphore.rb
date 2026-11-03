@@ -59,8 +59,10 @@ module SolidQueue
           acquired_semaphore_id if limit > 1 && attempt_decrement
         end
 
+        # A locking read, so it sees the latest committed rows rather than the transaction's
+        # snapshot, which on MySQL can still include a semaphore that expired and was deleted
         def acquired_semaphore_id
-          Semaphore.where(key: key).pick(:id)
+          Semaphore.lock.where(key: key).pick(:id)
         end
 
         def attempt_decrement
