@@ -401,6 +401,8 @@ The supervisor is in charge of managing these processes, and it responds to the 
 
 When receiving a `QUIT` signal, if workers still have jobs in-flight, these will be returned to the queue when the processes are deregistered.
 
+In `async` mode, workers, dispatchers and the scheduler are threads inside the supervisor's process, so they can't be signaled one by one. On `TERM` or `INT`, the supervisor stops them and waits up to `SolidQueue.shutdown_timeout`. If any are still running by then, it deregisters itself, which returns their in-flight jobs to the queue, and exits. On `QUIT`, it exits immediately without deregistering anything, so in-flight jobs remain claimed until another supervisor prunes these processes and marks the jobs as failed with a `SolidQueue::Processes::ProcessPrunedError`.
+
 On Windows, the `QUIT` signal can't be trapped, so the supervisor only responds to `TERM` and `INT` there.
 
 If processes have no chance of cleaning up before exiting (e.g. if someone pulls a cable somewhere), in-flight jobs might remain claimed by the processes executing them. Processes send heartbeats, and the supervisor checks and prunes processes with expired heartbeats. Jobs that were claimed by processes with an expired heartbeat will be marked as failed with a `SolidQueue::Processes::ProcessPrunedError`. You can configure both the frequency of heartbeats and the threshold to consider a process dead. See the section below for this.
