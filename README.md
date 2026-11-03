@@ -929,6 +929,8 @@ It's possible to run multiple schedulers with the same `recurring_tasks` configu
 
 **Note**: a single recurring schedule is supported, so you can have multiple schedulers using the same schedule, but not multiple schedulers using different configurations.
 
+When a scheduler starts, it removes any static recurring tasks that are no longer in its configuration. If you remove all of them, though, no scheduler starts, so the old tasks stay in the `solid_queue_recurring_tasks` table, and in Mission Control, even though nothing runs them. You can delete them from a console with `SolidQueue::RecurringTask.static.delete_all`.
+
 Finally, it's possible to configure jobs that aren't handled by Solid Queue. That is, you can have a job like this in your app:
 ```ruby
 class MyResqueJob < ApplicationJob
