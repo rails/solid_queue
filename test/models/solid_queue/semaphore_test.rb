@@ -79,7 +79,7 @@ class SolidQueue::SemaphoreTest < ActiveSupport::TestCase
             class_name: "NonOverlappingUpdateResultJob",
             concurrency_key: concurrency_key,
             active_job_id: uuid,
-            arguments: "{}",
+            arguments: {},
             scheduled_at: Time.current
           })
           job_b_id = SolidQueue::Job.where(active_job_id: uuid).pick(:id)

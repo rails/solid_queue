@@ -51,7 +51,7 @@ module SolidQueue
             destroy!
 
             payload[:failed] = true
-          elsif acquire_concurrency_lock
+          elsif job.acquire_concurrency_lock
             promote_to_ready
             destroy!
 
@@ -63,12 +63,7 @@ module SolidQueue
 
     private
       def set_expires_at
-        duration = job.job_class ? job.concurrency_duration : SolidQueue.default_concurrency_control_period
-        self.expires_at = duration.from_now
-      end
-
-      def acquire_concurrency_lock
-        Semaphore.wait(job)
+        self.expires_at = job.concurrency_duration.from_now
       end
 
       def promote_to_ready

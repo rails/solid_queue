@@ -26,7 +26,8 @@ module SolidQueue
         end
 
         def dispatch_all(jobs)
-          with_concurrency_limits, without_concurrency_limits = jobs.partition(&:concurrency_limited?)
+          # Jobs with a concurrency key go one by one, so they record the slot they get, or that they skipped it
+          with_concurrency_limits, without_concurrency_limits = jobs.partition { |job| job.concurrency_key.present? }
 
           dispatch_all_at_once(without_concurrency_limits)
           dispatch_all_one_by_one(with_concurrency_limits)

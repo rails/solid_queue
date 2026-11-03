@@ -116,7 +116,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "rely on dispatcher to unblock blocked executions with an available semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
-    job = NonOverlappingUpdateResultJob.perform_later(@result, name: "A")
+    job = SolidQueue::Job.find_by!(active_job_id: NonOverlappingUpdateResultJob.perform_later(@result, name: "A").job_id)
 
     wait_for_jobs_to_finish_for(5.seconds)
     assert_no_unfinished_jobs
@@ -148,7 +148,7 @@ class ConcurrencyControlsTest < ActiveSupport::TestCase
 
   test "rely on dispatcher to unblock blocked executions with an expired semaphore" do
     # Simulate a scenario where we got an available semaphore and some stuck jobs
-    job = NonOverlappingUpdateResultJob.perform_later(@result, name: "A")
+    job = SolidQueue::Job.find_by!(active_job_id: NonOverlappingUpdateResultJob.perform_later(@result, name: "A").job_id)
     wait_for_jobs_to_finish_for(5.seconds)
     assert_no_unfinished_jobs
 
