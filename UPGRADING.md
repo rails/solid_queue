@@ -1,9 +1,9 @@
-# Upgrading to version 1.8.x
+# Upgrading to version 1.7.2
 Jobs with [concurrency controls](README.md#concurrency-controls) now remember which semaphore they got their slot from, in their serialized job data, and give the slot back only to that semaphore. Before, a job that ran past its `duration` gave its slot back to the semaphore a later job had created after the job's own one expired, so one more job than the limit allowed could run at the same time, and keep doing so until the jobs waiting for that key ran out.
 
 There's nothing to change or migrate. Jobs that got their slot before you upgrade have nothing recorded and give it back as before, so old and new versions can run side by side while you deploy.
 
-Solid Queue 2.0 will stop giving back slots that weren't recorded. Before upgrading to 2.0, let the concurrency-limited jobs that were ready or running when you upgraded to 1.8 finish. If any haven't, their slots stay taken until their semaphores expire, after `duration`, and then the jobs waiting for them are released as usual.
+Solid Queue 2.0 will stop giving back slots that weren't recorded. Before upgrading to 2.0, let the concurrency-limited jobs that were ready or running when you upgraded to 1.7.2 finish. If any haven't, their slots stay taken until their semaphores expire, after `duration`, and then the jobs waiting for them are released as usual.
 
 # Upgrading to version 1.7.x
 This version introduces support for grouping jobs into batches, which needs new tables. Fresh installs get them with the base schema; existing installations need to copy the migration that adds them and run it:
