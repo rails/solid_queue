@@ -34,8 +34,8 @@ class SolidQueue::SemaphoreTest < ActiveSupport::TestCase
       job = SolidQueue::Job.enqueue(NonOverlappingUpdateResultJob.new(@result))
 
       assert job.ready?
-      assert_not_equal expired.id, job.concurrency_lock["semaphore_id"]
-      assert_equal SolidQueue::Semaphore.lock.find_by!(key: job.concurrency_key).id, job.concurrency_lock["semaphore_id"]
+      assert_not_equal expired.id, job.acquired_semaphore_id
+      assert_equal SolidQueue::Semaphore.lock.find_by!(key: job.concurrency_key).id, job.acquired_semaphore_id
     end
   end
 

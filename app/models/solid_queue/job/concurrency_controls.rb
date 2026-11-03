@@ -11,9 +11,7 @@ module SolidQueue
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, to: :job_class
-
-        before_destroy :unblock_next_blocked_job, if: -> { concurrency_key.present? && ready? }
+        before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
       end
 
       class_methods do
@@ -28,33 +26,39 @@ module SolidQueue
         end
       end
 
+      def acquire_concurrency_lock
+        return true unless concurrency_limited?
+
+        if job_class.nil?
+          # A job whose class doesn't load skips its limits. Record that it holds no slot,
+          # so it doesn't give one back if it runs somewhere its class does load.
+          record_concurrency_lock(semaphore_id: nil)
+        elsif semaphore_id = Semaphore.wait(self)
+          record_concurrency_lock(semaphore_id:, limit: concurrency_limit)
+        end
+      end
+
       def concurrency_limited?
-        concurrency_key.present? && job_class.present?
+        concurrency_key.present?
+      end
+
+      # A job that kept its concurrency key after its class dropped limits_concurrency gets a limit of 1
+      def concurrency_limit
+        job_class.concurrency_limit || 1 if concurrency_limited?
       end
 
       def concurrency_duration
         job_class ? job_class.concurrency_duration : SolidQueue.default_concurrency_control_period
       end
 
-      def acquire_concurrency_lock
-        if concurrency_limited?
-          if semaphore_id = Semaphore.wait(self)
-            record_concurrency_lock(semaphore_id:, limit: concurrency_limit || 1)
-          end
-        else
-          # A job whose class doesn't load skips its limits. Record that it holds no slot,
-          # so it doesn't give one back if it runs somewhere its class does load.
-          record_concurrency_lock(semaphore_id: nil) if concurrency_key.present?
-          true
-        end
+      # The semaphore the job got its concurrency slot from
+      def acquired_semaphore_id
+        concurrency_lock&.dig("semaphore_id")
       end
 
-      def concurrency_lock
-        arguments[CONCURRENCY_LOCK_KEY]
-      end
-
-      def concurrency_lock_recorded?
-        arguments.key?(CONCURRENCY_LOCK_KEY)
+      # The concurrency limit the job had when it got its slot
+      def acquired_concurrency_limit
+        concurrency_lock&.dig("limit")
       end
 
       def blocked?
@@ -66,8 +70,25 @@ module SolidQueue
       end
 
       private
-        def concurrency_on_conflict
-          job_class.concurrency_on_conflict.to_s.inquiry
+        def release_concurrency_lock
+          holds_concurrency_slot? && Semaphore.signal(self)
+        end
+
+        def holds_concurrency_slot?
+          if concurrency_lock_recorded?
+            acquired_semaphore_id.present?
+          else
+            # Jobs dispatched before Solid Queue recorded their semaphore, which need their class to know their limit
+            concurrency_limited? && job_class.present?
+          end
+        end
+
+        def concurrency_lock_recorded?
+          arguments.key?(CONCURRENCY_LOCK_KEY)
+        end
+
+        def release_next_blocked_job
+          BlockedExecution.release_one(concurrency_key)
         end
 
         def record_concurrency_lock(semaphore_id:, limit: nil)
@@ -76,13 +97,8 @@ module SolidQueue
           true
         end
 
-        def release_concurrency_lock
-          if concurrency_lock_recorded?
-            concurrency_lock["semaphore_id"].present? && Semaphore.signal(self)
-          else
-            # Jobs dispatched before Solid Queue recorded their semaphore
-            concurrency_limited? && Semaphore.signal(self)
-          end
+        def concurrency_lock
+          arguments[CONCURRENCY_LOCK_KEY]
         end
 
         def handle_concurrency_conflict
@@ -93,12 +109,12 @@ module SolidQueue
           end
         end
 
-        def block
-          BlockedExecution.create_or_find_by!(job: self)
+        def concurrency_on_conflict
+          job_class.concurrency_on_conflict.to_s.inquiry
         end
 
-        def release_next_blocked_job
-          BlockedExecution.release_one(concurrency_key)
+        def block
+          BlockedExecution.create_or_find_by!(job: self)
         end
 
         def execution
