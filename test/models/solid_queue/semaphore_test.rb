@@ -16,6 +16,29 @@ class SolidQueue::SemaphoreTest < ActiveSupport::TestCase
     @result = JobResult.create!(queue_name: "default")
   end
 
+  test "a job records the semaphore it created, not one deleted after its transaction began" do
+    skip "Only MySQL reads a deleted row from the transaction's snapshot" unless SolidQueue::Record.connection.adapter_name.downcase.match?(/mysql|trilogy/)
+
+    NonOverlappingUpdateResultJob.perform_later(@result)
+    expired = SolidQueue::Semaphore.sole
+
+    SolidQueue::Record.transaction do
+      # Take the transaction's snapshot, as dispatching does when it reads its batch of jobs
+      SolidQueue::Job.count
+
+      # Maintenance deletes the expired semaphore from another connection
+      Thread.new do
+        SolidQueue::Record.connection_pool.with_connection { SolidQueue::Semaphore.where(id: expired.id).delete_all }
+      end.join
+
+      job = SolidQueue::Job.enqueue(NonOverlappingUpdateResultJob.new(@result))
+
+      assert job.ready?
+      assert_not_equal expired.id, job.concurrency_lock["semaphore_id"]
+      assert_equal SolidQueue::Semaphore.lock.find_by!(key: job.concurrency_key).id, job.concurrency_lock["semaphore_id"]
+    end
+  end
+
   test "wait acquires a row lock that blocks concurrent signal" do
     skip_on_sqlite
 
