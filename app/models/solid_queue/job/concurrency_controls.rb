@@ -5,12 +5,15 @@ module SolidQueue
     module ConcurrencyControls
       extend ActiveSupport::Concern
 
+      # Stored in the job's serialized Active Job data, which Active Job ignores when running the job
+      CONCURRENCY_LOCK_KEY = "solid_queue_concurrency_lock"
+
       included do
         has_one :blocked_execution
 
-        delegate :concurrency_limit, :concurrency_duration, to: :job_class
+        delegate :concurrency_limit, to: :job_class
 
-        before_destroy :unblock_next_blocked_job, if: -> { concurrency_limited? && ready? }
+        before_destroy :unblock_next_blocked_job, if: -> { concurrency_key.present? && ready? }
       end
 
       class_methods do
@@ -29,6 +32,31 @@ module SolidQueue
         concurrency_key.present? && job_class.present?
       end
 
+      def concurrency_duration
+        job_class ? job_class.concurrency_duration : SolidQueue.default_concurrency_control_period
+      end
+
+      def acquire_concurrency_lock
+        if concurrency_limited?
+          if semaphore_id = Semaphore.wait(self)
+            record_concurrency_lock(semaphore_id:, limit: concurrency_limit)
+          end
+        else
+          # A job whose class doesn't load skips its limits. Record that it holds no slot,
+          # so it doesn't give one back if it runs somewhere its class does load.
+          record_concurrency_lock(semaphore_id: nil) if concurrency_key.present?
+          true
+        end
+      end
+
+      def concurrency_lock
+        arguments[CONCURRENCY_LOCK_KEY]
+      end
+
+      def concurrency_lock_recorded?
+        arguments.key?(CONCURRENCY_LOCK_KEY)
+      end
+
       def blocked?
         blocked_execution.present?
       end
@@ -42,16 +70,19 @@ module SolidQueue
           job_class.concurrency_on_conflict.to_s.inquiry
         end
 
-        def acquire_concurrency_lock
-          return true unless concurrency_limited?
-
-          Semaphore.wait(self)
+        def record_concurrency_lock(semaphore_id:, limit: nil)
+          arguments[CONCURRENCY_LOCK_KEY] = { "semaphore_id" => semaphore_id, "limit" => limit }
+          update_column :arguments, arguments
+          true
         end
 
         def release_concurrency_lock
-          return false unless concurrency_limited?
-
-          Semaphore.signal(self)
+          if concurrency_lock_recorded?
+            concurrency_lock["semaphore_id"].present? && Semaphore.signal(self)
+          else
+            # Jobs dispatched before Solid Queue recorded their semaphore
+            concurrency_limited? && Semaphore.signal(self)
+          end
         end
 
         def handle_concurrency_conflict

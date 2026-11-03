@@ -31,9 +31,10 @@ module SolidQueue
         @job = job
       end
 
+      # Returns the id of the semaphore the job got a slot on, or nil if there was none free
       def wait
         if semaphore = Semaphore.lock.find_by(key: key)
-          semaphore.value > 0 && attempt_decrement
+          semaphore.id if semaphore.value > 0 && attempt_decrement
         else
           attempt_creation
         end
@@ -48,14 +49,18 @@ module SolidQueue
 
         def attempt_creation
           if Semaphore.create_unique_by(key: key, value: limit - 1, expires_at: expires_at)
-            true
+            acquired_semaphore_id
           else
             check_limit_or_decrement
           end
         end
 
         def check_limit_or_decrement
-          limit == 1 ? false : attempt_decrement
+          acquired_semaphore_id if limit > 1 && attempt_decrement
+        end
+
+        def acquired_semaphore_id
+          Semaphore.where(key: key).pick(:id)
         end
 
         def attempt_decrement
@@ -63,7 +68,18 @@ module SolidQueue
         end
 
         def attempt_increment
-          Semaphore.where(key: key, value: ...limit).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
+          semaphore_to_release.where(value: ...limit_for_release).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
+        end
+
+        # A job only gives its slot back to the semaphore it got it from. If that one expired
+        # and was deleted, a semaphore for the same key now belongs to other jobs.
+        # Jobs dispatched before Solid Queue recorded their semaphore give it back by key.
+        def semaphore_to_release
+          if job.concurrency_lock_recorded?
+            Semaphore.where(id: job.concurrency_lock["semaphore_id"])
+          else
+            Semaphore.where(key: key)
+          end
         end
 
         def key
@@ -76,6 +92,11 @@ module SolidQueue
 
         def limit
           job.concurrency_limit || 1
+        end
+
+        # Recorded when the job got its slot, so it's known even if the job's class no longer loads
+        def limit_for_release
+          job.concurrency_lock&.dig("limit") || limit
         end
     end
   end
