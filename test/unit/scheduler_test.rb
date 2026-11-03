@@ -169,7 +169,7 @@ class SchedulerTest < ActiveSupport::TestCase
       original_task = SolidQueue::RecurringTask.find_by!(key: "dynamic_task")
       recurring_schedule = SolidQueue::Scheduler::RecurringSchedule.new({}, dynamic_tasks_enabled: true)
       recurring_schedule.schedule_tasks
-      original_scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+      original_scheduled_task = recurring_schedule.scheduled_tasks.fetch(original_task.id)
 
       SolidQueue.unschedule_recurring_task("dynamic_task")
       SolidQueue.schedule_recurring_task(
@@ -181,35 +181,40 @@ class SchedulerTest < ActiveSupport::TestCase
       replacement_task = SolidQueue::RecurringTask.find_by!(key: "dynamic_task")
 
       recurring_schedule.reschedule_dynamic_tasks
-      replacement_scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+      replacement_scheduled_task = recurring_schedule.scheduled_tasks.fetch(replacement_task.id)
 
       assert_instance_of Concurrent::CancelledOperationError, original_scheduled_task.reason
       assert_not_same original_scheduled_task, replacement_scheduled_task
       assert_in_delta replacement_task.next_time - Time.current, replacement_scheduled_task.initial_delay, 0.1
 
-      recurring_schedule.send(:schedule_next_task, original_task, run_at: original_task.next_time)
-      assert_same replacement_scheduled_task, recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+      recurring_schedule.send(:schedule_next_run, original_task, run_at: original_task.next_time)
+      assert_equal [ replacement_task.id ], recurring_schedule.scheduled_tasks.keys
+      assert_same replacement_scheduled_task, recurring_schedule.scheduled_tasks.fetch(replacement_task.id)
     end
   ensure
     recurring_schedule&.unschedule_tasks
   end
 
   test "does not reschedule a dynamic task updated in place" do
-    task = SolidQueue::RecurringTask.create!(
-      key: "dynamic_task",
-      static: false,
-      class_name: "AddToBufferJob",
-      schedule: "every hour",
-      arguments: [ 42 ]
-    )
-    recurring_schedule = SolidQueue::Scheduler::RecurringSchedule.new({}, dynamic_tasks_enabled: true)
-    recurring_schedule.schedule_tasks
-    scheduled_task = recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+    recurring_schedule = nil
+    # Away from the top of the hour, so the task can't run between the two lookups
+    travel_to Time.zone.local(2026, 8, 25, 10, 15) do
+      task = SolidQueue::RecurringTask.create!(
+        key: "dynamic_task",
+        static: false,
+        class_name: "AddToBufferJob",
+        schedule: "every hour",
+        arguments: [ 42 ]
+      )
+      recurring_schedule = SolidQueue::Scheduler::RecurringSchedule.new({}, dynamic_tasks_enabled: true)
+      recurring_schedule.schedule_tasks
+      scheduled_task = recurring_schedule.scheduled_tasks.fetch(task.id)
 
-    task.update!(schedule: "every day")
-    recurring_schedule.reschedule_dynamic_tasks
+      task.update!(schedule: "every day")
+      recurring_schedule.reschedule_dynamic_tasks
 
-    assert_same scheduled_task, recurring_schedule.scheduled_tasks.fetch("dynamic_task")
+      assert_same scheduled_task, recurring_schedule.scheduled_tasks.fetch(task.id)
+    end
   ensure
     recurring_schedule&.unschedule_tasks
   end
