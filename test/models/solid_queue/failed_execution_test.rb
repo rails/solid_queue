@@ -85,6 +85,20 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
     end
   end
 
+  test "store an error whose message is a binary string" do
+    # Net::HTTP returns bodies as ASCII-8BIT, so an error built from one is binary
+    execution = fail_job_with ExpectedTestError.new("upstream said: Zürich".b), backtrace: [ "app/models/thing.rb:1:in 'do_it'" ]
+
+    assert_equal "upstream said: Zürich", execution.message
+  end
+
+  test "store an error whose message is not valid UTF-8" do
+    execution = fail_job_with ExpectedTestError.new("upstream said: \xFF\xFE"), backtrace: [ "app/models/thing.rb:1:in 'do_it'".b ]
+
+    assert_equal "upstream said: ��", execution.message
+    assert_equal [ "app/models/thing.rb:1:in 'do_it'" ], execution.backtrace
+  end
+
   test "retry failed job" do
     RaisingJob.perform_later(ExpectedTestError, "A")
     @worker.start
