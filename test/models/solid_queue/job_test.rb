@@ -43,7 +43,10 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
 
   test "enqueue does not reload the job to create its execution" do
     job_selects = []
-    callback = ->(*, payload) { job_selects << payload[:sql] if payload[:sql].match?(/\ASELECT .*solid_queue_jobs/i) }
+    callback = ->(*, payload) do
+      # Skip the schema lookups Active Record runs the first time it uses the table
+      job_selects << payload[:sql] if payload[:name] != "SCHEMA" && payload[:sql].match?(/\ASELECT .*solid_queue_jobs/i)
+    end
 
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
       AddToBufferJob.perform_later(1)
