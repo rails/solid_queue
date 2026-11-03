@@ -47,6 +47,10 @@ module SolidQueue
       private
         attr_accessor :job
 
+        def attempt_decrement
+          Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
+        end
+
         def attempt_creation
           if Semaphore.create_unique_by(key: key, value: limit - 1, expires_at: expires_at)
             acquired_semaphore_id
@@ -55,33 +59,34 @@ module SolidQueue
           end
         end
 
-        def check_limit_or_decrement
-          acquired_semaphore_id if limit > 1 && attempt_decrement
-        end
-
         # A locking read, so it sees the latest committed rows rather than the transaction's
         # snapshot, which on MySQL can still include a semaphore that expired and was deleted
         def acquired_semaphore_id
           Semaphore.lock.where(key: key).pick(:id)
         end
 
-        def attempt_decrement
-          Semaphore.available.where(key: key).update_all([ "value = value - 1, expires_at = ?", expires_at ]) > 0
+        def check_limit_or_decrement
+          acquired_semaphore_id if limit > 1 && attempt_decrement
         end
 
         def attempt_increment
-          semaphore_to_release.where(value: ...limit_for_release).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
+          semaphore_to_release.where(value: ...limit_to_release).update_all([ "value = value + 1, expires_at = ?", expires_at ]) > 0
         end
 
         # A job only gives its slot back to the semaphore it got it from. If that one expired
         # and was deleted, a semaphore for the same key now belongs to other jobs.
         # Jobs dispatched before Solid Queue recorded their semaphore give it back by key.
         def semaphore_to_release
-          if job.concurrency_lock_recorded?
-            Semaphore.where(id: job.concurrency_lock["semaphore_id"])
+          if job.acquired_semaphore_id
+            Semaphore.where(id: job.acquired_semaphore_id)
           else
             Semaphore.where(key: key)
           end
+        end
+
+        # Recorded when the job got its slot, so it's known even if the job's class no longer loads
+        def limit_to_release
+          job.acquired_concurrency_limit || limit
         end
 
         def key
@@ -93,12 +98,7 @@ module SolidQueue
         end
 
         def limit
-          job.concurrency_limit || 1
-        end
-
-        # Recorded when the job got its slot, so it's known even if the job's class no longer loads
-        def limit_for_release
-          job.concurrency_lock&.dig("limit") || limit
+          job.concurrency_limit
         end
     end
   end

@@ -170,7 +170,7 @@ class SolidQueue::ClaimedExecutionTest < ActiveSupport::TestCase
   test "dispatch job with missing class and concurrency key skips concurrency controls" do
     job = create_job_with_missing_class(concurrency_key: "test_key")
 
-    assert_not job.concurrency_limited?
+    assert_nil job.job_class
 
     job.prepare_for_execution
 

@@ -94,14 +94,14 @@ class SolidQueue::ConcurrencyLockTest < ActiveSupport::TestCase
   test "a blocked job records the semaphore it gets when it's released" do
     a = claim(NonOverlappingJob.perform_later("A"))
     b = job_for(NonOverlappingJob.perform_later("B"))
-    assert a.job.concurrency_lock["semaphore_id"].present?
-    assert_not b.concurrency_lock_recorded?
+    assert a.job.acquired_semaphore_id.present?
+    assert_nil b.acquired_semaphore_id
 
     a.perform
 
     assert b.reload.ready?
-    assert_equal semaphore.id, b.concurrency_lock["semaphore_id"]
-    assert_equal 1, b.concurrency_lock["limit"]
+    assert_equal semaphore.id, b.acquired_semaphore_id
+    assert_equal 1, b.acquired_concurrency_limit
   end
 
   test "jobs enqueued in bulk record the semaphore they get" do
@@ -109,9 +109,9 @@ class SolidQueue::ConcurrencyLockTest < ActiveSupport::TestCase
     a, b = SolidQueue::Job.where(class_name: NonOverlappingJob.name).order(:id).to_a
 
     assert a.ready?
-    assert_equal semaphore.id, a.concurrency_lock["semaphore_id"]
+    assert_equal semaphore.id, a.acquired_semaphore_id
     assert b.blocked?
-    assert_not b.concurrency_lock_recorded?
+    assert_nil b.acquired_semaphore_id
   end
 
   test "jobs sharing a semaphore give their slots back to it" do
@@ -119,8 +119,8 @@ class SolidQueue::ConcurrencyLockTest < ActiveSupport::TestCase
     b = claim(TwoAtATimeJob.perform_later("B"))
     c = job_for(TwoAtATimeJob.perform_later("C"))
 
-    assert_equal [ semaphore.id ] * 2, [ a, b ].map { |execution| execution.job.concurrency_lock["semaphore_id"] }
-    assert_equal 2, a.job.concurrency_lock["limit"]
+    assert_equal [ semaphore.id ] * 2, [ a, b ].map { |execution| execution.job.acquired_semaphore_id }
+    assert_equal 2, a.job.acquired_concurrency_limit
     assert c.blocked?
 
     a.perform
@@ -150,7 +150,7 @@ class SolidQueue::ConcurrencyLockTest < ActiveSupport::TestCase
   test "a retried job records the semaphore it gets on the retry" do
     a = claim(NonOverlappingJob.perform_later("A"))
     a.failed_with(ExpectedTestError.new)
-    first_semaphore_id = a.job.reload.concurrency_lock["semaphore_id"]
+    first_semaphore_id = a.job.reload.acquired_semaphore_id
 
     travel_to 2.minutes.from_now
     SolidQueue::Semaphore.expired.delete_all
@@ -158,15 +158,15 @@ class SolidQueue::ConcurrencyLockTest < ActiveSupport::TestCase
     a.job.failed_execution.retry
 
     assert a.job.reload.ready?
-    assert_not_equal first_semaphore_id, a.job.concurrency_lock["semaphore_id"]
-    assert_equal semaphore.id, a.job.concurrency_lock["semaphore_id"]
+    assert_not_equal first_semaphore_id, a.job.acquired_semaphore_id
+    assert_equal semaphore.id, a.job.acquired_semaphore_id
   end
 
   test "a job records the limit it got its slot with, even when its class doesn't set one" do
     # A job that kept its concurrency key after its class dropped limits_concurrency
     a = SolidQueue::Job.create!(queue_name: "default", class_name: AddToBufferJob.name, active_job_id: SecureRandom.uuid,
       arguments: { "job_class" => AddToBufferJob.name, "arguments" => [ 1 ] }, concurrency_key: "concurrency-lock-test")
-    assert_equal 1, a.concurrency_lock["limit"]
+    assert_equal 1, a.acquired_concurrency_limit
 
     # ...and then runs where the class is missing
     a.update_columns(class_name: "RemovedJobClass")
