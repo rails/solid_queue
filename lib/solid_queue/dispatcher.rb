@@ -46,11 +46,39 @@ module SolidQueue
       end
 
       def start_maintenance
-        maintenance&.start
+        return unless maintenance
+
+        maintenance.start
+        launch_maintenance_watchdog
+      end
+
+      # A stalled maintenance run means semaphores are no longer expired and
+      # blocked executions no longer unblocked, so concurrency-limited jobs
+      # stall system-wide -- silently, because a run that never returns raises
+      # nothing for the task's observer to report. The watchdog's check reads
+      # nothing but memory, so it cannot block the same way, and stopping to
+      # be replaced hands the work to a fresh dispatcher with a fresh
+      # maintenance task.
+      #
+      # The watchdog ticks at the heartbeat interval, like the supervisor's
+      # maintenance watchdog: not that heartbeats are involved, it is just the
+      # liveness-checking cadence SolidQueue already has, short against any
+      # sane stall threshold.
+      def launch_maintenance_watchdog
+        @maintenance_watchdog_task = Concurrent::TimerTask.new(execution_interval: SolidQueue.process_heartbeat_interval) do
+          stop_to_be_replaced if maintenance.stalled?
+        end
+
+        @maintenance_watchdog_task.add_observer do |_, _, error|
+          handle_thread_error(error) if error
+        end
+
+        @maintenance_watchdog_task.execute
       end
 
       def stop_maintenance
         maintenance&.stop
+        @maintenance_watchdog_task&.shutdown
       end
 
       def all_work_completed?

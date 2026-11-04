@@ -271,6 +271,36 @@ class WorkerTest < ActiveSupport::TestCase
     SolidQueue.process_alive_threshold = old_alive_threshold
   end
 
+  test "terminate when heartbeats stop returning for longer than the alive threshold" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.2.seconds
+    old_alive_threshold, SolidQueue.process_alive_threshold = SolidQueue.process_alive_threshold, 1.second
+
+    # Unlike a heartbeat that raises, this one never comes back at all, so the
+    # heartbeat TimerTask is never rescheduled and never notifies its observers
+    unblock_heartbeats = Concurrent::Event.new
+    SolidQueue::Process.class_eval do
+      alias_method :heartbeat_without_blocking, :heartbeat
+      define_method(:heartbeat) { unblock_heartbeats.wait }
+    end
+
+    @worker.start
+    wait_for_registered_processes(1, timeout: 1.second)
+
+    assert_not @worker.pool.shutdown?
+
+    wait_while_with_timeout(3) { !@worker.pool.shutdown? }
+    assert @worker.pool.shutdown?
+  ensure
+    unblock_heartbeats.set
+    SolidQueue::Process.class_eval do
+      remove_method :heartbeat
+      alias_method :heartbeat, :heartbeat_without_blocking
+      remove_method :heartbeat_without_blocking
+    end
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval
+    SolidQueue.process_alive_threshold = old_alive_threshold
+  end
+
   test "sleeps `10.minutes` if at capacity" do
     3.times { |i| StoreResultJob.perform_later(i, pause: 5.seconds) }
 

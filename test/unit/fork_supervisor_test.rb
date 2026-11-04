@@ -273,6 +273,66 @@ class ForkSupervisorTest < ActiveSupport::TestCase
     assert_equal "RuntimeError", failed.exception_class
   end
 
+  test "terminate forks when the supervisor's registration is pruned" do
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.1.seconds
+
+    pid = run_supervisor_as_fork
+    wait_for_registered_processes(4, timeout: 3.seconds)
+
+    # Simulate another supervisor pruning this one's registration
+    find_processes_registered_as("Supervisor(fork)").first.delete
+
+    # The next heartbeat finds the registration gone; the supervisor must stop
+    # through its signal pipeline, so its forks are terminated, not abandoned
+    wait_for_process_termination_with_timeout(pid, timeout: 5)
+
+    assert_no_registered_processes
+  ensure
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval if old_heartbeat_interval
+    terminate_process(pid) if pid && process_exists?(pid)
+  end
+
+  test "terminate forks when maintenance stalls instead of abandoning them" do
+    old_alive_threshold, SolidQueue.process_alive_threshold = SolidQueue.process_alive_threshold, 0.3.seconds
+    old_heartbeat_interval, SolidQueue.process_heartbeat_interval = SolidQueue.process_heartbeat_interval, 0.1.seconds
+
+    # A prune that never returns, so the maintenance watchdog stops this
+    # supervisor; the supervisor fork inherits the stub
+    SolidQueue::Supervisor::Maintenance.module_eval do
+      alias_method :prune_dead_processes_without_blocking, :prune_dead_processes
+      define_method(:prune_dead_processes) { sleep 30 }
+    end
+
+    # A fork stalled in boot has no run loop to notice anything with: only a
+    # signal reaches it. A supervisor that stops without signalling its forks
+    # leaves it orphaned until its own stall runs its course.
+    run_stalled_supervisor(startup_delay: 60.seconds)
+    wait_while_with_timeout(3) { startup_pids.empty? }
+    stalled_fork_pid = startup_pids.first
+
+    # The fork must go because it was signalled, so check it before the
+    # supervisor: this cannot pass just because the supervisor exited
+    wait_while_with_timeout(5) { process_exists?(stalled_fork_pid) }
+    assert_not process_exists?(stalled_fork_pid)
+
+    wait_for_process_termination_with_timeout(@stalled_supervisor_pid, timeout: 5)
+  ensure
+    SolidQueue::Supervisor::Maintenance.module_eval do
+      if private_method_defined?(:prune_dead_processes_without_blocking)
+        remove_method :prune_dead_processes
+        alias_method :prune_dead_processes, :prune_dead_processes_without_blocking
+        remove_method :prune_dead_processes_without_blocking
+      end
+    end
+    SolidQueue.process_alive_threshold = old_alive_threshold if old_alive_threshold
+    SolidQueue.process_heartbeat_interval = old_heartbeat_interval if old_heartbeat_interval
+
+    startup_pids.each do |leftover_pid|
+      ::Process.kill(:KILL, leftover_pid) if process_exists?(leftover_pid)
+    rescue Errno::ESRCH
+    end
+  end
+
   test "replace only the fork that does not finish booting" do
     SolidQueue.fork_boot_timeout = 0.2.seconds
     run_stalled_supervisor(startup_delay: 60.seconds, with_healthy_worker: true)
