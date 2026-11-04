@@ -133,6 +133,24 @@ class SolidQueue::LogSubscriber < ActiveSupport::LogSubscriber
     end
   end
 
+  def buffer_enqueue(event)
+    attributes = event.payload.slice(:size, :held).merge(error: formatted_error(event.payload[:error]))
+
+    if event.payload[:held]
+      warn formatted_event(event, action: "Hold jobs until the database is reachable", **attributes)
+    else
+      error formatted_event(event, action: "Enqueue buffer full, jobs not held", **attributes)
+    end
+  end
+
+  def flush_enqueue_buffer(event)
+    info formatted_event(event, action: "Enqueue held jobs", **event.payload.slice(:size))
+  end
+
+  def lose_held_jobs(event)
+    error formatted_event(event, action: "Lose held jobs on exit, the database is still unreachable", **event.payload.slice(:size))
+  end
+
   def prune_processes(event)
     debug formatted_event(event, action: "Prune dead processes", **event.payload.slice(:size))
   end

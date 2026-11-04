@@ -39,6 +39,9 @@ module SolidQueue
         end
 
         active_jobs.count(&:successfully_enqueued?)
+      rescue *EnqueueBuffer::CONNECTION_ERRORS => error
+        raise unless EnqueueBuffer.hold(active_jobs, error)
+        active_jobs.size
       end
 
       def enqueue(active_job, scheduled_at: Time.current)
@@ -48,6 +51,8 @@ module SolidQueue
           active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
           active_job.successfully_enqueued = enqueued_job.persisted?
         end
+      rescue EnqueueError => error
+        raise unless EnqueueBuffer.hold([ active_job ], error.cause)
       end
 
       private

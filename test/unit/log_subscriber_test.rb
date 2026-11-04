@@ -19,6 +19,34 @@ class LogSubscriberTest < ActiveSupport::TestCase
     assert_match_logged :debug, "Release blocked job", "job_id: 42, concurrency_key: \"foo/1\", released: true"
   end
 
+  test "jobs held while the database is unreachable" do
+    attach_log_subscriber
+    instrument "buffer_enqueue.solid_queue", size: 2, held: true, error: ActiveRecord::ConnectionNotEstablished.new("connection refused")
+
+    assert_match_logged :warn, "Hold jobs until the database is reachable", "size: 2, held: true, error: \"ActiveRecord::ConnectionNotEstablished connection refused\""
+  end
+
+  test "jobs not held because the enqueue buffer is full" do
+    attach_log_subscriber
+    instrument "buffer_enqueue.solid_queue", size: 1, held: false, error: ActiveRecord::ConnectionNotEstablished.new("connection refused")
+
+    assert_match_logged :error, "Enqueue buffer full, jobs not held", "size: 1, held: false"
+  end
+
+  test "held jobs enqueued" do
+    attach_log_subscriber
+    instrument "flush_enqueue_buffer.solid_queue", size: 3
+
+    assert_match_logged :info, "Enqueue held jobs", "size: 3"
+  end
+
+  test "held jobs lost on exit" do
+    attach_log_subscriber
+    instrument "lose_held_jobs.solid_queue", size: 4
+
+    assert_match_logged :error, "Lose held jobs on exit, the database is still unreachable", "size: 4"
+  end
+
   test "unblock many jobs" do
     attach_log_subscriber
     instrument "release_many_blocked.solid_queue", limit: 42, size: 10
