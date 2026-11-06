@@ -34,6 +34,22 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     limits_concurrency key: ->(job_result, **) { job_result }, group: "DiscardingGroup", on_conflict: :discard
   end
 
+  class LockOnDispatchJob < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, acquire: :on_dispatch
+  end
+
+  class DiscardableLockOnDispatchJob < NonOverlappingJob
+    limits_concurrency key: ->(job_result, **) { job_result }, on_conflict: :discard, acquire: :on_dispatch
+  end
+
+  class LockOutsideTransactionJob < NonOverlappingJob
+    # Enqueued inside the transaction, which is what the choice is about.
+    # Rails 7.2 takes :never rather than false.
+    self.enqueue_after_transaction_commit = Rails.version.start_with?("7.2") ? :never : false if respond_to?(:enqueue_after_transaction_commit=)
+
+    limits_concurrency key: ->(job_result, **) { job_result }, acquire: :outside_transaction
+  end
+
   setup do
     @result = JobResult.create!(queue_name: "default")
     @discarded_concurrent_error = SolidQueue::Job::EnqueueError.new(
@@ -408,7 +424,146 @@ class SolidQueue::JobTest < ActiveSupport::TestCase
     end
   end
 
+  test "a job acquiring its concurrency lock on dispatch is enqueued as scheduled, without touching the semaphore" do
+    assert_scheduled do
+      LockOnDispatchJob.perform_later(@result, name: "A")
+    end
+
+    job = SolidQueue::Job.last
+    assert job.scheduled_at <= Time.current
+    assert_nil SolidQueue::Semaphore.find_by(key: job.concurrency_key)
+  end
+
+  test "the dispatcher acquires the concurrency lock of jobs that defer it" do
+    assert_job_counts(scheduled: 2) do
+      2.times { |i| LockOnDispatchJob.perform_later(@result, name: i.to_s) }
+    end
+
+    SolidQueue::ScheduledExecution.dispatch_next_batch(10)
+
+    first, second = SolidQueue::Job.last(2)
+    assert first.ready?
+    assert second.blocked?
+    assert_equal 0, SolidQueue::Semaphore.find_by(key: first.concurrency_key).value
+  end
+
+  test "a job that discards on conflict and defers its lock is discarded when dispatched" do
+    assert_job_counts(scheduled: 2) do
+      2.times { |i| DiscardableLockOnDispatchJob.perform_later(@result, name: i.to_s) }
+    end
+
+    assert_difference -> { SolidQueue::Job.count }, -1 do
+      SolidQueue::ScheduledExecution.dispatch_next_batch(10)
+    end
+
+    assert_equal 1, SolidQueue::ReadyExecution.count
+    assert_equal 0, SolidQueue::BlockedExecution.count
+  end
+
+  test "an enqueue's choice of when to acquire the concurrency lock overrides the job's" do
+    assert_ready do
+      LockOnDispatchJob.set(acquire: :on_enqueue).perform_later(@result, name: "A")
+    end
+
+    assert_scheduled do
+      NonOverlappingJob.set(acquire: :on_dispatch).perform_later(@result, name: "B")
+    end
+  end
+
+  test "the global choice of when to acquire the concurrency lock applies to jobs that don't make their own" do
+    with_concurrency_lock_acquisition(:on_dispatch) do
+      assert_scheduled do
+        NonOverlappingJob.perform_later(@result, name: "A")
+      end
+
+      assert_ready do
+        LockOnDispatchJob.set(acquire: :on_enqueue).perform_later(@result, name: "B")
+      end
+    end
+  end
+
+  test "jobs without concurrency controls are dispatched right away whatever the choice" do
+    with_concurrency_lock_acquisition(:on_dispatch) do
+      assert_ready do
+        AddToBufferJob.set(acquire: :on_dispatch).perform_later(1)
+      end
+    end
+  end
+
+  test "jobs without concurrency controls don't check for an open transaction" do
+    SolidQueue::Job.expects(:inside_transaction?).never
+
+    with_concurrency_lock_acquisition(:outside_transaction) do
+      assert_ready do
+        AddToBufferJob.perform_later(1)
+      end
+    end
+  end
+
+  test "a job acquiring its concurrency lock outside transactions defers it only inside one on Solid Queue's connection" do
+    assert_ready do
+      LockOutsideTransactionJob.perform_later(@result, name: "A")
+    end
+
+    assert_scheduled do
+      SolidQueue::Record.transaction do
+        LockOutsideTransactionJob.perform_later(@result, name: "B")
+      end
+    end
+
+    # The app's database is a different one here, so its transaction doesn't
+    # hold Solid Queue's locks: the job acquires its lock right away, and blocks
+    # behind A.
+    assert_blocked do
+      JobResult.transaction do
+        LockOutsideTransactionJob.perform_later(@result, name: "C")
+      end
+    end
+  end
+
+  test "enqueue jobs in bulk deferring the concurrency lock for some of them" do
+    active_jobs = [
+      NonOverlappingJob.new(@result),
+      NonOverlappingJob.new(@result).set(acquire: :on_dispatch),
+      LockOnDispatchJob.new(@result),
+      AddToBufferJob.new(1).set(acquire: :on_dispatch)
+    ]
+
+    assert_job_counts(ready: 2, scheduled: 2) do
+      ActiveJob.perform_all_later(active_jobs)
+    end
+
+    assert active_jobs.all?(&:successfully_enqueued?)
+    assert_equal active_jobs.values_at(1, 2).map(&:provider_job_id).sort, SolidQueue::ScheduledExecution.pluck(:job_id).sort
+  end
+
+  test "an unknown choice of when to acquire the concurrency lock is refused" do
+    assert_raises(ArgumentError) do
+      Class.new(ApplicationJob) { limits_concurrency key: "key", acquire: :later }
+    end
+
+    assert_raises(ArgumentError) do
+      NonOverlappingJob.set(acquire: :later).perform_later(@result)
+    end
+
+    assert_raises(ArgumentError) do
+      SolidQueue.concurrency_lock_acquisition = :later
+    end
+
+    assert_raises(ArgumentError) do
+      SolidQueue.concurrency_lock_acquisition = 1
+    end
+    assert_equal :on_enqueue, SolidQueue.concurrency_lock_acquisition
+  end
+
   private
+    def with_concurrency_lock_acquisition(value)
+      previous, SolidQueue.concurrency_lock_acquisition = SolidQueue.concurrency_lock_acquisition, value
+      yield
+    ensure
+      SolidQueue.concurrency_lock_acquisition = previous
+    end
+
     def assert_ready(&block)
       assert_job_counts(ready: 1, &block)
       assert SolidQueue::Job.last.ready?

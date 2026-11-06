@@ -27,9 +27,12 @@ module SolidQueue
           job.batch_id = current_batch_id || job.batch_id
         end
         active_jobs_by_job_id = active_jobs.index_by(&:job_id)
+        deferring_lock = active_jobs.select { |job| defer_concurrency_lock_for?(job) }.to_set(&:job_id)
 
         transaction do
           jobs = create_all_from_active_jobs(active_jobs)
+          jobs.each { |job| job.defer_concurrency_lock = deferring_lock.include?(job.active_job_id) }
+
           prepare_all_for_execution(jobs).tap do |enqueued_jobs|
             enqueued_jobs.each do |enqueued_job|
               active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
@@ -44,7 +47,7 @@ module SolidQueue
       def enqueue(active_job, scheduled_at: Time.current)
         active_job.scheduled_at = scheduled_at
 
-        create_from_active_job(active_job).tap do |enqueued_job|
+        create_from_active_job(active_job, defer_concurrency_lock: defer_concurrency_lock_for?(active_job)).tap do |enqueued_job|
           active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
           active_job.successfully_enqueued = enqueued_job.persisted?
         end
@@ -54,13 +57,37 @@ module SolidQueue
         DEFAULT_PRIORITY = 0
         DEFAULT_QUEUE_NAME = "default"
 
-        def create_from_active_job(active_job)
-          create!(**attributes_from_active_job(active_job))
+        def create_from_active_job(active_job, defer_concurrency_lock: false)
+          create!(**attributes_from_active_job(active_job)) do |job|
+            job.defer_concurrency_lock = defer_concurrency_lock
+          end
         rescue ActiveRecord::ActiveRecordError => e
           enqueue_error = EnqueueError.new("#{e.class.name}: #{e.message}").tap do |error|
             error.set_backtrace e.backtrace
           end
           raise enqueue_error
+        end
+
+        # Whether the job should acquire its concurrency lock when it's dispatched
+        # rather than right away. Decided before the job's own insert opens a
+        # transaction, so that one doesn't count as the caller's.
+        def defer_concurrency_lock_for?(active_job)
+          return false unless active_job.class.concurrency_key
+
+          case active_job.concurrency_lock_acquisition
+          when :on_dispatch then true
+          when :outside_transaction then inside_transaction?
+          else false
+          end
+        end
+
+        # A transaction the caller opened on Solid Queue's connection, which would
+        # hold the semaphore's row lock until it ends. The test fixtures'
+        # transaction isn't joinable, so it doesn't count.
+        def inside_transaction?
+          connection_pool.with_connection do |connection|
+            connection.transaction_open? && connection.current_transaction.joinable?
+          end
         end
 
         def create_all_from_active_jobs(active_jobs)

@@ -455,6 +455,7 @@ There are several settings that control how Solid Queue works that you can set a
 - `preserve_finished_jobs`: whether to keep finished jobs in the `solid_queue_jobs` table—defaults to `true`.
 - `clear_finished_jobs_after`: period to keep finished jobs around, in case `preserve_finished_jobs` is true — defaults to 1 day. When installing Solid Queue, [a recurring job](#recurring-tasks) is automatically configured to clear finished jobs every hour on the 12th minute in batches. You can edit the `recurring.yml` configuration to change this as you see fit.
 - `default_concurrency_control_period`: the value to be used as the default for the `duration` parameter in [concurrency controls](#concurrency-controls). It defaults to 3 minutes.
+- `concurrency_lock_acquisition`: when jobs with [concurrency controls](#concurrency-controls) acquire their concurrency lock, unless the job or the enqueue says otherwise: `:on_enqueue` (the default), `:on_dispatch` or `:outside_transaction`. See [acquiring the concurrency lock when dispatched](#acquiring-the-concurrency-lock-when-dispatched).
 
 ### Validating the configuration
 
@@ -535,7 +536,7 @@ Solid Queue extends Active Job with concurrency controls, that allows you to lim
 
 ```ruby
 class MyJob < ApplicationJob
-  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, *) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour
+  limits_concurrency to: max_concurrent_executions, key: ->(arg1, arg2, *) { ... }, duration: max_interval_to_guarantee_concurrency_limit, group: concurrency_group, on_conflict: on_conflict_behaviour, acquire: lock_acquisition
 
   # ...
 ```
@@ -546,6 +547,7 @@ class MyJob < ApplicationJob
 - `on_conflict` controls behaviour when enqueuing a job that conflicts with the concurrency limits configured. It can be set to one of the following:
   - (default) `:block`: the job is blocked and is dispatched when another job completes and unblocks it, or when the duration expires.
   - `:discard`: the job is discarded. When you choose this option, bear in mind that if a job runs and fails to remove the concurrency lock (or _semaphore_, read below to know more about this), all jobs conflicting with it will be discarded until the interval defined by `duration` has elapsed.
+- `acquire` controls when the job acquires its concurrency lock: `:on_enqueue`, `:on_dispatch` or `:outside_transaction`. It defaults to `SolidQueue.concurrency_lock_acquisition`, which is `:on_enqueue` unless you configure it. See [acquiring the concurrency lock when dispatched](#acquiring-the-concurrency-lock-when-dispatched).
 
 When a job includes these controls, we'll ensure that, at most, the number of jobs (indicated as `to`) that yield the same `key` will be performed concurrently, and this guarantee will last for `duration` for each job enqueued. Note that there's no guarantee about _the order of execution_, only about jobs being performed at the same time (overlapping).
 
@@ -618,6 +620,35 @@ DeliverAnnouncementToContactJob.set(wait: 30.minutes).perform_later(contact)
 The 3 jobs will go into the scheduled queue and will wait there until they're due. Then, 10 minutes after, the first two jobs will be enqueued and the second one most likely will be blocked because the first one will be running first. Then, assuming the jobs are fast and finish in a few seconds, when the third job is due, it'll be enqueued normally.
 
 Normally scheduled jobs are enqueued in batches, but with concurrency controls, jobs need to be enqueued one by one. This has an impact on performance, similarly to the impact of concurrency controls in bulk enqueuing. Read below for more details. We generally advise against mixing concurrency controls with waiting/scheduling in the future.
+
+### Acquiring the concurrency lock when dispatched
+
+By default, a job that is due acquires its concurrency lock as soon as it's enqueued. When Solid Queue uses the same database connection as your app (no `connects_to`) and the job is enqueued inside a transaction, without deferring it until the transaction commits (`enqueue_after_transaction_commit` disabled), that means acquiring it inside your transaction: the semaphore's row stays locked until your transaction commits or rolls back. Until then, any other enqueue of a job with the same concurrency key waits, and so does the worker that finishes a job with that key and tries to signal the semaphore. Two transactions that enqueue jobs with two different keys in opposite order can deadlock, which surfaces as a `SolidQueue::Job::EnqueueError` and aborts the transaction.
+
+To avoid this, a job can acquire its concurrency lock when it's dispatched instead. It's then enqueued as a scheduled job that is already due, and the dispatcher acquires the lock in its own transaction once the job is committed, and moves the job to ready or blocked from there. The job itself is still enqueued inside your transaction, so it's still committed or rolled back with it.
+
+There are three possible values:
+
+- `:on_enqueue`, the default, acquires the lock when the job is enqueued.
+- `:on_dispatch` always leaves acquiring the lock to the dispatcher.
+- `:outside_transaction` acquires the lock when the job is enqueued, unless it's enqueued inside an open transaction on Solid Queue's connection, in which case it leaves it to the dispatcher. Jobs enqueued outside a transaction aren't delayed at all, and if Solid Queue has its own database, nothing changes.
+
+You can choose one globally, for a job, or for a single enqueue, with the most specific one taking precedence:
+
+```ruby
+# config/application.rb or an environment file
+config.solid_queue.concurrency_lock_acquisition = :outside_transaction
+
+class DeliverAnnouncementToContactJob < ApplicationJob
+  limits_concurrency to: 1, key: ->(contact) { contact.account }, acquire: :on_dispatch
+end
+
+DeliverAnnouncementToContactJob.set(acquire: :on_enqueue).perform_later(contact)
+```
+
+A job that leaves the lock to the dispatcher waits for the dispatcher's next poll before it can be ready, up to its `polling_interval`, and goes through the scheduled jobs path, one by one, as described in [scheduled jobs](#scheduled-jobs). With `on_conflict: :discard`, a conflicting job is discarded when it's dispatched rather than when it's enqueued, so the enqueue itself succeeds, as it does for jobs scheduled in the future.
+
+Bear in mind that these jobs depend on the dispatcher to run at all, like jobs scheduled in the future do: without a dispatcher running, they stay scheduled.
 
 ### Performance considerations
 

@@ -13,6 +13,10 @@ module SolidQueue
 
         after_create :prepare_for_execution
 
+        # Set when enqueueing, for a job that acquires its concurrency lock when
+        # it's dispatched instead of right away. See SolidQueue.concurrency_lock_acquisition.
+        attr_writer :defer_concurrency_lock
+
         scope :finished, -> { where.not(finished_at: nil) }
       end
 
@@ -21,8 +25,8 @@ module SolidQueue
           # Track before dispatch so conflict-discarded jobs count like single enqueues.
           batch_all(jobs)
 
-          due, not_yet_due = jobs.partition(&:due?)
-          dispatch_all(due) + schedule_all(not_yet_due)
+          dispatchable, schedulable = jobs.partition(&:dispatchable_on_enqueue?)
+          dispatch_all(dispatchable) + schedule_all(schedulable)
         end
 
         def dispatch_all(jobs)
@@ -66,10 +70,21 @@ module SolidQueue
       end
 
       def prepare_for_execution
-        if due? then dispatch
+        if dispatchable_on_enqueue? then dispatch
         else
           schedule
         end
+      end
+
+      # A job that defers its concurrency lock is scheduled even when it's due:
+      # the dispatcher acquires the lock once the job is committed, outside the
+      # transaction that enqueued it.
+      def dispatchable_on_enqueue?
+        due? && !defer_concurrency_lock?
+      end
+
+      def defer_concurrency_lock?
+        @defer_concurrency_lock.present? && concurrency_limited?
       end
 
       def dispatch
