@@ -56,6 +56,15 @@ class UpdateGeneratorTest < Rails::Generators::TestCase
     end
   end
 
+  test "copies the coalesce keys migration" do
+    run_generator
+
+    assert_migration "db/queue_migrate/add_coalesce_keys_to_solid_queue.rb" do |migration|
+      assert_match(/class AddCoalesceKeysToSolidQueue/, migration)
+      assert_match(/create_table :solid_queue_coalesce_keys, if_not_exists: true/, migration)
+    end
+  end
+
   private
     def with_migration_template(name)
       Dir.mktmpdir do |source_root|
