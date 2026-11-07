@@ -41,6 +41,7 @@ module SolidQueue
     initializer "solid_queue.active_job.extensions" do
       ActiveSupport.on_load :active_job do
         include ActiveJob::ConcurrencyControls
+        include ActiveJob::Coalescing
 
         ActiveSupport.on_load :active_record do
           ActiveJob::Base.include ActiveJob::BatchId

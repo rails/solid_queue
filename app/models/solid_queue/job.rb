@@ -13,7 +13,7 @@ module SolidQueue
       end
     end
 
-    include Executable, Clearable, Recurrable, Batchable
+    include Executable, Clearable, Recurrable, Batchable, Coalescing
 
     serialize :arguments, coder: JSON
 
@@ -26,10 +26,12 @@ module SolidQueue
           job.scheduled_at ||= Time.current
           job.batch_id = current_batch_id || job.batch_id
         end
-        active_jobs_by_job_id = active_jobs.index_by(&:job_id)
+
+        coalesced_jobs, uncoalesced_jobs = active_jobs.partition(&:coalesced?)
+        active_jobs_by_job_id = uncoalesced_jobs.index_by(&:job_id)
 
         transaction do
-          jobs = create_all_from_active_jobs(active_jobs)
+          jobs = create_all_from_active_jobs(uncoalesced_jobs)
           prepare_all_for_execution(jobs).tap do |enqueued_jobs|
             enqueued_jobs.each do |enqueued_job|
               active_jobs_by_job_id[enqueued_job.active_job_id].provider_job_id = enqueued_job.id
@@ -38,15 +40,22 @@ module SolidQueue
           end
         end
 
+        # In key order, so that concurrent bulk enqueues lock the keys they share in the same order
+        coalesced_jobs.sort_by(&:coalesce_key).each { |active_job| enqueue_coalesced(active_job) }
+
         active_jobs.count(&:successfully_enqueued?)
       end
 
       def enqueue(active_job, scheduled_at: Time.current)
         active_job.scheduled_at = scheduled_at
 
-        create_from_active_job(active_job).tap do |enqueued_job|
-          active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
-          active_job.successfully_enqueued = enqueued_job.persisted?
+        if active_job.coalesced?
+          enqueue_coalesced(active_job)
+        else
+          create_from_active_job(active_job).tap do |enqueued_job|
+            active_job.provider_job_id = enqueued_job.id if enqueued_job.persisted?
+            active_job.successfully_enqueued = enqueued_job.persisted?
+          end
         end
       end
 

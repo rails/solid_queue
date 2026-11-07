@@ -40,6 +40,9 @@ module SolidQueue
           SolidQueue::ClaimedExecution.claiming(executions.map(&:job_id), process_id) do |claimed|
             ids_to_delete = executions.index_by(&:job_id).values_at(*claimed.map(&:job_id)).map(&:id)
             where(id: ids_to_delete).delete_all
+
+            # A job that starts frees its key, so the next call queues another job
+            CoalesceKey.release_all(claimed.map(&:job_id))
           end
         end
 
