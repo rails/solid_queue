@@ -28,6 +28,7 @@ Solid Queue can be used with SQL databases such as MySQL, PostgreSQL, or SQLite,
 - [Errors when enqueuing](#errors-when-enqueuing)
 - [Concurrency controls](#concurrency-controls)
   - [Performance considerations](#performance-considerations)
+- [Coalescing](#coalescing)
 - [Failed jobs and retries](#failed-jobs-and-retries)
   - [Error reporting on jobs](#error-reporting-on-jobs)
   - [Jobs interrupted by non-graceful process death](#jobs-interrupted-by-non-graceful-process-death)
@@ -646,6 +647,28 @@ Or something similar to that depending on your setup. You can also assign a diff
 In addition, mixing concurrency controls with **bulk enqueuing** (Active Job's `perform_all_later`) has no benefit because concurrency-controlled jobs need to be enqueued one by one to ensure concurrency limits are respected, so you lose all the benefits of bulk enqueuing.
 
 When jobs that have concurrency controls and `on_conflict: :discard` are enqueued in bulk, the ones that fail to be enqueued and are discarded would have `successfully_enqueued` set to `false`. The total count of jobs enqueued returned by `perform_all_later` will exclude these jobs as expected.
+
+## Coalescing
+
+Coalescing makes jobs with the same key share one pending job. The first job enqueued with a key is created, and later ones with the same key, including scheduled ones, are discarded until that job starts. Once a worker claims it, the key is free again, so a job enqueued while it runs creates the next pending job.
+
+```ruby
+class ReindexProductJob < ApplicationJob
+  coalesce key: ->(product_id) { product_id }
+
+  def perform(product_id)
+    Product.find(product_id).reindex!
+  end
+end
+```
+
+`key` works like the key in [concurrency controls](#concurrency-controls), and it's scoped to the job class, and to the batch for jobs in a [batch](#batch-jobs). The pending job runs with the first job's arguments, so pass IDs and load fresh data in `perform`.
+
+After enqueuing, `coalesce_status` is `:created` or `:discarded`, and `provider_job_id` is the ID of the pending job either way. Retries are never coalesced.
+
+Coalescing limits how many jobs wait, not how many run, so two jobs with the same key can run at the same time. Combine it with `limits_concurrency` to prevent that.
+
+Existing installations need a new table for coalescing. See [UPGRADING.md](UPGRADING.md).
 
 ## Failed jobs and retries
 
