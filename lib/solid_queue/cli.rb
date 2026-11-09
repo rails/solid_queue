@@ -35,7 +35,11 @@ module SolidQueue
       SolidQueue::Supervisor.start(**options.symbolize_keys)
     end
 
-    desc :check, "Validates the Solid Queue configuration for the current Rails env without starting anything. Exits non-zero on errors."
+    desc :check, "Validates the Solid Queue configuration without starting anything. Exits non-zero on errors."
+    method_option :env, type: :string,
+      desc: "Environment section of the configuration files to validate (default: the current Rails env). " \
+        "Lets a CI run in one env validate the section that will be deployed to another, e.g. --env production.",
+      banner: "ENVIRONMENT"
     def check
       configuration = SolidQueue::Configuration.new(**options.symbolize_keys)
       exit 1 unless configuration.check
