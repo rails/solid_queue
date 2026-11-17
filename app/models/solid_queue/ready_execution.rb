@@ -24,8 +24,13 @@ module SolidQueue
           return [] if limit <= 0
 
           transaction do
-            candidates = select_candidates(queue_relation, limit)
-            lock_candidates(candidates, process_id)
+            # Lock the process before selecting candidates so deregistration can't miss these claims.
+            if SolidQueue::Process.lock.exists?(id: process_id)
+              candidates = select_candidates(queue_relation, limit)
+              lock_candidates(candidates, process_id)
+            else
+              []
+            end
           end
         end
 
