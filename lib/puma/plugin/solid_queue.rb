@@ -15,15 +15,18 @@ Puma::Plugin.create do
     @log_writer = launcher.log_writer
     @puma_pid = $$
 
-    if launcher.options[:solid_queue_mode] == :async
+    case launcher.options[:solid_queue_mode]
+    when :async
       start_async(launcher)
+    when :forked_async
+      start_forked(launcher, supervisor_mode: :async)
     else
       start_forked(launcher)
     end
   end
 
   private
-    def start_forked(launcher)
+    def start_forked(launcher, supervisor_mode: :fork)
       in_background do
         monitor_solid_queue
       end
@@ -32,7 +35,7 @@ Puma::Plugin.create do
         launcher.events.on_booted do
           @solid_queue_pid = fork do
             Thread.new { monitor_puma }
-            SolidQueue::Supervisor.start(mode: :fork)
+            SolidQueue::Supervisor.start(mode: supervisor_mode)
 
             # Same as Processes::Supervised#create_fork: skip at-exit
             # finalization, which can deadlock on database handles when a
@@ -47,7 +50,7 @@ Puma::Plugin.create do
         launcher.events.after_booted do
           @solid_queue_pid = fork do
             Thread.new { monitor_puma }
-            start_solid_queue(mode: :fork)
+            start_solid_queue(mode: supervisor_mode)
 
             # Same as Processes::Supervised#create_fork: skip at-exit
             # finalization, which can deadlock on database handles when a
