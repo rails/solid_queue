@@ -539,7 +539,7 @@ class MyJob < ApplicationJob
 
   # ...
 ```
-- `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an Active Record record, the key will be built from its class name and `id`.
+- `key` is the only required parameter, and it can be a symbol, a string or a proc that receives the job arguments as parameters and will be used to identify the jobs that need to be limited together. If the proc returns an Active Record record, the key will be built from its class name and `id`. The proc is called with all the arguments the job is enqueued with, including optional and keyword arguments, so if you use a lambda, which is strict about the number of arguments it gets, make sure it accepts all of them. For example, use `->(contact, *) { contact }` if the job takes more arguments than the key needs. Otherwise, enqueuing the job with those arguments will raise an `ArgumentError`.
 - `to` is `1` by default.
 - `duration` is set to `SolidQueue.default_concurrency_control_period` by default, which itself defaults to `3 minutes`, but that you can configure as well.
 - `group` is used to control the concurrency of different job classes together. It defaults to the job class name.
