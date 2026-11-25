@@ -49,11 +49,22 @@ module SolidQueue
       end
 
       def exception_message
-        exception.message
+        valid_utf8(exception.message)
       end
 
       def exception_backtrace
-        exception.backtrace
+        exception.backtrace&.map { |line| valid_utf8(line) }
+      end
+
+      # The error column is JSON, which can't encode binary strings or invalid UTF-8. Read binary
+      # strings, like HTTP bodies from Net::HTTP, as UTF-8, convert anything else, and replace what
+      # still doesn't fit
+      def valid_utf8(string)
+        if string.encoding == Encoding::BINARY
+          string.dup.force_encoding(Encoding::UTF_8).scrub
+        else
+          string.encode(Encoding::UTF_8, invalid: :replace, undef: :replace).scrub
+        end
       end
 
       # Columns with a size limit, like MySQL's TEXT, reject (or truncate into invalid JSON)
