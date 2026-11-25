@@ -99,6 +99,12 @@ class SolidQueue::FailedExecutionTest < ActiveSupport::TestCase
     assert_equal [ "app/models/thing.rb:1:in 'do_it'" ], execution.backtrace
   end
 
+  test "store an error whose message is in another encoding" do
+    execution = fail_job_with ExpectedTestError.new("upstream said: Zürich".encode(Encoding::ISO_8859_1)), backtrace: [ "app/models/thing.rb:1:in 'do_it'" ]
+
+    assert_equal "upstream said: Zürich", execution.message
+  end
+
   test "retry failed job" do
     RaisingJob.perform_later(ExpectedTestError, "A")
     @worker.start
