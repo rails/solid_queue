@@ -90,7 +90,10 @@ migrations for the primary or other databases. Do not use `db:prepare` solely to
 install Solid Queue there; initialize only the queue database and load
 `db/queue_schema.rb` into it with your deployment tooling.
 
-Then run `db:prepare` in production only when application-wide database preparation is intended, such as for a new application or disposable database. For an existing production application adding a queue database, skip it and initialize only the queue database as described above.
+Then run `db:prepare` in production only when application-wide database preparation
+is intended, such as for a new application or disposable database. For an existing
+production application adding a queue database, skip it and initialize only the
+queue database as described above.
 
 Now you're ready to start processing jobs by running `bin/jobs` on the server that's doing the work. This will start processing jobs in all queues using the default configuration. See [below](#configuration) to learn more about configuring Solid Queue.
 
