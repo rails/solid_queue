@@ -11,7 +11,13 @@ module SolidQueue
     attr_reader :queues, :pool
 
     def initialize(**options)
-      execution_pool_type = options.key?(:fibers) ? :fiber : :thread
+      execution_pool_type = if options.key?(:fibers)
+        :fiber
+      elsif options[:reactor]
+        :reactor_thread
+      else
+        :thread
+      end
 
       options = options.dup.with_defaults(SolidQueue::Configuration::WORKER_DEFAULTS)
       execution_pool_size = execution_pool_type == :fiber ? options[:fibers] : options[:threads]
